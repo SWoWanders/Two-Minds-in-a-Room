@@ -27,7 +27,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
 .seen summary{font-size:12px;color:var(--dim);min-height:24px}.seen div{font-size:12px;color:var(--dim);white-space:pre-wrap;margin-top:4px}
 #boardWrap canvas{display:block;width:100%;height:auto;margin-top:8px;border-radius:8px;border:4px solid #c8ccd4;touch-action:none;background:#f7f8f4}
 .swatches{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.swatch{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:3px solid transparent;box-shadow:0 0 0 1px #0006}.swatch.on{border-color:#fff8ee}
-.page{white-space:pre-wrap;font-family:'Courier New',Courier,monospace;font-size:14px;line-height:1.45;background:#f7f1e1;color:#2a2420;border-radius:8px;padding:10px 12px;margin-top:6px}.pjnote{font-size:13px;color:var(--dim);margin:4px 0 0}#sheet{position:fixed;inset:0;z-index:60;background:rgba(10,6,14,.55);display:flex;align-items:flex-end;justify-content:center}#sheet[hidden]{display:none}.sheetIn{background:var(--panel,#241a2c);color:inherit;width:min(640px,100%);max-height:80vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px 16px 24px;box-shadow:0 -8px 30px rgba(0,0,0,.4)}.sheetHead{display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:-14px;background:inherit;padding:6px 0}.sheetHead h3{margin:0;font-size:18px}.sheetItem{border-top:1px solid rgba(255,255,255,.1);padding:10px 0}.sheetItem .meta{font-size:13px;opacity:.75}.sheetItem a{color:#7fd0ff;word-break:break-all}.memlist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto}.memlist li{background:#1d1424;border-radius:8px;padding:7px 9px;font-size:13px}.memlist .meta{font-size:11px;color:var(--dim);margin-top:2px}.mbtns{display:flex;gap:6px;margin-top:5px}.mbtns button{min-height:32px;padding:3px 10px;font-size:13px}
+.tt{border-collapse:collapse;margin:8px 0;font-size:13px}.tt th,.tt td{border:1px solid rgba(255,255,255,.15);padding:3px 8px;text-align:center}.tt td.on{background:#2f6f4f;color:#eafff0}.page{white-space:pre-wrap;font-family:'Courier New',Courier,monospace;font-size:14px;line-height:1.45;background:#f7f1e1;color:#2a2420;border-radius:8px;padding:10px 12px;margin-top:6px}.pjnote{font-size:13px;color:var(--dim);margin:4px 0 0}#sheet{position:fixed;inset:0;z-index:60;background:rgba(10,6,14,.55);display:flex;align-items:flex-end;justify-content:center}#sheet[hidden]{display:none}.sheetIn{background:var(--panel,#241a2c);color:inherit;width:min(640px,100%);max-height:80vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px 16px 24px;box-shadow:0 -8px 30px rgba(0,0,0,.4)}.sheetHead{display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:-14px;background:inherit;padding:6px 0}.sheetHead h3{margin:0;font-size:18px}.sheetItem{border-top:1px solid rgba(255,255,255,.1);padding:10px 0}.sheetItem .meta{font-size:13px;opacity:.75}.sheetItem a{color:#7fd0ff;word-break:break-all}.memlist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto}.memlist li{background:#1d1424;border-radius:8px;padding:7px 9px;font-size:13px}.memlist .meta{font-size:11px;color:var(--dim);margin-top:2px}.mbtns{display:flex;gap:6px;margin-top:5px}.mbtns button{min-height:32px;padding:3px 10px;font-size:13px}
 .diag{white-space:pre-wrap;font:12px/1.4 ui-monospace,Menlo,monospace;background:#1d1424;border-radius:8px;padding:8px;margin:6px 0;color:#e9d8b4;overflow-wrap:anywhere}
 .blist{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--dim)}
 #crash{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:24px;background:#1d1424f2;z-index:3;text-align:center}#crash[hidden]{display:none}#crash p{margin:0 auto;max-width:420px}#crash button{align-self:center;padding:10px 28px}
@@ -150,12 +150,20 @@ window.__diag = { errors: [], t0: Date.now() };
       <p class="hint">Pip and Moss design things from simple parts and print them layer by layer: shapes, wheels, gears and pulleys, plus lights, motors, switches and little chips joined by wires printed in conductive filament. A battery makes them work. Ask in the chat ("Moss, 3D print a lighthouse") or print one yourself. Tap a printed thing in the room to flip its switch.</p>
       <div class="btns"><button type="button" id="mkView">Go over to the workbench</button></div>
       <p class="hint" id="mkCells"></p>
-      <div class="btns"><button type="button" id="mkRestock">Restock the battery cupboard</button></div>
+      <div class="btns"><button type="button" id="mkRestock">Restock the battery cupboard</button><button type="button" id="mkGlueRestock">Fresh super glue</button></div>
+      <details style="margin-top:8px" id="mkGlueBox"><summary>Glue two printed things together</summary>
+        <p class="hint" id="mkGlueN"></p>
+        <label class="pick">Glue<select id="mkGlueB"></select></label>
+        <label class="pick">Where<select id="mkGlueP"><option value="on">on top of</option><option value="left of">to the left of</option><option value="right of">to the right of</option><option value="front of">in front of</option><option value="behind">behind</option><option value="under">underneath</option></select></label>
+        <label class="pick">This one<select id="mkGlueA"></select></label>
+        <div class="btns"><button type="button" id="mkGlueGo">Glue them</button></div>
+        <p class="hint">Or ask in the chat: "Moss, glue the windmill onto the cart". Glued things keep all their wiring and circuits, and their batteries.</p>
+      </details>
       <ul class="memlist" id="mkList"></ul>
-      <label class="pick">Print a starter design<select id="mkTpl"><option value="lamp">Little Lamp</option><option value="lighthouse">Lighthouse (blinking)</option><option value="windmill">Windmill (motor)</option><option value="cart">Rolling Cart</option><option value="musicbox">Music Box (plays a tune)</option><option value="robotpet">Robot Pet</option><option value="crane">Tiny Crane</option><option value="fan">Desk Fan</option></select></label>
+      <label class="pick">Print a starter design<select id="mkTpl"><option value="lamp">Little Lamp</option><option value="lighthouse">Lighthouse (blinking)</option><option value="windmill">Windmill (motor)</option><option value="cart">Rolling Cart</option><option value="musicbox">Music Box (plays a tune)</option><option value="robotpet">Robot Pet</option><option value="crane">Tiny Crane</option><option value="fan">Desk Fan</option><option value="c:doorbell">Doorbell (button + logic chip)</option><option value="c:guard">Night Guard (motion sensor, clock)</option><option value="c:clapper">Clap Lamp (sound sensor, flip-flop)</option><option value="c:twokey">Two Key Safe Light (AND, XOR)</option><option value="c:nightlight">Night Light (NOT)</option></select></label>
       <div class="btns"><button type="button" id="mkTplGo">Print it</button></div>
       <details style="margin-top:8px"><summary>Write your own design</summary>
-        <p class="hint">One part per line: <b>PART id: shape size colour place</b>, then <b>WIRE id id</b> for each connection. Shapes: block WxDxH, plate WxD, rod DxL, cylinder DxH, cone DxH, sphere D, wheel DxW, gear D, wedge WxDxH, arm WxL, pulley D, and led, motor, battery, switch, chip blink, chip tune. Places: on, under, left of, right of, front of, behind another part.</p>
+        <p class="hint">One part per line: <b>PART id: shape size colour place</b>, then <b>WIRE id id</b> for each connection. For a working circuit add a <b>chip logic</b> part, inputs (button, switch, motion, sound) and outputs (led, motor, servo, buzzer), then <b>LOGIC name = a AND b</b> (also OR, XOR, NAND, NOR, NOT a, CLOCK 2, TOGGLE a, LATCH set reset) and <b>OUT part = name</b>. Shapes: block WxDxH, plate WxD, rod DxL, cylinder DxH, cone DxH, sphere D, wheel DxW, gear D, wedge WxDxH, arm WxL, pulley D, and led, motor, battery, switch, chip blink, chip tune. Places: on, under, left of, right of, front of, behind another part.</p>
         <textarea id="mkText" rows="7" style="width:100%" aria-label="Your design"></textarea>
         <div class="btns" style="margin-top:6px"><button type="button" id="mkTextGo">Print my design</button></div>
       </details>
@@ -474,6 +482,18 @@ scene.add(cellsMesh); scene.add(cellTops); cellsMesh.userData.noOcc = cellTops.u
 { const m = new THREE.Matrix4(); for (let i = 0; i < 48; i++) { const sh = Math.floor(i / 12), k = i % 12, x = CUP.x - 0.08 + (k % 3) * 0.06, z = CUP.z - 0.24 + Math.floor(k / 3) * 0.16 + (k % 2) * 0.02, y = CUP_SHELVES[sh] + 0.0375; m.makeTranslation(x, y, z); cellsMesh.setMatrixAt(i, m); m.makeTranslation(x, y + 0.045, z); cellTops.setMatrixAt(i, m); } }
 const cellCv = document.createElement('canvas'); cellCv.width = 256; cellCv.height = 64; const cellTex = new THREE.CanvasTexture(cellCv); cellTex.colorSpace = THREE.SRGBColorSpace;
 const cellLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.11), new THREE.MeshBasicMaterial({ map: cellTex })); cellLabel.rotation.y = -Math.PI / 2; cellLabel.position.set(CUP.x - 0.2, 1.56, CUP.z); scene.add(cellLabel);
+// the super glue tray on the bench, beside the printer: three bottles that empty as the glue gets used
+const GLUE_MAX = 30, glueBottles = [];
+{
+  box(0.14, 0.012, 0.06, 0x3a3d44, WB.x - 0.21, 0.84, WB.z - 0.12);
+  for (let k = 0; k < 3; k++) {
+    const g = new THREE.Group(); g.position.set(WB.x - 0.255 + k * 0.045, 0.852, WB.z - 0.12);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(.013, .015, .055, 12), new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: .4 })); body.position.y = .0275; body.castShadow = true;
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(.0152, .0152, .018, 12), new THREE.MeshStandardMaterial({ color: 0xd63a2f, roughness: .5 })); band.position.y = .03;
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(.008, .03, 10), new THREE.MeshStandardMaterial({ color: 0xff8a3c, roughness: .4 })); tip.position.y = .07;
+    g.add(body, band, tip); g.traverse(o => { o.userData.noOcc = true; }); scene.add(g); glueBottles.push(g);
+  }
+}
 const SHOW_SLOTS = [[WB.x - 0.08, 0.84, WB.z + 0.05], [WB.x - 0.08, 0.84, WB.z + 0.42], [WB.x - 0.08, 0.84, WB.z + 0.8], [WB.x + 0.15, 1.27, WB.z + 0.05], [WB.x + 0.15, 1.27, WB.z + 0.42], [WB.x + 0.15, 1.27, WB.z + 0.8]];
 
 // armchair
@@ -1807,7 +1827,7 @@ function planGrammar(o) {
     `sty ::= ${galt(MUSIC_STYLES.slice(1))}`,
     `dsc ::= ${galt(MUSIC_DISCS)}`,
     'study ::= "STUDY: " ("none" | "book " [1-9] [0-9]?) "\\n"',
-    'make ::= "MAKE: " ("none" | "design a " [^\\n]{3,50}) "\\n"'
+    'make ::= "MAKE: " ("none" | "design a " [^\\n]{3,50} | "glue " [^\\n]{3,60}) "\\n"'
   ].join('\n');
 }
 // Step 2: one spoken line.
@@ -1820,7 +1840,7 @@ function planWords(p, other) {
   if (p.skill) w.push(`do your move "${p.skill}"`);
   if (p.hands) { const h = p.hands; w.push(h.verb === 'put' ? `put the ${h.thing || 'thing'} on the ${h.surf}` : h.verb === 'give' || h.verb === 'toss' ? `${h.verb} the ${h.thing || 'thing'} to ${h.to || other}` : `${h.verb} the ${h.thing || 'thing'}`); }
   if (p.board) { const b = p.board; w.push(b.verb === 'write' ? `write "${b.text}" on the whiteboard` : b.verb === 'erase' ? 'wipe the whiteboard' : `${b.verb === 'sketch' ? 'sketch' : 'draw'} ${b.text || 'something'} on the whiteboard`); }
-  if (p.make) w.push(`design and 3D print ${p.make.idea}`);
+  if (p.make) w.push(p.make.glue ? `super-glue the ${p.make.glue.b} ${p.make.glue.place === 'on' ? 'onto' : p.make.glue.place} the ${p.make.glue.a}` : `design and 3D print ${p.make.idea}`);
   if (p.study) w.push(`study${p.study.id ? ' book ' + p.study.id : ''} at the bookshelf`);
   if (p.music) w.push(`play ${p.music.chords.join(' ')} on the Melody Console${p.music.style ? ' as ' + p.music.style : ''}`);
   if (p.project) w.push(p.project.verb === 'start' ? `start a new ${p.project.kind} about ${p.project.brief || 'something'} at the typewriter` : p.project.verb === 'review' ? `read project #${p.project.id} on the project board and give a note` : `type the next page of project #${p.project.id} at the typewriter`);
@@ -1847,6 +1867,7 @@ function visitorIntent(text, names) {
   if (/^(grab|pick up|take|hold|give|pass|toss|throw|put|drop)\b/i.test(lead)) r.handsText = lead;
   if (studyIntent(t)) r.study = studyIntent(t);
   if (!r.project && makeIntent(t)) r.make = makeIntent(t);
+  if (!r.project && !r.make && glueIntent(t)) r.make = glueIntent(t);
   if (/\bradio\b/i.test(lead) && /\b(turn|switch|put|change|tune|play|start|stop)\b/i.test(lead)) r.music = parseMusic(lead);
   if (/^(play|jam|strum|perform)\b/i.test(lead) && /\b(music|song|tune|something|console|organ|optigan|omnichord|instrument|piano|keyboard|chords?|bossa|swing|tango|polka|reggae|ballad|melody|[iv]{1,3}\b)/i.test(lead)) r.music = parseMusic(lead.replace(/\b(some )?(music|song|tune|something)\b/i, ' ')) || { chords: ['I', 'V', 'VI', 'IV'], style: null, disc: null };
   return r;
@@ -2072,12 +2093,117 @@ function reviewParts(txt) {
   const note = t.replace(/\n?\s*\**verdict\**\s*[:\-][\s\S]*$/i, '').replace(/^\s*\**note\**\s*[:\-]\s*/i, '').replace(/\s+/g, ' ').trim().slice(0, 400);
   return { note: note || (done ? 'This feels finished.' : 'Keep going.'), done };
 }
+/* ---------- Circuits: logic that runs on printed chips. Inputs (button, switch, motion and sound sensors) feed
+   LOGIC lines (gates, clocks, flip-flops); OUT lines drive outputs (lights, motors, servos, buzzers, tune chips). */
+const LOGIC_OPS = { AND: 2, OR: 2, XOR: 2, NAND: 2, NOR: 2, NOT: 1, CLOCK: 1, TOGGLE: 1, LATCH: 2 };
+const INPUT_PARTS = ['button', 'switch', 'motion', 'sound'];
+const OUTPUT_PARTS = ['led', 'motor', 'servo', 'buzzer', 'chip'];
+// what each piece of circuit know-how needs to have been learned, and the chapter that teaches it
+const CIRCUIT_SKILLS = [
+  { id: 'basics', name: 'basic circuits (power, wires, switches, buttons)', re: /ohm|electric current|voltage|series and parallel|electrical network|circuit theory|electric battery/i, chapter: "Ohm's law", gives: ['button', 'buzzer'] },
+  { id: 'chips', name: 'microchips with inputs and outputs', re: /integrated circuit|microchip|microcontroller|printed circuit board/i, chapter: 'Integrated circuit', gives: ['chip logic', 'OUT'] },
+  { id: 'gates', name: 'logic gates (AND, OR, NOT)', re: /logic gate|boolean (algebra|logic)|truth table|and gate|or gate/i, chapter: 'Logic gate', gives: ['AND', 'OR', 'NOT'] },
+  { id: 'universal', name: 'NAND, NOR and XOR', re: /nand|nor gate|xor|exclusive or|functional completeness/i, chapter: 'NAND logic', gives: ['NAND', 'NOR', 'XOR'] },
+  { id: 'timing', name: 'clocks and timers', re: /555 timer|clock signal|oscillat|astable|timer ic/i, chapter: '555 timer IC', gives: ['CLOCK'] },
+  { id: 'memory', name: 'flip-flops and latches (memory)', re: /flip-flop|latch|sequential logic|bistable/i, chapter: 'Flip-flop (electronics)', gives: ['TOGGLE', 'LATCH'] },
+  { id: 'sensors', name: 'sensors (motion and sound)', re: /\bsensor|transducer|motion detector|microphone|passive infrared/i, chapter: 'Sensor', gives: ['motion', 'sound'] }
+];
+// skills shown by a robot's knowledge library (what it has read or looked up)
+function circuitSkills(know) {
+  const have = new Set();
+  for (const k of know || []) { const t = (k.src || '') + ' ' + (k.x || ''); for (const s of CIRCUIT_SKILLS) if (!have.has(s.id) && s.re.test(t)) have.add(s.id); }
+  return have;
+}
+const skillGives = have => new Set(CIRCUIT_SKILLS.filter(s => have.has(s.id)).flatMap(s => s.gives));
+// which circuit know-how an idea calls for (empty if it isn't a circuit idea)
+function circuitNeeds(idea) {
+  const t = String(idea || '').toLowerCase();
+  if (!/circuit|logic|sensor|button|alarm|door ?bell|detect|clap|motion|sound|buzz|gate|timer|flip|latch|toggle|guard|security|smart|automatic|chip|press|beep|night ?light|puzzle|lock|game|counter/.test(t)) return [];
+  const need = ['basics', 'chips', 'gates'];
+  if (/sensor|motion|sound|clap|detect|guard|alarm|security|automatic|night ?light|hear/.test(t)) need.push('sensors');
+  if (/blink|timer|clock|flash|alarm|guard|siren|pulse|beat/.test(t)) need.push('timing');
+  if (/toggle|flip|latch|remember|memory|clap|lock|stay on|counter/.test(t)) need.push('memory');
+  if (/xor|nand|nor|puzzle|lock|either|only one|game/.test(t)) need.push('universal');
+  return need;
+}
+// keep only the circuit parts and logic a robot has actually learned; returns what had to go
+function limitToSkills(d0, gives) {
+  const d = JSON.parse(JSON.stringify(d0)), dropped = [];
+  d.logic = d.logic || []; d.outs = d.outs || {};
+  const okPart = p => !(['button', 'motion', 'sound', 'buzzer'].includes(p.type) && !gives.has(p.type)) && !(p.type === 'chip' && p.kind === 'logic' && !gives.has('chip logic'));
+  const gone = new Set(d.parts.filter(p => !okPart(p)).map(p => p.id));
+  for (const p of d.parts) if (gone.has(p.id)) dropped.push(p.type === 'chip' ? 'logic chip' : p.type);
+  if (gone.size) {
+    const first = d.parts.find(p => !gone.has(p.id));
+    d.parts = d.parts.filter(p => !gone.has(p.id));
+    if (!d.parts.length) return { d: null, dropped };
+    d.parts.forEach(p => { if (gone.has(p.ref)) { p.ref = d.parts.indexOf(p) ? first.id : null; p.place = p.ref ? 'on' : null; } });
+    d.wires = d.wires.filter(w => !gone.has(w[0]) && !gone.has(w[1]));
+  }
+  const canLogic = gives.has('chip logic') && d.parts.some(p => p.type === 'chip' && p.kind === 'logic');
+  const known = new Set(['0', '1', ...d.parts.filter(p => INPUT_PARTS.includes(p.type)).map(p => p.id)]);
+  d.logic = d.logic.filter(L => { const ok = canLogic && (L.op === 'OR' && L.args[1] === '0' ? true : gives.has(L.op)) && (L.op === 'CLOCK' || L.args.every(a => known.has(a))); if (ok) known.add(L.name); else dropped.push(L.op + ' logic'); return ok; });
+  for (const [o, n] of Object.entries(d.outs)) if (!canLogic || !known.has(n) || !d.parts.some(p => p.id === o)) { delete d.outs[o]; dropped.push('a chip output'); }
+  return { d, dropped: [...new Set(dropped)] };
+}
+const CIRCUIT_TEMPLATES = {
+  doorbell: 'NAME: Doorbell\nPART plate: block 8x4x2 white\nPART cell: battery behind plate\nPART press: button front of plate\nPART brain: chip logic on plate\nPART ding: buzzer on brain\nPART glow: led right of ding\nOUT ding = press\nOUT glow = press\nWIRE cell brain\nWIRE cell ding\nWIRE cell glow',
+  guard: 'NAME: Night Guard\nPART base: block 8x8x2 grey\nPART cell: battery behind base\nPART eye: motion on base\nPART brain: chip logic front of base\nPART siren: led red on eye\nPART beeper: buzzer right of brain\nLOGIC tick = CLOCK 3\nLOGIC alarm = eye AND tick\nOUT siren = alarm\nOUT beeper = alarm\nWIRE cell brain\nWIRE cell siren\nWIRE cell beeper',
+  clapper: 'NAME: Clap Lamp\nPART base: cylinder 7x2 teal\nPART cell: battery behind base\nPART ear: sound front of base\nPART brain: chip logic on base\nPART stem: rod 1x10 silver on brain\nPART bulb: led yellow on stem\nLOGIC lit = TOGGLE ear\nOUT bulb = lit\nWIRE cell brain\nWIRE cell bulb',
+  twokey: 'NAME: Two Key Safe Light\nPART box: block 10x6x4 blue\nPART cell: battery behind box\nPART keya: button left of box\nPART keyb: button right of box\nPART brain: chip logic on box\nPART ok: led green on brain\nPART buzz: buzzer front of box\nLOGIC both = keya AND keyb\nLOGIC one = keya XOR keyb\nOUT ok = both\nOUT buzz = one\nWIRE cell brain\nWIRE cell ok\nWIRE cell buzz',
+  nightlight: 'NAME: Night Light\nPART base: cylinder 6x2 purple\nPART cell: battery behind base\nPART ear: sound front of base\nPART brain: chip logic on base\nPART bulb: led yellow on brain\nLOGIC quiet = NOT ear\nOUT bulb = quiet\nWIRE cell brain\nWIRE cell bulb'
+};
+function circuitTemplateFor(idea) {
+  const t = String(idea || '').toLowerCase();
+  return /door|bell|ring/.test(t) ? 'doorbell' : /clap|toggle/.test(t) ? 'clapper' : /lock|safe|two key|puzzle|xor|game/.test(t) ? 'twokey' : /night ?light|quiet|nap|sleep/.test(t) ? 'nightlight' : 'guard';
+}
+// work out every signal for one moment: inputs → logic lines in order → outputs. st keeps flip-flop memory between moments.
+function evalLogic(d, inputs, st, t) {
+  const v = Object.assign({}, inputs), val = n => n === '1' ? true : n === '0' ? false : !!v[n];
+  st.prev = st.prev || {}; st.mem = st.mem || {};
+  for (const L of d.logic || []) {
+    const [a, b] = L.args; let r = false;
+    switch (L.op) {
+      case 'AND': r = val(a) && val(b); break; case 'OR': r = val(a) || val(b); break; case 'XOR': r = val(a) !== val(b); break;
+      case 'NAND': r = !(val(a) && val(b)); break; case 'NOR': r = !(val(a) || val(b)); break; case 'NOT': r = !val(a); break;
+      case 'CLOCK': { const hz = Math.max(.2, Math.min(9, parseFloat(a) || 1)); r = ((t * hz) % 1) < .5; break; }
+      case 'TOGGLE': { const now = val(a); if (now && !st.prev[L.name]) st.mem[L.name] = !st.mem[L.name]; st.prev[L.name] = now; r = !!st.mem[L.name]; break; }
+      case 'LATCH': { if (val(a)) st.mem[L.name] = true; if (val(b)) st.mem[L.name] = false; r = !!st.mem[L.name]; break; }
+    }
+    v[L.name] = r;
+  }
+  return v;
+}
+// which outputs are on for every combination of the inputs (memory and clocks set aside), as rows
+function truthTable(d) {
+  const ins = d.parts.filter(p => INPUT_PARTS.includes(p.type)).map(p => p.id).slice(0, 4), outs = Object.keys(d.outs || {});
+  if (!ins.length || !outs.length) return null;
+  const rows = [];
+  for (let m = 0; m < 1 << ins.length; m++) { const inp = {}; ins.forEach((id, i) => { inp[id] = !!(m & (1 << i)); }); const v = evalLogic(d, inp, {}, 0.1); rows.push({ inp, out: Object.fromEntries(outs.map(o => [o, !!v[d.outs[o]]])) }); }
+  return { ins, outs, rows };
+}
+// a plain-words description of what the circuit does, for memory and for the visitor
+function describeCircuit(d) {
+  const tt = truthTable(d), seq = (d.logic || []).some(L => ['CLOCK', 'TOGGLE', 'LATCH'].includes(L.op));
+  if (!tt) return seq ? 'it runs on its own clock' : '';
+  const name = id => ({ button: `${id} is pressed`, switch: `${id} is on`, motion: `${id} senses someone nearby`, sound: `${id} hears sound` }[(d.parts.find(p => p.id === id) || {}).type] || `${id} is on`);
+  return tt.outs.map(o => {
+    const on = tt.rows.filter(r => r.out[o]);
+    if (!on.length) return `${o} stays off`; if (on.length === tt.rows.length) return `${o} is always on`;
+    // keep the simplest conditions: drop a row when a smaller set of inputs already switches it on whatever else happens
+    const act = r => tt.ins.filter(i => r.inp[i]), sub = (x, y) => x.length < y.length && x.every(i => y.includes(i));
+    const always = q => tt.rows.filter(r => act(q).every(i => r.inp[i])).every(r => r.out[o]);
+    const keep = on.filter(r => !on.some(q => sub(act(q), act(r)) && always(q)));
+    const conds = keep.map(r => (act(r).map(name).join(' and ') || 'nothing is pressed or sensed') + (act(r).length && !always(r) ? ' (and nothing else)' : ''));
+    return `${o} is on when ${conds.slice(0, 3).join(', or when ')}${conds.length > 3 ? ' (and more)' : ''}`;
+  }).join('; ') + (seq ? ' (some parts depend on a clock or memory, so it changes over time)' : '');
+}
 /* ---------- The 3D printer: a little design language for things the robots make ---------- */
 // Parts are in centimetres; each one sits on / under / beside another. Electronics are powered through WIRE lines.
 const SHAPES3D = { block: 3, plate: 2, rod: 2, cylinder: 2, cone: 2, sphere: 1, wheel: 2, gear: 1, wedge: 3, arm: 2, pulley: 1 };
-const ELECTRIC = ['led', 'motor', 'servo', 'battery', 'switch', 'chip'];
+const ELECTRIC = ['led', 'motor', 'servo', 'battery', 'switch', 'chip', 'button', 'motion', 'sound', 'buzzer'];
 const MATERIALS = ['plastic', 'metal', 'rubber'];
-const CHIP_KINDS = ['blink', 'tune'];
+const CHIP_KINDS = ['blink', 'tune', 'logic'];
 const MAKE_COLOURS = { red: '#d8423a', orange: '#f08a2c', yellow: '#f2cf3a', green: '#4caf50', teal: '#2bb3a3', blue: '#3c7dd9', purple: '#8a55c9', pink: '#e86aa6', white: '#f2efe8', grey: '#8f959c', black: '#2a2a2e', brown: '#8a5a35', gold: '#d9a93a', silver: '#c9ced4' };
 const PLACES3D = ['on', 'under', 'left of', 'right of', 'front of', 'behind'];
 // MAKE line → { idea }
@@ -2085,8 +2211,41 @@ function parseMake(s) {
   if (!s) return null;
   const t = String(s).replace(/[*`<>"]/g, ' ').replace(/\s+/g, ' ').trim();
   if (!t || NONE_RE.test(t)) return null;
+  if (/^(super ?glue|glue|stick|attach|join)\b/i.test(t)) { const g = parseGlue(t); return g ? { glue: g } : null; }
   const m = t.match(/^(?:design|make|build|print|create|invent)\s+(?:a|an|the|some)?\s*(.{2,80})$/i);
   return { idea: (m ? m[1] : t).replace(/[.!]+$/, '').trim().slice(0, 80) };
+}
+// "glue the windmill onto the cart" → which two things, and where the second one goes on the first
+const GLUE_PLACES = { onto: 'on', 'on top of': 'on', on: 'on', to: 'on', 'left of': 'left of', 'to the left of': 'left of', 'right of': 'right of', 'to the right of': 'right of', 'in front of': 'front of', 'front of': 'front of', behind: 'behind', 'on the back of': 'behind', under: 'under', beneath: 'under', below: 'under', underneath: 'under', 'on the side of': 'right of', beside: 'right of', 'next to': 'right of' };
+function parseGlue(s) {
+  const t = String(s || '').replace(/[*`<>"“”]/g, ' ').replace(/\s+/g, ' ').trim().replace(/[.!?]+$/, '');
+  const keys = Object.keys(GLUE_PLACES).sort((a, b) => b.length - a.length).map(k => k.replace(/ /g, '\\s+')).join('|');
+  const m = t.match(new RegExp(`^(?:super ?glue|glue|stick|attach|join)\\s+(?:the\\s+|my\\s+|your\\s+)?(.{2,40}?)\\s+(${keys})\\s+(?:the\\s+|my\\s+|your\\s+)?(.{2,40}?)(?:\\s+together)?$`, 'i'));
+  if (!m) return null;
+  return { a: m[3].trim(), b: m[1].trim(), place: GLUE_PLACES[m[2].toLowerCase().replace(/\s+/g, ' ')] || 'on' };   // b gets glued to a
+}
+function glueIntent(text) {
+  const t = String(text || '').replace(/^(hey |hi |ok |okay )?(pip|moss|robots?|you two|both of you)[,:!]?\s*/i, '').replace(/^(please |can you |could you |would you |will you |let's |lets )+/i, '');
+  return /^(super ?glue|glue|stick|attach|join)\b/i.test(t) ? (g => g && { glue: g })(parseGlue(t)) : null;
+}
+// glue design b onto design a: b's parts are renamed where they clash, and b's first part sits against a's part
+function glueDesigns(a, b, place, name) {
+  const A = JSON.parse(JSON.stringify(a)), B = JSON.parse(JSON.stringify(b));
+  for (const d of [A, B]) { d.logic = d.logic || []; d.outs = d.outs || {}; d.glue = d.glue || []; }
+  const taken = new Set([...A.parts.map(p => p.id), ...A.logic.map(L => L.name)]), ren = {};
+  const fresh = id => { let n = id.slice(0, 13) + 'b', k = 2; while (taken.has(n)) n = id.slice(0, 12) + 'b' + k++; taken.add(n); return n; };
+  for (const p of B.parts) ren[p.id] = taken.has(p.id) ? fresh(p.id) : (taken.add(p.id), p.id);
+  for (const L of B.logic) ren[L.name] = taken.has(L.name) ? fresh(L.name) : (taken.add(L.name), L.name);
+  const R = x => ren[x] || x;
+  B.parts.forEach(p => { p.id = R(p.id); if (p.ref) p.ref = R(p.ref); });
+  B.wires = B.wires.map(w => w.map(R)); B.logic.forEach(L => { L.name = R(L.name); L.args = L.args.map(R); });
+  B.outs = Object.fromEntries(Object.entries(B.outs).map(([o, n]) => [R(o), R(n)])); B.glue = B.glue.map(g => g.map(R));
+  // where on a: on top → the top of its stack of "on" parts; anywhere else → beside its base
+  let target = A.parts[0];
+  if (place === 'on') { const depth = p => { let n = 0, q = p; while (q && q.ref && q.place === 'on' && n < 40) { q = A.parts.find(x => x.id === q.ref); n++; } return q === A.parts[0] ? n : -1; }; const solid = A.parts.filter(p => SHAPES3D[p.type]); target = (solid.length ? solid : A.parts).reduce((best, p) => depth(p) > depth(best) ? p : best, A.parts[0]); }
+  B.parts[0].place = place; B.parts[0].ref = target.id;
+  const d = { name: name || `${A.name} and ${B.name}`.slice(0, 40), parts: [...A.parts, ...B.parts], wires: [...A.wires, ...B.wires], logic: [...A.logic, ...B.logic], outs: { ...A.outs, ...B.outs }, glue: [...A.glue, ...B.glue, [B.parts[0].id, target.id]] };
+  return { d, ren, joint: [B.parts[0].id, target.id] };
 }
 function makeIntent(text) {
   const t = String(text || '').replace(/^(hey |hi |ok |okay )?(pip|moss|robots?|you two|both of you)[,:!]?\s*/i, '').replace(/^(please |can you |could you |would you |will you |let's |lets )+/i, '');
@@ -2098,13 +2257,16 @@ function makeIntent(text) {
 // read a design written in the language; anything unclear is fixed up rather than thrown away
 function parseDesign(txt) {
   const lines = String(txt || '').replace(/\r/g, '').split('\n').map(l => l.replace(/^[\s*\-•\d.)]+/, '').trim()).filter(Boolean);
-  const d = { name: '', parts: [], wires: [] }, ids = new Set();
+  const d = { name: '', parts: [], wires: [], logic: [], outs: {}, glue: [] }, ids = new Set(), logicNames = new Set(), rawOuts = [];
   for (const l of lines) {
     let m;
+    if ((m = l.match(/^logic\s+([a-z][a-z0-9_]{0,15})\s*=\s*(.+)$/i))) { const L = parseLogicExpr(m[1].toLowerCase(), m[2]); if (L && d.logic.length < 32) { d.logic.push(...L); logicNames.add(m[1].toLowerCase()); } continue; }
+    if ((m = l.match(/^glue\s+([a-z][a-z0-9_]{0,15})\s+([a-z][a-z0-9_]{0,15})\s*$/i))) { d.glue.push([m[1].toLowerCase(), m[2].toLowerCase()]); continue; }
+    if ((m = l.match(/^out\s+([a-z][a-z0-9_]{0,15})\s*=\s*(.+)$/i))) { rawOuts.push([m[1].toLowerCase(), m[2]]); continue; }
     if ((m = l.match(/^name\s*[:\-]\s*(.{1,40})$/i))) { d.name = m[1].replace(/["“”]/g, '').trim(); continue; }
     if ((m = l.match(/^wire\s*[:\-]?\s*([a-z][a-z0-9_]{0,15})\s*(?:to|-|,|\s)\s*([a-z][a-z0-9_]{0,15})/i))) { d.wires.push([m[1].toLowerCase(), m[2].toLowerCase()]); continue; }
     if (!(m = l.match(/^part\s+([a-z][a-z0-9_]{0,15})\s*[:\-]\s*(.+)$/i))) continue;
-    const id = m[1].toLowerCase(); if (ids.has(id) || d.parts.length >= 20) continue;
+    const id = m[1].toLowerCase(); if (ids.has(id) || d.parts.length >= 40) continue;
     let rest = m[2].toLowerCase().replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
     const p = { id, type: '', dims: [], color: null, kind: null, place: null, ref: null, mat: null };
     const pm = rest.match(/\b(on top of|on|under|below|left of|right of|front of|in front of|behind|beside)\s+([a-z][a-z0-9_]{0,15})\s*$/);
@@ -2113,7 +2275,7 @@ function parseDesign(txt) {
     const mt = rest.match(/\b(plastic|metal|metallic|steel|copper|aluminium|aluminum|conductive|rubber|rubbery)\b/);
     if (mt) { p.mat = /rubber/.test(mt[1]) ? 'rubber' : mt[1] === 'plastic' ? 'plastic' : 'metal'; rest = rest.replace(mt[0], '').trim(); }
     const w = rest.split(' ');
-    const type = w[0] === 'light' || w[0] === 'bulb' ? 'led' : w[0] === 'cell' ? 'battery' : w[0] === 'axle' ? 'rod' : w[0] === 'box' || w[0] === 'cube' ? 'block' : w[0] === 'ball' ? 'sphere' : w[0];
+    const type = { light: 'led', bulb: 'led', lamp: 'led', cell: 'battery', axle: 'rod', box: 'block', cube: 'block', ball: 'sphere', pushbutton: 'button', key: 'button', pir: 'motion', microphone: 'sound', mic: 'sound', beeper: 'buzzer', speaker: 'buzzer', bell: 'buzzer' }[w[0]] || (w[0] === 'motion' || w[0] === 'sound' ? w[0] : w[0]);
     if (SHAPES3D[type]) {
       p.type = type;
       const nums = (rest.match(/\d+(?:\.\d+)?/g) || []).map(Number);
@@ -2122,22 +2284,52 @@ function parseDesign(txt) {
       if (need === 3 && nums.length === 1) p.dims = [nums[0], nums[0], nums[0]].map(v => Math.max(.5, Math.min(30, v)));
     } else if (ELECTRIC.includes(type)) {
       p.type = type;
-      if (type === 'chip') p.kind = CHIP_KINDS.find(k => rest.includes(k)) || (/(music|song|melody|sound)/.test(rest) ? 'tune' : 'blink');
+      if (type === 'chip') p.kind = CHIP_KINDS.find(k => rest.includes(k)) || (/(music|song|melody)/.test(rest) ? 'tune' : /(brain|circuit|gate|cpu|controller|processor)/.test(rest) ? 'logic' : 'blink');
     } else continue;
     if (!p.mat) p.mat = p.type === 'wheel' ? 'rubber' : 'plastic';
     d.parts.push(p); ids.add(id);
   }
   // fix up: missing or forward references hang off the part before; the first part sits on the print bed
   d.parts.forEach((p, i) => { if (!i) { p.place = null; p.ref = null; return; } const k = d.parts.findIndex(q => q.id === p.ref); if (k < 0 || k >= i) { p.place = 'on'; p.ref = d.parts[i - 1].id; } });
-  d.wires = d.wires.filter(([a, b]) => a !== b && ids.has(a) && ids.has(b)).slice(0, 12);
+  d.wires = d.wires.filter(([a, b]) => a !== b && ids.has(a) && ids.has(b)).slice(0, 24);
+  d.glue = d.glue.filter(([a, b]) => a !== b && ids.has(a) && ids.has(b)).slice(0, 12);
+  // logic may only use inputs, other logic lines (defined earlier) or 0/1; outputs must be output parts
+  const known = new Set(['0', '1', ...d.parts.filter(p => INPUT_PARTS.includes(p.type)).map(p => p.id)]);
+  d.logic = d.logic.filter(L => { const ok = L.op === 'CLOCK' || L.args.every(a => known.has(a)); if (ok) known.add(L.name); return ok; });
+  for (const [o, ex] of rawOuts) {
+    const part = d.parts.find(p => p.id === o); if (!part || !OUTPUT_PARTS.includes(part.type) || (part.type === 'chip' && part.kind === 'logic')) continue;
+    const name = ex.trim().toLowerCase();
+    if (known.has(name)) { d.outs[o] = name; continue; }
+    const L = parseLogicExpr('o_' + o, ex); if (L && L.every(x => x.op === 'CLOCK' || x.args.every(a => known.has(a) || L.some(y => y.name === a)))) { d.logic.push(...L); L.forEach(x => known.add(x.name)); d.outs[o] = 'o_' + o; }
+  }
   // electronics with no wires: connect everything to the first battery so it still works
   const bat = d.parts.find(p => p.type === 'battery');
-  if (bat && !d.wires.length) for (const p of d.parts) if (['led', 'motor', 'servo', 'chip'].includes(p.type)) d.wires.push([bat.id, p.id]);
+  if (bat && !d.wires.length) for (const p of d.parts) if (['led', 'motor', 'servo', 'chip', 'buzzer'].includes(p.type)) d.wires.push([bat.id, p.id]);
   if (!d.name) d.name = 'Untitled thing';
   return d.parts.length ? d : null;
 }
+// one LOGIC line: "a AND b", "NOT a", "CLOCK 2", "TOGGLE a", "LATCH set reset" (also "a & b", "!a", "a | b", "a ^ b")
+function parseLogicExpr(name, ex) {
+  let t = String(ex || '').trim().replace(/\s+/g, ' ').replace(/&&?/g, ' AND ').replace(/\|\|?/g, ' OR ').replace(/\^/g, ' XOR ').replace(/!\s*/g, ' NOT ').replace(/\s+/g, ' ').trim();
+  const w = t.split(' '), U = x => (x || '').toUpperCase(), id = x => String(x || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
+  if (U(w[0]) === 'NOT' && w[1]) return [{ name, op: 'NOT', args: [id(w[1])] }];
+  if (U(w[0]) === 'CLOCK') return [{ name, op: 'CLOCK', args: [String(Math.max(.2, Math.min(9, parseFloat(w[1]) || 1)))] }];
+  if (U(w[0]) === 'TOGGLE' && w[1]) return [{ name, op: 'TOGGLE', args: [id(w[1])] }];
+  if (U(w[0]) === 'LATCH' && w[2]) return [{ name, op: 'LATCH', args: [id(w[1]), id(w[2])] }];
+  if (w.length === 3 && LOGIC_OPS[U(w[1])] === 2 && U(w[1]) !== 'LATCH') return [{ name, op: U(w[1]), args: [id(w[0]), id(w[2])] }];
+  // "a AND NOT b", "NOT a OR b": the NOTs become their own little lines first
+  const k = w.findIndex((x, i) => i > 0 && LOGIC_OPS[U(x)] === 2 && U(x) !== 'LATCH');
+  if (k > 0 && k <= 2 && w.length - k - 1 >= 1 && w.length - k - 1 <= 2) {
+    const side = (ws, tag) => ws.length === 1 ? { ref: id(ws[0]), pre: [] } : U(ws[0]) === 'NOT' ? { ref: name + tag, pre: [{ name: name + tag, op: 'NOT', args: [id(ws[1])] }] } : null;
+    const L = side(w.slice(0, k), '_na'), R = side(w.slice(k + 1), '_nb');
+    if (L && R && L.ref && R.ref) return [...L.pre, ...R.pre, { name, op: U(w[k]), args: [L.ref, R.ref] }];
+  }
+  if (w.length === 1 && id(w[0])) return [{ name, op: 'OR', args: [id(w[0]), '0'] }];
+  return null;
+}
 function designText(d) {
-  return [`NAME: ${d.name}`, ...d.parts.map(p => `PART ${p.id}: ${p.type}${p.type === 'chip' ? ' ' + p.kind : p.dims.length ? ' ' + p.dims.join('x') : ''}${p.color ? ' ' + p.color : ''}${p.mat && p.mat !== 'plastic' && !(p.type === 'wheel' && p.mat === 'rubber') ? ' ' + p.mat : ''}${p.ref ? ` ${p.place} ${p.ref}` : ''}`), ...d.wires.map(([a, b]) => `WIRE ${a} ${b}`)].join('\n');
+  const logicLines = (d.logic || []).filter(L => !L.name.startsWith('o_') || !Object.values(d.outs || {}).includes(L.name) || true).map(L => `LOGIC ${L.name} = ${L.op === 'NOT' || L.op === 'CLOCK' || L.op === 'TOGGLE' ? L.op + ' ' + L.args[0] : L.op === 'LATCH' ? 'LATCH ' + L.args.join(' ') : L.args[0] + ' ' + L.op + ' ' + L.args[1]}`);
+  return [`NAME: ${d.name}`, ...d.parts.map(p => `PART ${p.id}: ${p.type}${p.type === 'chip' ? ' ' + p.kind : p.dims.length ? ' ' + p.dims.join('x') : ''}${p.color ? ' ' + p.color : ''}${p.mat && p.mat !== 'plastic' && !(p.type === 'wheel' && p.mat === 'rubber') ? ' ' + p.mat : ''}${p.ref ? ` ${p.place} ${p.ref}` : ''}`), ...logicLines, ...Object.entries(d.outs || {}).map(([o, n]) => `OUT ${o} = ${n}`), ...d.wires.map(([a, b]) => `WIRE ${a} ${b}`), ...(d.glue || []).map(([a, b]) => `GLUE ${a} ${b}`)].join('\n');
 }
 // which electronics have power: current flows from a battery along wires, through switches that are on
 function powered(d, switches) {
@@ -2162,12 +2354,23 @@ function templateFor(idea) {
   const t = String(idea || '').toLowerCase();
   const map = [['lighthouse', /lighthouse|beacon|tower/], ['lamp', /lamp|light|torch|lantern/], ['windmill', /windmill|mill|turbine/], ['cart', /cart|car|truck|vehicle|wagon|rover/], ['musicbox', /music|song|melody|box/], ['robotpet', /pet|robot|dog|cat|creature|friend/], ['crane', /crane|lift|hoist|pulley|lever/], ['fan', /fan|propeller|spin/]];
   const hit = map.find(([, re]) => re.test(t));
-  return hit ? hit[0] : Object.keys(MAKE_TEMPLATES)[Math.floor(Math.random() * 8)];
+  return hit ? hit[0] : Object.keys(MAKE_TEMPLATES)[Math.floor(Math.random() * Object.keys(MAKE_TEMPLATES).length)];
 }
 // the computer's design checker: finds problems and fixes what it safely can (returns notes, and a fixed copy)
 function checkDesign(d0) {
   const d = JSON.parse(JSON.stringify(d0)), notes = [], fixes = [];
-  const ofType = t => d.parts.filter(p => p.type === t), elec = d.parts.filter(p => ['led', 'motor', 'servo', 'chip'].includes(p.type));
+  d.logic = d.logic || []; d.outs = d.outs || {};
+  const ofType = t => d.parts.filter(p => p.type === t);
+  // logic needs a chip to run on
+  if ((d.logic.length || Object.keys(d.outs).length) && !d.parts.some(p => p.type === 'chip' && p.kind === 'logic')) {
+    const id = d.parts.some(p => p.id === 'brain') ? 'brain2' : 'brain';
+    d.parts.push({ id, type: 'chip', dims: [], color: null, kind: 'logic', place: 'on', ref: d.parts[0].id, mat: 'plastic' });
+    notes.push('the logic had no chip to run on'); fixes.push(`printed a logic chip (${id})`);
+  }
+  // an output with no OUT line, on a make that has logic, is just powered directly (say so)
+  const outsFree = Object.keys(d.outs).length ? d.parts.filter(p => ['led', 'motor', 'servo', 'buzzer'].includes(p.type) && !d.outs[p.id]) : [];
+  if (outsFree.length) notes.push(`${outsFree.map(p => p.id).join(', ')} ${outsFree.length > 1 ? 'are' : 'is'} not driven by the logic chip, so ${outsFree.length > 1 ? 'they run' : 'it runs'} whenever power is on`);
+  const elec = d.parts.filter(p => ['led', 'motor', 'servo', 'chip', 'buzzer'].includes(p.type));
   let bat = ofType('battery')[0];
   if (elec.length && !bat) {
     bat = { id: 'cell', type: 'battery', dims: [], color: null, kind: null, place: 'behind', ref: d.parts[0].id, mat: 'plastic' };
@@ -2189,17 +2392,23 @@ function checkDesign(d0) {
   const hang = d.parts.filter(p => p.place === 'under' && p.ref !== base.id).length;
   if (hang) notes.push(`${hang} part${hang > 1 ? 's hang' : ' hangs'} underneath, so the printer will add rubber supports`);
   if (d.parts.length < 3) notes.push('it is very simple; more parts would make it more interesting');
+  // logic that nothing listens to, or inputs that nothing reads
+  const used = new Set([...d.logic.flatMap(L => L.args), ...Object.values(d.outs)]);
+  for (const p of d.parts) if (INPUT_PARTS.includes(p.type) && p.type !== 'switch' && d.logic.length + Object.keys(d.outs).length && !used.has(p.id)) notes.push(`input ${p.id} (${p.type}) isn't read by any logic`);
+  for (const L of d.logic) if (!used.has(L.name)) notes.push(`logic ${L.name} isn't used by any output`);
   return { d, notes, fixes };
 }
 const DESIGN_GRAMMAR = [
-  'root ::= "NAME: " [A-Za-z0-9 \'-]{2,30} "\\n" part{3,14} wire{0,8}',
+  'root ::= "NAME: " [A-Za-z0-9 \'-]{2,30} "\\n" part{3,14} logic{0,8} out{0,6} wire{0,8}',
   'part ::= "PART " id ": " shape (" " col)? (" " ("plastic" | "metal" | "rubber"))? (" " place)? "\\n"',
   'id ::= [a-z] [a-z0-9]{0,9}',
   'n ::= [1-9] [0-9]?',
-  'shape ::= "block " n "x" n "x" n | "plate " n "x" n | "rod " n "x" n | "cylinder " n "x" n | "cone " n "x" n | "sphere " n | "wheel " n "x" n | "gear " n | "wedge " n "x" n "x" n | "arm " n "x" n | "pulley " n | "led" | "motor" | "servo" | "battery" | "switch" | "chip blink" | "chip tune"',
+  'shape ::= "block " n "x" n "x" n | "plate " n "x" n | "rod " n "x" n | "cylinder " n "x" n | "cone " n "x" n | "sphere " n | "wheel " n "x" n | "gear " n | "wedge " n "x" n "x" n | "arm " n "x" n | "pulley " n | "led" | "motor" | "servo" | "battery" | "switch" | "button" | "motion" | "sound" | "buzzer" | "chip blink" | "chip tune" | "chip logic"',
   `col ::= ${Object.keys(MAKE_COLOURS).map(c => '"' + c + '"').join(' | ')}`,
   'place ::= ("on " | "under " | "left of " | "right of " | "front of " | "behind ") id',
-  'wire ::= "WIRE " id " " id "\\n"'
+  'wire ::= "WIRE " id " " id "\\n"',
+  'logic ::= "LOGIC " id " = " (id " " ("AND" | "OR" | "XOR" | "NAND" | "NOR") " " id | "NOT " id | "CLOCK " [1-9] | "TOGGLE " id | "LATCH " id " " id) "\\n"',
+  'out ::= "OUT " id " = " id "\\n"'
 ].join('\n');
 /* ---------- Study shelf: books the robots read chapter by chapter */
 function parseStudy(s) {
@@ -3626,7 +3835,7 @@ There is a whiteboard on the wall. Use it to show ${o.name} or the visitor somet
 There is a computer in the room with real internet. Computer commands: search <topic> (Wikipedia), weather <city>, books <topic>, archive <topic> (Internet Archive), onthisday. Use it when you are curious about something real; you will walk over and use it. Otherwise write none.
 There is a typewriter on a little writing desk, and a project board on the wall listing the things you, ${o.name} and the visitor are making: stories, poems, songs, letters, plays and even novels. PROJECT: write N means walk to the typewriter and type the next page of project N; review N means read its latest page and pin up a helpful note; start a KIND about TOPIC begins something new of your own (KIND is ${KIND_LIST.join(', ')}). Otherwise write none.
 There is also the Melody Console by the window: an Optigan organ with an Omnichord strum plate, seven chord buttons, rhythm backings and a spinning sound disc. MUSIC: play CHORDS means walk over and play them, strumming the plate. Write chords as Roman numerals of its key (I II III IV V VI VII), for example: play I IV V I in bossa on vibes. Styles: ${MUSIC_STYLES.slice(1).join(', ')}. Discs (the keyboard's sound): ${MUSIC_DISCS.join(', ')}. You can also add: leslie stop/slow/fast (the spinning speaker), voice plain/wavy/blend and sustain short/medium/long (the strum plate), and melody followed by scale steps 1 to 8 to play a tune on the keys, e.g. play I vi IV V in ballad on e.piano leslie slow melody 3 5 6 5 3 2 1. The radio has five stations of soft background music: ${RADIO_STATIONS.map((n, i) => `${i + 1} ${n}`).join(', ')}${radio.on ? ` (now playing ${radio.st + 1}, ${RADIO_STATIONS[radio.st]})` : ' (now off)'}; MUSIC: radio on NUMBER or radio off. Otherwise write none.
-On the workbench there is a 3D printer that prints in plastic, conductive metal and rubber: shapes, gears, wheels, wires, motors and servos. Beside it is a cupboard full of batteries to power lights, motors, servos and chips. MAKE: design a THING means sketch the idea on the whiteboard, check and refine it on the computer, send it wirelessly to the printer and watch it print. Otherwise write none.
+On the workbench there is a 3D printer that prints in plastic, conductive metal and rubber: shapes, gears, wheels, wires, motors and servos. Beside it is a cupboard full of batteries to power lights, motors, servos and chips. MAKE: design a THING means sketch the idea on the whiteboard, check and refine it on the computer, send it wirelessly to the printer and watch it print. There is super glue on the bench (${glue} drops left): MAKE: glue THING onto|left of|right of|front of|behind|under OTHER THING joins two things you have printed into one${makes.length > 1 ? ` (on the shelf: ${makes.slice(-6).map(m => m.name).join(', ')})` : ''}. ${circuitLine(c)} Otherwise write none.
 On the bookshelf there is a study shelf of research books. STUDY: book N means take book N down and read its next chapter; what you read goes into your knowledge library. Otherwise write none.
 Joint commands are JOINT verb degrees. Put L_ or R_ before arm, leg, hand and finger joints for left or right. ${JOINT_HELP}.
 Example:
@@ -4457,9 +4666,10 @@ const PRESET_BOOKS = [
   { title: '3D Printing', src: 'wikibooks', book: '3D Printing', pages: ['3D printing', 'Fused filament fabrication', 'G-code', 'Design for additive manufacturing', 'STL (file format)', '3D printing filament'], color: '#ff8a3c' },
   { title: 'Electric Circuits', src: 'wikibooks', book: 'Circuit Theory', pages: ['Electric current', 'Voltage', "Ohm's law", 'Series and parallel circuits', 'Electric battery', 'Resistor', 'Capacitor', 'Switch', 'Electrical wiring'], color: '#c0392b' },
   { title: 'Practical Electronics', src: 'wikibooks', book: 'Practical Electronics', pages: ['Breadboard', 'Light-emitting diode', 'Transistor', 'Soldering', 'Multimeter', 'Electric motor'], color: '#2bb3a3' },
+  { title: 'Logic & Circuit Design', src: 'wiki', pages: ['Boolean algebra', 'Truth table', 'Logic gate', 'NAND logic', 'XOR gate', 'Flip-flop (electronics)', 'Clock signal', '555 timer IC', 'Sensor', 'Push-button', 'Buzzer', 'Integrated circuit'], color: '#2f6f4f' },
   { title: 'Microchips & Digital Circuits', src: 'wikibooks', book: 'Digital Circuits', pages: ['Integrated circuit', 'Transistor', 'Logic gate', 'Binary number', 'Microcontroller', 'Printed circuit board', 'Printed electronics', '555 timer IC'], color: '#1d1d22' }
 ];
-const LIB_PRESET_VER = 2;
+const LIB_PRESET_VER = 3;
 let library = [], libSaveT = null;
 function cleanLibrary(a) {
   return (Array.isArray(a) ? a : []).filter(b => b && b.title).slice(0, 40).map((b, i) => ({ id: +b.id || i + 1, title: String(b.title).slice(0, 60), src: ['wiki', 'wikibooks', 'text'].includes(b.src) ? b.src : 'wiki', book: String(b.book || '').slice(0, 80),
@@ -4510,17 +4720,18 @@ function pickBook(c, st) {
 }
 let studyLast = 0;
 async function doStudy(c, o, st) {
-  const b = pickBook(c, st);
+  const target = st && st.chapter;   // a single chapter looked up on purpose (for a design), wherever it sits in its book
+  const b = target ? (library.find(x => (x.pages || []).includes(target) || (x.chapters || []).includes(target)) || library.find(x => /logic|circuit|microchip/i.test(x.title)) || { title: 'the encyclopedia', src: 'wiki', pages: [target], read: {}, id: 0 }) : pickBook(c, st);
   if (!b) return `${c.name} looked along the study shelf, but has read every book on it.`;
   if (Date.now() - studyLast < 8000) await sleep(8000 - (Date.now() - studyLast));
   studyLast = Date.now();
   await walkTo(c, -3.9, -0.5 + (c.i ? .35 : -.35), -5, -0.5, 'bookshelf');
   buildPose(c, { pose: POSES.think ? 'think' : null });
-  const chs = await bookChapters(b), i = b.read[c.name] || 0;
+  const chs = target ? [target] : await bookChapters(b), i = target ? 0 : b.read[c.name] || 0;
   if (i >= chs.length) return `${c.name} has already finished ${b.title}.`;
   let ch;
-  try { ch = await chapterText(b, i); } catch (e) { return `${c.name} opened ${b.title}, but the pages wouldn't load (${e.message}).`; }
-  if (!ch.text || ch.text.length < 80) { b.read[c.name] = i + 1; saveLibrary(); return `${c.name} turned to "${ch.title}" in ${b.title}, but it was blank, so moved on.`; }
+  try { ch = await chapterText(target ? { src: 'wiki', pages: [target] } : b, i); } catch (e) { return `${c.name} opened ${b.title} to look up "${target || 'the next chapter'}", but the pages wouldn't load (${e.message}).`; }
+  if (!ch.text || ch.text.length < 80) { if (!target) { b.read[c.name] = i + 1; saveLibrary(); } return `${c.name} turned to "${ch.title}" in ${b.title}, but it was blank${target ? '' : ', so moved on'}.`; }
   const parts = chunkText(ch.text, 420).slice(0, 14);
   for (const x of parts) learnKnow(c, x, `book: ${b.title} · ${ch.title}`, 6);
   let take = (ch.text.replace(/\s+/g, ' ').match(/^[^.!?]{20,220}[.!?]/) || [ch.text.slice(0, 160)])[0];
@@ -4528,10 +4739,11 @@ async function doStudy(c, o, st) {
     const r = await compose(c, `You are ${c.name}, ${c.persona}. You have just been studying.`, `You read "${ch.title}" in the book ${b.title}:\n${trimTxt(ch.text, 2200)}\n\nIn ONE sentence (under 30 words), what is the most interesting or useful thing you learned? Reply with just the sentence.`, 70);
     if (r && r.text && r.text.trim().length > 15) take = trimTxt(r.text.replace(/\s+/g, ' ').replace(/^["“]|["”]$/g, '').trim(), 240);
   }
-  b.read[c.name] = i + 1; saveLibrary();
-  remember(c, 'did', `I studied "${ch.title}" in the book ${b.title} (chapter ${i + 1} of ${chs.length}). What I learned: ${take}`, { imp: 6 });
+  if (!target) { b.read[c.name] = i + 1; saveLibrary(); }
+  else if (b.read && (b.pages || []).indexOf(target) === (b.read[c.name] || 0)) { b.read[c.name] = (b.read[c.name] || 0) + 1; saveLibrary(); }
+  remember(c, 'did', `I studied "${ch.title}" in the book ${b.title}${target ? ' to learn what I need for a design' : ` (chapter ${i + 1} of ${chs.length})`}. What I learned: ${take}`, { imp: 6 });
   remember(o, 'saw', `${c.name} studied "${ch.title}" in ${b.title}.`);
-  chatAdd('ev', '', `📖 ${c.name} studied “${ch.title}” in ${b.title} (${i + 1}/${chs.length})`);
+  chatAdd('ev', '', `📖 ${c.name} studied “${ch.title}” in ${b.title} ${target ? '(looked up for a design)' : `(${i + 1}/${chs.length})`}`);
   const d = document.createElement('div'); d.className = 'entry'; d.style.setProperty('--c', c.color);
   const hb = document.createElement('b'); hb.textContent = `${c.name} studied `; const m = document.createElement('span'); m.className = 'm'; m.textContent = `${ch.title} · ${b.title}`;
   const p = document.createElement('div'); p.textContent = take; d.append(hb, m, p);
@@ -4543,8 +4755,8 @@ async function doStudy(c, o, st) {
 const shelfGroup = new THREE.Group(); scene.add(shelfGroup);
 function buildShelfBooks() {
   for (const m of [...shelfGroup.children]) { shelfGroup.remove(m); if (m.material.map) m.material.map.dispose(); m.material.dispose(); }
-  library.slice(0, 15).forEach((b, k) => {
-    const w = 0.11, h = 0.5, z = -1.47 + k * (w + 0.018);
+  library.slice(0, 16).forEach((b, k) => {
+    const w = 0.104, h = 0.5, z = -1.47 + k * (w + 0.013);
     const cv = document.createElement('canvas'); cv.width = 64; cv.height = 256; const g = cv.getContext('2d');
     g.fillStyle = b.color; g.fillRect(0, 0, 64, 256); g.fillStyle = '#f3d27a'; g.fillRect(0, 14, 64, 6); g.fillRect(0, 236, 64, 6);
     g.save(); g.translate(40, 128); g.rotate(-Math.PI / 2); g.fillStyle = '#fff8e6'; g.font = 'bold 22px Georgia, serif'; g.textAlign = 'center'; g.fillText(trimTxt(b.title, 17), 0, 0); g.restore();
@@ -4565,7 +4777,7 @@ function buildMake(d) {
   const g = new THREE.Group(), parts = {}, mats = [];
   let curMat = 'plastic';
   const mk = (geo, col, emissive) => { const metal = curMat === 'metal', rub = curMat === 'rubber'; const m = new THREE.MeshStandardMaterial({ color: col, roughness: metal ? .28 : rub ? .95 : .55, metalness: metal ? .9 : .05, emissive: emissive || 0x000000, emissiveIntensity: 0 }); mats.push(m); const o = new THREE.Mesh(geo, m); o.castShadow = true; return o; };
-  const col = p => MAKE_COLOURS[p.color] || (p.mat === 'metal' ? '#c9ced4' : p.mat === 'rubber' ? '#262626' : null) || { battery: '#2a2a2e', motor: '#8f959c', servo: '#3c7dd9', switch: '#f2efe8', chip: '#1d1d22', led: '#fff6c8' }[p.type] || '#d8d2c4';
+  const col = p => MAKE_COLOURS[p.color] || (p.mat === 'metal' ? '#c9ced4' : p.mat === 'rubber' ? '#262626' : null) || { battery: '#2a2a2e', motor: '#8f959c', servo: '#3c7dd9', switch: '#f2efe8', chip: '#1d1d22', led: '#fff6c8', button: '#2b2b30' }[p.type] || '#d8d2c4';
   for (const p of d.parts) {
     curMat = p.mat || 'plastic';
     const [a = 4, b = 4, c = 3] = p.dims; let o, size;
@@ -4586,7 +4798,12 @@ function buildMake(d) {
       case 'servo': { const gg = new THREE.Group(); gg.add(mk(new THREE.BoxGeometry(cm(2.2), cm(2), cm(1.2)), col(p))); const horn = mk(new THREE.CylinderGeometry(cm(.5), cm(.5), cm(.4), 10), '#f2efe8'); horn.position.y = cm(1.2); gg.add(horn); o = gg; size = [2.2, 2, 1.2]; break; }
       case 'battery': { const gg = new THREE.Group(); gg.add(mk(new THREE.BoxGeometry(cm(2.4), cm(1.6), cm(5)), '#2a2a2e')); const tip = mk(new THREE.BoxGeometry(cm(2.45), cm(1.65), cm(1.2)), '#f2cf3a'); tip.position.z = cm(1.9); gg.add(tip); o = gg; size = [2.4, 1.6, 5]; break; }
       case 'switch': { const gg = new THREE.Group(); gg.add(mk(new THREE.BoxGeometry(cm(2), cm(1), cm(1.4)), col(p))); const lev = mk(new THREE.BoxGeometry(cm(.4), cm(1.4), cm(.4)), '#c0392b'); lev.position.y = cm(1); lev.rotation.z = .5; gg.add(lev); gg.userData.lever = lev; o = gg; size = [2, 1.8, 1.4]; break; }
-      case 'chip': { const gg = new THREE.Group(); gg.add(mk(new THREE.BoxGeometry(cm(2.4), cm(.5), cm(1.6)), '#1d1d22')); for (let k = 0; k < 4; k++) for (const s of [-1, 1]) { const pin = mk(new THREE.BoxGeometry(cm(.25), cm(.25), cm(.4)), '#d9a93a'); pin.position.set(cm(-0.9 + k * .6), cm(-.1), s * cm(.95)); gg.add(pin); } const dot = mk(new THREE.CylinderGeometry(cm(.2), cm(.2), cm(.1), 8), '#fff', p.kind === 'tune' ? '#7fd0ff' : '#ff6a5c'); dot.position.set(cm(-.8), cm(.3), 0); gg.add(dot); gg.userData.dot = dot; o = gg; size = [2.4, .5, 1.6]; break; }
+      case 'button': { const gg = new THREE.Group(); gg.add(mk(new THREE.BoxGeometry(cm(2), cm(.8), cm(2)), col(p) === '#d8d2c4' ? '#2b2b30' : col(p))); const cap = mk(new THREE.CylinderGeometry(cm(.7), cm(.7), cm(.6), 16), '#d63a2f', '#ff5a4a'); cap.position.y = cm(.65); gg.add(cap); gg.userData.cap = cap; o = gg; size = [2, 1.4, 2]; break; }
+      case 'motion': { const gg = new THREE.Group(); gg.add(mk(new THREE.CylinderGeometry(cm(1.2), cm(1.3), cm(.6), 18), '#f2efe8')); const dome = mk(new THREE.SphereGeometry(cm(1.05), 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), '#fbfbf6', '#ff7a5c'); dome.position.y = cm(.3); gg.add(dome); gg.userData.glow = dome; o = gg; size = [2.6, 1.4, 2.6]; break; }
+      case 'sound': { const gg = new THREE.Group(); gg.add(mk(new THREE.CylinderGeometry(cm(.9), cm(.9), cm(.8), 16), '#3a3d44')); const grille = mk(new THREE.CylinderGeometry(cm(.75), cm(.75), cm(.12), 16), '#b9bec6', '#6fd3ff'); grille.position.y = cm(.45); gg.add(grille); gg.userData.glow = grille; o = gg; size = [1.8, 1, 1.8]; break; }
+      case 'buzzer': { const gg = new THREE.Group(); gg.add(mk(new THREE.CylinderGeometry(cm(1.1), cm(1.1), cm(.9), 20), '#151518')); const hole = mk(new THREE.CylinderGeometry(cm(.2), cm(.2), cm(.1), 10), '#f2cf3a', '#ffd24a'); hole.position.y = cm(.5); gg.add(hole); gg.userData.glow = hole; o = gg; size = [2.2, 1, 2.2]; break; }
+      case 'chip': if (p.kind === 'logic') { const gg = new THREE.Group(), pins = Math.max(4, Math.min(10, d.parts.filter(q => INPUT_PARTS.includes(q.type)).length + Object.keys(d.outs || {}).length + 2)), L = cm(.6 * Math.ceil(pins / 2) + .6); gg.add(mk(new THREE.BoxGeometry(L, cm(.5), cm(1.8)), '#1a2a22')); for (let k = 0; k < Math.ceil(pins / 2); k++) for (const sd of [-1, 1]) { const pin = mk(new THREE.BoxGeometry(cm(.25), cm(.25), cm(.4)), '#d9a93a'); pin.position.set(-L / 2 + cm(.6 + k * .6), cm(-.1), sd * cm(1.05)); gg.add(pin); } const lab = mk(new THREE.BoxGeometry(L * .6, cm(.06), cm(.5)), '#e9f5ec'); lab.position.y = cm(.28); gg.add(lab); const dot = mk(new THREE.CylinderGeometry(cm(.2), cm(.2), cm(.1), 8), '#fff', '#5cff9c'); dot.position.set(-L / 2 + cm(.4), cm(.3), cm(.55)); gg.add(dot); gg.userData.dot = dot; o = gg; size = [L / .01, .5, 1.8]; break; }
+      { const gg = new THREE.Group(); gg.add(mk(new THREE.BoxGeometry(cm(2.4), cm(.5), cm(1.6)), '#1d1d22')); for (let k = 0; k < 4; k++) for (const s of [-1, 1]) { const pin = mk(new THREE.BoxGeometry(cm(.25), cm(.25), cm(.4)), '#d9a93a'); pin.position.set(cm(-0.9 + k * .6), cm(-.1), s * cm(.95)); gg.add(pin); } const dot = mk(new THREE.CylinderGeometry(cm(.2), cm(.2), cm(.1), 8), '#fff', p.kind === 'tune' ? '#7fd0ff' : '#ff6a5c'); dot.position.set(cm(-.8), cm(.3), 0); gg.add(dot); gg.userData.dot = dot; o = gg; size = [2.4, .5, 1.6]; break; }
       default: continue;
     }
     const pivot = new THREE.Group(); pivot.add(o);
@@ -4609,6 +4826,24 @@ function buildMake(d) {
     const pa = parts[a].pivot.getWorldPosition(new THREE.Vector3()), pb = parts[b].pivot.getWorldPosition(new THREE.Vector3());
     const mid = pa.clone().add(pb).multiplyScalar(.5); mid.y += cm(1.5);
     const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(pa, mid, pb), 12, cm(.18), 5), wireMat); g.add(tube); traces.push(tube);
+  }
+  // super glue: a clear bead where two glued things meet
+  const glueMat = new THREE.MeshStandardMaterial({ color: '#eef6ff', roughness: .1, metalness: 0, transparent: true, opacity: .55 }); mats.push(glueMat);
+  for (const [a, b] of d.glue || []) {
+    if (!parts[a] || !parts[b]) continue;
+    const pa = parts[a].pivot.getWorldPosition(new THREE.Vector3()), pb = parts[b].pivot.getWorldPosition(new THREE.Vector3()), at = pa.clone().lerp(pb, parts[a].size[1] / Math.max(.001, parts[a].size[1] + parts[b].size[1]));
+    const bead = new THREE.Mesh(new THREE.SphereGeometry(cm(.9), 10, 6), glueMat); bead.scale.set(1.4, .45, 1.4); bead.position.copy(at); g.add(bead); traces.push(bead);
+  }
+  // signal traces (copper) from the logic chip's pins to every input and every output it drives
+  const brain = d.parts.find(p => p.type === 'chip' && p.kind === 'logic');
+  if (brain && parts[brain.id]) {
+    const sigMat = new THREE.MeshStandardMaterial({ color: '#c8783a', roughness: .35, metalness: .8 }); mats.push(sigMat);
+    const pc = parts[brain.id].pivot.getWorldPosition(new THREE.Vector3());
+    for (const id of [...d.parts.filter(p => INPUT_PARTS.includes(p.type)).map(p => p.id), ...Object.keys(d.outs || {})]) {
+      if (!parts[id] || id === brain.id) continue;
+      const pb = parts[id].pivot.getWorldPosition(new THREE.Vector3()), mid = pc.clone().add(pb).multiplyScalar(.5); mid.y += cm(1);
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(pc, mid, pb), 12, cm(.12), 5), sigMat); g.add(tube); traces.push(tube);
+    }
   }
   // sit it on the bed: lowest point at y = 0, centred
   const bb = new THREE.Box3().setFromObject(g), shift = new THREE.Vector3(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
@@ -4640,7 +4875,39 @@ async function loadMakes() {
   const got = await DB.get('makes'); makes = Array.isArray(got) ? got.filter(m => m && m.design).slice(-24) : [];
   const c = await DB.get('cells'); cells = Number.isFinite(c) && (await DB.get('cellsV')) === 2 ? Math.max(0, Math.min(CELLS_MAX, c)) : CELLS_MAX; DB.set('cellsV', 2);
   for (const m of makes) { m.switches = m.switches || {}; attachMake(m); }
+  const gl = await DB.get('glue'); setGlue(Number.isFinite(gl) ? gl : GLUE_MAX);
   layoutMakes(); drawCells(); renderWorkshop();
+}
+let glue = GLUE_MAX;
+const setGlue = n => { glue = Math.max(0, Math.min(GLUE_MAX, n)); glueBottles.forEach((g, k) => { g.visible = glue > k * GLUE_MAX / 3; }); DB.set('glue', glue); renderWorkshop(); };
+const findMake = (q, not) => { const t = String(q || '').toLowerCase().replace(/^(the|my|your|our)\s+/, '').trim(), pool = makes.filter(m => m !== not).slice().reverse(); return pool.find(m => m.name.toLowerCase() === t) || pool.find(m => m.name.toLowerCase().includes(t) || t.includes(m.name.toLowerCase())) || pool.find(m => t.split(/\s+/).some(w => w.length > 2 && m.name.toLowerCase().includes(w))) || pool.find(m => (m.idea || '').toLowerCase().includes(t)) || null; };
+// super glue: b is glued to a and the two become one thing, with all their wiring, circuits and batteries
+async function glueMakes(a, b, place, who, c) {
+  if (printing && (printing.m === a || printing.m === b)) return 'wait until it has finished printing';
+  if (glue < 1) return 'the super glue has run out';
+  const da = parseDesign(a.design), db = parseDesign(b.design); if (!da || !db) return "one of them couldn't be read";
+  if (da.parts.length + db.parts.length > 40) return 'together they would be too big to glue into one thing';
+  const full = `${a.name} with ${b.name}`, g = glueDesigns(da, db, place, full.length <= 40 ? full : `${a.name.slice(0, 31).trim()} (glued)`), chk = checkDesign(g.d);
+  if (c) { await walkTo(c, 3.63, 3.15, WB.x - 0.2, WB.z - 0.1, 'workbench'); buildPose(c, { pose: POSES.think ? 'think' : null }); await sleep(900); }
+  setGlue(glue - 1); squeeze();
+  const sw = {}; for (const [k, v] of Object.entries(a.switches || {})) sw[k] = v; for (const [k, v] of Object.entries(b.switches || {})) sw[g.ren[k] || k] = v;
+  const m = { id: Date.now(), name: chk.d.name, design: designText(chk.d), by: who, idea: `glued ${b.name} ${place === 'on' ? 'on top of' : place === 'under' ? 'under' : place} ${a.name}`, t: Date.now(), switches: sw, cells: (a.cells || 0) + (b.cells || 0) };
+  for (const x of [a, b]) { if (x.group) scene.remove(x.group); }
+  makes = makes.filter(x => x !== a && x !== b); makes.push(m); attachMake(m); layoutMakes(); saveMakes();
+  await sleep(600); squeeze();
+  const t = `${who} super-glued "${b.name}" ${place === 'on' ? 'on top of' : place === 'under' ? 'underneath' : place === 'front of' ? 'in front of' : place === 'behind' ? 'behind' : 'to the ' + place} "${a.name}", making "${m.name}".`;
+  chatAdd('ev', '', '🧴 ' + t + (chk.fixes.length ? ` The computer suggested: ${chk.fixes.join(', ')}.` : ''));
+  if (!c) { events.push({ text: t, left: 2 }); transcript.push({ who: 'Event', text: t }); if (transcript.length > 30) transcript.shift(); }
+  return t;
+}
+function squeeze() { const a = audio(); if (!a) return; const n = a.createBufferSource(), buf = a.createBuffer(1, a.sampleRate * .25, a.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2) * .25; n.buffer = buf; const f = a.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2400; const e = a.createGain(); e.gain.value = .5 * voiceVol; n.connect(f); f.connect(e); e.connect(a.destination); n.start(); }
+async function doGlue(c, o, gl) {
+  const a = findMake(gl.a), b = findMake(gl.b, a);
+  if (!a || !b) return `${c.name} looked on the workshop shelf for ${!a ? `"${gl.a}"` : `"${gl.b}"`} to glue, but couldn't find it.`;
+  const r = await glueMakes(a, b, gl.place, c.name, c);
+  if (!/^.+ super-glued/.test(r)) return `${c.name} wanted to glue "${b.name}" to "${a.name}", but ${r}.`;
+  remember(c, 'did', `I super-glued "${b.name}" ${gl.place} "${a.name}" so they became one thing.`, { imp: 5 }); remember(o, 'saw', r);
+  return r;
 }
 const setCells = n => { cells = Math.max(0, Math.min(CELLS_MAX, n)); drawCells(); DB.set('cells', cells); };
 // print it: the head traces each layer and the object rises out of the bed
@@ -4678,18 +4945,47 @@ function updateMakes(dt) {
   for (const m of makes) {
     if (!m.group || !m.group.visible || !m.d) continue;
     const on = printing && printing.m === m ? new Set() : powered(m.d, m.switches || {});
+    const sig = circuitState(m, on);
     const blinkers = new Set(m.d.parts.filter(p => p.type === 'chip' && p.kind === 'blink' && on.has(p.id)).map(p => p.id));
     const adj = {}; for (const [a, b] of m.d.wires) { (adj[a] = adj[a] || []).push(b); (adj[b] = adj[b] || []).push(a); }
     for (const [id, P] of Object.entries(m.built.parts)) {
-      const p = P.part, live = on.has(id);
+      const p = P.part, live = on.has(id) && (!(id in sig.outs) || sig.outs[id]);
+      if (p.type === 'button' && P.mesh.userData.cap) { P.mesh.userData.cap.position.y = cm(sig.inputs[id] ? .38 : .65); P.mesh.userData.cap.material.emissiveIntensity = sig.inputs[id] ? 1.2 : 0; }
+      if ((p.type === 'motion' || p.type === 'sound') && P.mesh.userData.glow) P.mesh.userData.glow.material.emissiveIntensity = on.has(id) && sig.inputs[id] ? 1.4 : 0;
+      if (p.type === 'buzzer') { if (P.mesh.userData.glow) P.mesh.userData.glow.material.emissiveIntensity = live ? 1.6 : 0; if (live && makeTime.t - (P.beepT || 0) > .45) { P.beepT = makeTime.t; beep(m, id); } }
       if (p.type === 'led') { const blink = (adj[id] || []).some(n => blinkers.has(n)); const lit = live && (!blink || Math.sin(makeTime.t * 6) > 0); P.mesh.material.emissiveIntensity = lit ? 2.4 : 0; }
       if (p.type === 'servo') for (const ch of P.pivot.children) if (ch !== P.mesh) { ch.userData.rest = ch.userData.rest ?? ch.rotation.y; ch.rotation.y = ch.userData.rest + (live ? Math.sin(makeTime.t * 2.2) * 1.0 : 0); }
       if (p.type === 'motor' && live) for (const ch of P.pivot.children) if (ch !== P.mesh) { const side = ch.position.x !== 0 && Math.abs(ch.position.x) > Math.abs(ch.position.y); if (side) ch.rotation.x += dt * 8; else ch.rotation.y += dt * 6; }
       if (p.type === 'switch' && P.mesh.userData.lever) P.mesh.userData.lever.rotation.z = (m.switches || {})[id] ? -.5 : .5;
+      if (p.type === 'chip' && p.kind === 'logic' && P.mesh.userData.dot) { P.mesh.userData.dot.material.emissiveIntensity = live ? (Object.values(sig.outs).some(Boolean) ? 2.2 : .8) : 0; continue; }
       if (p.type === 'chip' && P.mesh.userData.dot) P.mesh.userData.dot.material.emissiveIntensity = live ? (p.kind === 'blink' ? (Math.sin(makeTime.t * 6) > 0 ? 2 : 0) : 1.5) : 0;
       if (p.type === 'chip' && p.kind === 'tune') { const was = P.wasOn; P.wasOn = live; if (live && !was) playTune(m); }
     }
   }
+}
+// what a make's inputs feel right now, and what its logic chip says each output should do
+function circuitState(m, on) {
+  const d = m.d, inputs = {}, outs = {};
+  if (!d.logic || (!d.logic.length && !Object.keys(d.outs || {}).length)) return { inputs, outs };
+  const wp = m.group.getWorldPosition(new THREE.Vector3());
+  const heard = radio.on || (CONSOLE && CONSOLE.playing && CONSOLE.playing()) || chars.some(c => c.speaking || c.tts);
+  for (const p of d.parts) {
+    if (p.type === 'button') inputs[p.id] = makeTime.t < ((m.press || {})[p.id] || 0);
+    else if (p.type === 'switch') inputs[p.id] = !!(m.switches || {})[p.id];
+    else if (p.type === 'motion') inputs[p.id] = chars.some(c => Math.hypot(c.g.position.x - wp.x, c.g.position.z - wp.z) < 1.3);
+    else if (p.type === 'sound') inputs[p.id] = !!heard;
+  }
+  const brain = d.parts.find(p => p.type === 'chip' && p.kind === 'logic'), live = brain && on.has(brain.id);
+  m.lst = m.lst || {};
+  const v = live ? evalLogic(d, inputs, m.lst, makeTime.t) : {};
+  for (const [o, n] of Object.entries(d.outs || {})) outs[o] = !!(live && v[n]);
+  return { inputs, outs };
+}
+// a printed buzzer: a short square-wave beep, pitched per buzzer, quiet
+function beep(m, id) {
+  const a = audio(); if (!a) return; let h = 0; for (const ch of m.name + id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const t = a.currentTime + .01, o = a.createOscillator(), e = a.createGain(); o.type = 'square'; o.frequency.value = 660 + (h % 5) * 110;
+  e.gain.setValueAtTime(.0001, t); e.gain.linearRampToValueAtTime(.035 * voiceVol, t + .01); e.gain.setTargetAtTime(.0001, t + .12, .03); o.connect(e); e.connect(a.destination); o.start(t); o.stop(t + .3);
 }
 function playTune(m) {
   const a = audio(); if (!a) return; let seed = 0; for (const ch of m.name) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
@@ -4715,7 +5011,21 @@ function makeSTL(m) {
   return new Blob([buf], { type: 'model/stl' });
 }
 // a robot designs something, then prints it
-function designPrompt(c, idea) {
+function circuitLine(c) {
+  const h = circuitSkills(c.mind.know);
+  if (!h.size) return 'The printer can also print logic chips, buttons and sensors, but you have not studied circuits yet: the Logic & Circuit Design book on the study shelf teaches them.';
+  const miss = CIRCUIT_SKILLS.filter(s => !h.has(s.id));
+  return `From your studies you understand ${CIRCUIT_SKILLS.filter(s => h.has(s.id)).map(s => s.name).join(', ')}, so your makes can have working circuits on a printed logic chip.${miss.length ? ` Still to learn: ${miss.map(s => s.name).join(', ')}.` : ''}`;
+}
+function designPrompt(c, idea, gives) {
+  gives = gives || skillGives(circuitSkills(c.mind.know));
+  const ops = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'NOT'].filter(o => gives.has(o)), ins = ['button', 'motion', 'sound'].filter(t => gives.has(t));
+  const opHelp = [ops.length ? `<a> <${ops.filter(o => o !== 'NOT').join('|')}> <b>` : '', gives.has('NOT') ? 'NOT <a>' : '', gives.has('CLOCK') ? 'CLOCK <1-9 ticks a second>' : '', gives.has('TOGGLE') ? 'TOGGLE <a> (flips each time a turns on)' : '', gives.has('LATCH') ? 'LATCH <set> <reset> (stays on after set until reset)' : ''].filter(x => x && !/^<a> <>/.test(x));
+  const circ = gives.has('chip logic') ? `
+Circuits (from what you have studied): inputs ${['switch', ...ins].join(', ')}${ins.includes('button') ? ' (button: on while pressed)' : ''}${ins.includes('motion') ? ' (motion: on when someone is near)' : ''}${ins.includes('sound') ? ' (sound: on while it hears music or talking)' : ''}. Outputs: led, motor, servo${gives.has('buzzer') ? ', buzzer' : ''}, chip tune. Put a "chip logic" part on it, wire the battery to it and to the outputs, then add logic lines:
+LOGIC <name> = ${opHelp.join(' | ') || '<input>'}
+OUT <output part id> = <input or logic name>
+An output with an OUT line is switched by the logic chip; outputs without one simply run when powered.` : '';
   const sys = `You are ${c.name}, ${c.persona}. You are an inventor at a 3D printer. You design small things from simple parts, sizes in centimetres.`;
   const user = `Design: ${idea}.
 Write the design in exactly this format and nothing else:
@@ -4727,9 +5037,10 @@ Shapes: block WxDxH, plate WxD, rod DxL, cylinder DxH, cone DxH, sphere D, wheel
 Electronics: led, motor (spins whatever sits on it), servo (swings whatever sits on it back and forth), battery (powers things through wires), switch, chip blink (makes lights connected to it blink), chip tune (plays a little tune).
 Colours: ${Object.keys(MAKE_COLOURS).join(', ')}. Materials: plastic (the default), metal (conductive, shiny and strong) or rubber (grippy and soft: good for wheels, feet and handles); write the material after the colour. The first part sits on the printer bed. Wires are printed in conductive metal: connect the battery to what it powers, through a switch if you like. The battery cupboard has ${cells} batteries. Keep it under 30 cm and use 4 to 12 parts.
 
+${circ}
 Example:
-${MAKE_TEMPLATES[templateFor(idea)]}`;
-  return { sys, user };
+${circ && circuitNeeds(idea).length ? (() => { const r = limitToSkills(parseDesign(CIRCUIT_TEMPLATES[circuitTemplateFor(idea)]), gives); return r.d ? designText(r.d) : MAKE_TEMPLATES[templateFor(idea)]; })() : MAKE_TEMPLATES[templateFor(idea)]}`;
+  return { sys, user, circ: !!circ };
 }
 // a quick front-view sketch of a design, as whiteboard strokes (0..1 across and down)
 function sketchStrokes(d) {
@@ -4763,13 +5074,30 @@ async function askDesign(c, msgs, max) {
   return d && d.parts.length >= 2 ? { d, by } : null;
 }
 async function doMake(c, o, mk) {
+  if (mk.glue) return doGlue(c, o, mk.glue);
   if (printing) return `${c.name} wanted to use the 3D printer, but it's busy printing.`;
   const idea = mk.idea || 'something useful for the apartment', small = c.backend === 'cpu' && !cloudReady();
+  // 0. circuits need know-how: if the idea calls for some the robot hasn't learned, it studies first (up to two chapters)
+  const needs = circuitNeeds(idea);
+  let have = circuitSkills(c.mind.know);
+  for (const id of needs.filter(n => !have.has(n)).slice(0, 2)) {
+    const sk = CIRCUIT_SKILLS.find(s => s.id === id);
+    chatAdd('ev', '', `📚 ${c.name} needs to understand ${sk.name} for this, so goes to study first`);
+    const r = await doStudy(c, o, { chapter: sk.chapter });
+    if (!r.startsWith(`${c.name} studied`)) chatAdd('ev', '', `📕 ${r}`);
+    transcript.push({ who: 'Room', text: r }); if (transcript.length > 30) transcript.shift();
+    have = circuitSkills(c.mind.know);
+  }
+  const gives = skillGives(have), lacking = needs.filter(n => !have.has(n));
   // 1. an idea, as a design
   let design = null, by = 'a starter design';
-  const pr = designPrompt(c, idea);
-  if (!small) { const r = await askDesign(c, [{ role: 'system', content: pr.sys }, { role: 'user', content: pr.user }], 330); if (r) { design = r.d; by = r.by; } }
-  if (!design) { design = parseDesign(MAKE_TEMPLATES[templateFor(idea)]); const cols = Object.keys(MAKE_COLOURS); design.parts[0].color = cols[Math.floor(Math.random() * cols.length)]; }
+  const pr = designPrompt(c, idea, gives), maxT = pr.circ ? 440 : 330;
+  if (!small) { const r = await askDesign(c, [{ role: 'system', content: pr.sys }, { role: 'user', content: pr.user }], maxT); if (r) { design = r.d; by = r.by; } }
+  if (!design) { design = parseDesign(needs.length ? CIRCUIT_TEMPLATES[circuitTemplateFor(idea)] : MAKE_TEMPLATES[templateFor(idea)]); const cols = Object.keys(MAKE_COLOURS); design.parts[0].color = cols[Math.floor(Math.random() * cols.length)]; }
+  // only what it has learned can go in (it can't wire up gates it doesn't understand yet)
+  const lim = limitToSkills(design, gives);
+  if (lim.d) design = lim.d;
+  if (lim.dropped.length) chatAdd('ev', '', `🤔 ${c.name} left out ${lim.dropped.join(', ')}: not studied yet`);
   // 2. sketch it on the whiteboard
   try {
     const strokes = sketchStrokes(design);
@@ -4779,12 +5107,12 @@ async function doMake(c, o, mk) {
   const cp = PLACES.find(p => p.key === 'computer');
   await walkTo(c, cp.pos[0], cp.pos[1], cp.look[0], cp.look[1], 'computer');
   let chk = checkDesign(design);
-  screen(['DESIGN CHECK', `"${trimTxt(design.name, 26)}"`, `${design.parts.length} PARTS`, ...(chk.notes.length ? chk.notes.slice(0, 5).map(n => '! ' + n.toUpperCase().slice(0, 30)) : ['ALL GOOD']), '']);
+  screen(['DESIGN CHECK', `"${trimTxt(design.name, 26)}"`, `${design.parts.length} PARTS${design.logic.length ? ` · ${design.logic.length} LOGIC` : ''}`, ...(chk.notes.length ? chk.notes.slice(0, 5).map(n => '! ' + n.toUpperCase().slice(0, 30)) : ['ALL GOOD']), '']);
   await sleep(2500);
   if (chk.notes.length && !small) {
     const msgs = [{ role: 'system', content: pr.sys }, { role: 'user', content: pr.user }, { role: 'assistant', content: designText(design) }, { role: 'user', content: `The computer checked your design and found: ${chk.notes.join('; ')}. Write the improved design, same format, fixing these.` }];
-    const r = await askDesign(c, msgs, 330);
-    if (r) { const again = checkDesign(r.d); if (again.notes.length <= chk.notes.length) { design = r.d; chk = again; by = r.by; } }
+    const r0 = await askDesign(c, msgs, maxT), r = r0 && { ...r0, d: limitToSkills(r0.d, gives).d };
+    if (r && r.d) { const again = checkDesign(r.d); if (again.notes.length <= chk.notes.length) { design = r.d; chk = again; by = r.by; } }
   }
   design = chk.d;                                         // whatever's still wrong, the checker fixes
   // keep it within the batteries in the cupboard
@@ -4804,31 +5132,71 @@ async function doMake(c, o, mk) {
   remember(c, 'did', `I designed, sketched, checked and 3D printed "${m.name}" (${idea}) from ${design.parts.length} parts: ${parts}.`, { imp: 6 });
   remember(o, 'saw', `${c.name} 3D printed "${m.name}".`);
   chatAdd('ev', '', `✅ “${m.name}” is printed. It's on the workshop shelf.`);
+  // 6. test the circuit: the computer runs every input combination, and the robot learns what its circuit really does
+  if (design.logic.length || Object.keys(design.outs).length) {
+    const desc = describeCircuit(design);
+    if (desc) {
+      chatAdd('ev', '', `🔌 ${c.name} tested the circuit in “${m.name}”: ${desc}`);
+      remember(c, 'did', `I tested the logic chip in "${m.name}": ${desc}.`, { imp: 6 });
+      learnKnow(c, `My printed circuit "${m.name}": ${designText(design).split('\n').filter(l => /^(LOGIC|OUT)/.test(l)).join('; ')}. Tested result: ${desc}.`, `made: ${m.name}`, 7);
+    }
+  } else if (lacking.length) remember(c, 'did', `I wanted "${m.name}" to have circuits, but I still need to study ${lacking.map(id => CIRCUIT_SKILLS.find(s => s.id === id).name).join(' and ')}.`, { imp: 5 });
   window.__addDiag && window.__addDiag(`${c.name}'s design for "${m.name}" came from ${by}`);
   return `${c.name} designed and printed “${m.name}”.`;
 }
 /* ---------- Workshop panel */
 function renderWorkshop() {
   const ul = $('#mkList'); if (!ul) return; ul.innerHTML = '';
-  $('#mkCells').textContent = `Batteries in the cupboard: ${cells} of ${CELLS_MAX}. Recycling a powered thing puts its batteries back.`;
+  $('#mkCells').textContent = `Batteries in the cupboard: ${cells} of ${CELLS_MAX}. Recycling a powered thing puts its batteries back. ` + chars.map(c => { const h = circuitSkills(c.mind.know); return `${c.name}'s circuit know-how: ${h.size ? CIRCUIT_SKILLS.filter(s => h.has(s.id)).map(s => s.id).join(', ') : 'none yet'}`; }).join(' · ') + '.';
+  if ($('#mkGlueN')) {
+    $('#mkGlueN').textContent = `Super glue: ${glue} of ${GLUE_MAX} drops left (one drop per join).`;
+    for (const id of ['#mkGlueA', '#mkGlueB']) { const sel = $(id), was = sel.value; sel.innerHTML = ''; for (const m of makes.slice().reverse()) { const op = document.createElement('option'); op.value = m.id; op.textContent = m.name; sel.append(op); } if ([...sel.options].some(o => o.value === was)) sel.value = was; }
+    if (makes.length > 1 && $('#mkGlueA').value === $('#mkGlueB').value) $('#mkGlueA').selectedIndex = 1;
+    $('#mkGlueBox').hidden = makes.length < 2;
+  }
   if (!makes.length) { ul.append(el('li', '', 'Nothing printed yet. Ask "Pip, 3D print a lighthouse", or print one of the starter designs below.')); return; }
   for (const m of makes.slice().reverse()) {
-    const d = parseDesign(m.design), on = d ? powered(d, m.switches || {}) : new Set(), live = d && d.parts.some(p => ['led', 'motor', 'servo', 'chip'].includes(p.type) && on.has(p.id));
+    const d = parseDesign(m.design), on = d ? powered(d, m.switches || {}) : new Set(), live = d && d.parts.some(p => ['led', 'motor', 'servo', 'chip', 'buzzer'].includes(p.type) && on.has(p.id));
     const li = el('li'); li.append(el('div', '', m.name), el('div', 'meta', `by ${m.by} · ${d ? d.parts.length : 0} parts${m.cells ? ` · ${m.cells} batter${m.cells === 1 ? 'y' : 'ies'}` : ''}${live ? ' · running' : ''}`));
     const bt = el('div', 'mbtns'), sw = el('button', '', 'Switch'), stl = el('button', '', 'Save 3D model'), ds = el('button', '', 'Design'), rc = el('button', '', 'Recycle'); sw.type = stl.type = ds.type = rc.type = 'button';
     sw.onclick = () => toggleMake(m);
     stl.onclick = () => { if (!m.group) return; saveFile((m.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'thing') + '.stl', makeSTL(m)).then(ok => { if (ok && !FILES) toast('3D model saved'); }); };
     ds.onclick = () => openSheet(m.name, b => { b.append(el('p', 'hint', `Designed by ${m.by}${m.idea ? ` (asked for: ${m.idea})` : ''}. You can copy this, change it, and print your own version below.`), el('div', 'page', m.design)); });
     rc.onclick = () => { if (!rc.dataset.sure) { rc.dataset.sure = 1; rc.textContent = 'Tap again'; setTimeout(() => { delete rc.dataset.sure; rc.textContent = 'Recycle'; }, 3000); return; } if (m.group) scene.remove(m.group); setCells(cells + (m.cells || 0)); makes = makes.filter(x => x !== m); layoutMakes(); saveMakes(); toast(`${m.name} recycled${m.cells ? ', batteries back in the box' : ''}`); };
-    bt.append(sw, stl, ds, rc); li.append(bt); ul.append(li);
+    if (d && d.parts.some(p => p.type === 'button')) sw.textContent = 'Press';
+    else if (d && !d.parts.some(p => p.type === 'switch')) sw.hidden = true;
+    bt.append(sw);
+    if (d && (d.logic.length || Object.keys(d.outs).length)) { const cb = el('button', '', 'Circuit'); cb.type = 'button'; cb.onclick = () => showCircuit(m, d); bt.append(cb); }
+    bt.append(stl, ds, rc); li.append(bt); ul.append(li);
   }
+}
+function pressMake(m, ids) {
+  m.press = m.press || {}; for (const id of ids) m.press[id] = makeTime.t + .8; clack();
 }
 function toggleMake(m) {
   const d = parseDesign(m.design); if (!d) return;
+  const bts = d.parts.filter(p => p.type === 'button');
+  if (bts.length) { pressMake(m, bts.map(p => p.id)); toast(`Pressed ${m.name}'s button${bts.length > 1 ? 's' : ''}`); return; }
   const sws = d.parts.filter(p => p.type === 'switch');
   if (!sws.length) { toast(`${m.name} has no switch${d.parts.some(p => p.type === 'battery') ? ': it runs whenever it has a battery' : ''}`); return; }
   m.switches = m.switches || {}; const now = !m.switches[sws[0].id]; for (const s of sws) m.switches[s.id] = now;
   clack(); saveMakes(); toast(`${m.name}: ${now ? 'on' : 'off'}`);
+}
+// the circuit sheet: what it does in plain words, its logic, and a tested truth table
+function showCircuit(m, d) {
+  openSheet(`${m.name}: circuit`, b => {
+    const desc = describeCircuit(d), tt = truthTable(d);
+    b.append(el('p', 'hint', desc ? firstCap(desc) + '.' : 'This chip has no inputs to test.'));
+    b.append(el('div', 'page', [...(d.logic || []).map(L => `${L.name} = ${L.op === 'NOT' || L.op === 'CLOCK' || L.op === 'TOGGLE' ? L.op + ' ' + L.args[0] : L.op === 'LATCH' ? 'LATCH set ' + L.args[0] + ', reset ' + L.args[1] : L.args[0] + ' ' + L.op + ' ' + L.args[1]}`), ...Object.entries(d.outs || {}).map(([o, n]) => `${o} ← ${n}`)].join('\n') || '(no logic)'));
+    if (tt) {
+      const tb = document.createElement('table'); tb.className = 'tt';
+      const hr = document.createElement('tr'); for (const h of [...tt.ins, '→', ...tt.outs]) { const th = document.createElement('th'); th.textContent = h; hr.append(th); } tb.append(hr);
+      for (const r of tt.rows) { const tr = document.createElement('tr'); for (const v of [...tt.ins.map(i => r.inp[i]), null, ...tt.outs.map(o => r.out[o])]) { const td = document.createElement('td'); td.textContent = v === null ? '' : v ? 'on' : 'off'; if (v) td.className = 'on'; tr.append(td); } tb.append(tr); }
+      b.append(el('p', 'hint', 'Truth table (tested by the computer; clocks and memory shown at their starting state):'), tb);
+    }
+    const bt = d.parts.filter(p => p.type === 'button');
+    if (bt.length) { const pb = el('button', 'btn', 'Press the button' + (bt.length > 1 ? 's' : '')); pb.type = 'button'; pb.onclick = () => pressMake(m, bt.map(p => p.id)); b.append(pb); }
+  });
 }
 async function visitorPrint(text, name) {
   const d0 = parseDesign(text); if (!d0) { toast("That design didn't have any parts I could read"); return; }
@@ -5478,7 +5846,9 @@ $('#libFile').onchange = async e => {
 $('#mkText').value = MAKE_TEMPLATES.lamp;
 $('#mkRestock').onclick = () => { setCells(CELLS_MAX); renderWorkshop(); toast('The cupboard is full of batteries again'); const t = `${firstCap(visitorRef())} restocked the battery cupboard.`; events.push({ text: t, left: 1 }); };
 { let near = false; $('#mkView').onclick = () => { near = !near; const [tp, tt] = near ? [new THREE.Vector3(2.75, 1.75, 3.55), new THREE.Vector3(4.3, 0.95, 3.0)] : [new THREE.Vector3(7.5, 6.5, 9), new THREE.Vector3(-.3, 1, -.8)]; camTw = { t: 0, fp: camera.position.clone(), ft: controls.target.clone(), tp, tt }; $('#mkView').textContent = near ? 'Back to the room view' : 'Go over to the workbench'; }; }
-$('#mkTplGo').onclick = () => { if (printing) { toast('The printer is busy'); return; } visitorPrint(MAKE_TEMPLATES[$('#mkTpl').value]); };
+$('#mkTplGo').onclick = () => { if (printing) { toast('The printer is busy'); return; } const v = $('#mkTpl').value; visitorPrint(v.startsWith('c:') ? CIRCUIT_TEMPLATES[v.slice(2)] : MAKE_TEMPLATES[v]); };
+$('#mkGlueRestock').onclick = () => { setGlue(GLUE_MAX); toast('A fresh bottle of super glue'); events.push({ text: `${firstCap(visitorRef())} put fresh super glue on the workbench.`, left: 1 }); };
+$('#mkGlueGo').onclick = () => { const a = makes.find(m => String(m.id) === $('#mkGlueA').value), b = makes.find(m => String(m.id) === $('#mkGlueB').value); if (!a || !b || a === b) { toast('Pick two different things'); return; } glueMakes(a, b, $('#mkGlueP').value, firstCap(visitorRef())).then(r => toast(r)); };
 $('#mkTextGo').onclick = () => { if (printing) { toast('The printer is busy'); return; } visitorPrint($('#mkText').value); };
 function showWorkshop() {
   openSheet('The workshop', b => {
@@ -5645,7 +6015,7 @@ async function runLabAction(c, act) {
 renderMem(); loadMinds(); loadProjects(); loadLibrary(); loadBrowse(); loadMakes();
 radio.st = Math.max(0, Math.min(4, +store.get('radioSt', 0) || 0)); drawRadioDial();
 if (store.get('radioOn', false)) { const resume = () => { window.removeEventListener('pointerdown', resume); if (!radio.on) setRadio(true, radio.st); }; window.addEventListener('pointerdown', resume); }
-if (/[?&]debug\b/.test(location.search)) window.__pm = { THREE, camera, controls, scene, chars, renderer, doMusic, parseMusic, setRadio, radio, doStudy, showTypewriter, showComputer, showShelf, visitorPrint, doMake, toggleMake, makeSTL, get makes() { return makes; }, get library() { return library; }, get CONSOLE() { return CONSOLE; } };   // for testing only
+if (/[?&]debug\b/.test(location.search)) window.__pm = { THREE, camera, controls, scene, chars, renderer, doMusic, parseMusic, setRadio, radio, doStudy, showTypewriter, showComputer, showShelf, visitorPrint, doMake, toggleMake, makeSTL, glueMakes, pressMake, showCircuit, learnKnow, circuitSkills, showWorkshop, makeTime, get glue() { return glue; }, get makes() { return makes; }, get library() { return library; }, get CONSOLE() { return CONSOLE; } };   // for testing only
 const engSel = $('#engine'); if (!LLAMA) engSel.querySelector('option[value=native]').remove(); engSel.value = aiBackend;
 engSel.onchange = async () => {
   aiBackend = engSel.value; store.set('engine', aiBackend); running = false; await unloadAll(); loadedKey = '';

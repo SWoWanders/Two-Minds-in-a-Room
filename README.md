@@ -15,5 +15,13 @@ Play it at https://swowanders.github.io/Two-Minds-in-a-Room/
 
 Each robot has its own memory stream (what it saw, heard, did and reflected on) and its own **knowledge library** of facts about the world. The library fills up from what you teach (start a chat message with "remember that…", "did you know…" or "fact:", or paste text or add a text file in *Memories & learning*), from what the robot looks up on the computer, and, held loosely, from what the other robot says. Export and import keep everything.
 
+## The workshop
+
+A 3D printer prints in plastic, conductive metal and rubber: shapes, gears, wheels, motors, servos, lights, buttons, motion and sound sensors, buzzers and chips. A battery cupboard powers them, and a bottle of super glue joins two printed things into one ("Moss, glue the windmill onto the cart").
+
+**Working circuits.** A printed *logic chip* runs real logic: AND, OR, XOR, NAND, NOR, NOT, clocks, toggles and latches, reading its inputs (buttons, switches, motion and sound sensors) and driving its outputs (lights, motors, servos, buzzers, tune chips). It runs live in the room: press a doorbell's button, walk a robot past a motion alarm. The computer tests every circuit and shows its truth table (tap *Circuit* in the Workshop panel).
+
+**Know-how first.** A robot can only use the circuit parts and gates it has studied (basic circuits, microchips, logic gates, NAND/NOR/XOR, timers, flip-flops, sensors). Asked for a circuit it doesn't understand yet, it goes to the study shelf and reads the chapter it needs first. The *Logic & Circuit Design* book covers it all.
+
 - **Chat:** talk to either robot or both; give them things to do.
 - **Scripted demo:** works anywhere, no AI needed.
