@@ -12,6 +12,9 @@
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.5 Nunito,system-ui,sans-serif}
 #app{display:grid;grid-template-rows:56vh minmax(0,1fr);height:100dvh}
 @media(min-width:900px){#app{grid-template-rows:1fr;grid-template-columns:minmax(0,1fr) 380px}}
+@media(orientation:landscape) and (max-height:560px){#app{grid-template-rows:1fr;grid-template-columns:minmax(0,1fr) min(360px,44vw)}#panel{border-top:0;border-left:1px solid var(--line);padding-bottom:24px}#title{font-size:16px!important}#title small{display:none!important}}
+@media(min-width:1700px){#app{grid-template-columns:minmax(0,1fr) 440px}}
+@media(hover:hover) and (pointer:fine){#stage canvas.pointy{cursor:pointer}button:hover:not(:disabled){filter:brightness(1.15)}}
 #stage{position:relative;overflow:hidden;background:#140d19}
 #stage canvas{display:block;width:100%;height:100%;touch-action:none}
 #bubbles{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -69,8 +72,8 @@ form.nudge{display:flex;gap:8px}form.nudge input{flex:1}
 .msg.bot b{color:var(--c);font:600 12px Fredoka,sans-serif;display:block}
 .msg .to{display:block;font-size:11px;opacity:.75}
 .msg.ev{align-self:center;background:none;color:var(--dim);font-size:12px;font-style:italic;padding:2px}
-.chatbar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px}
-.chatbar select{width:auto;max-width:34vw}
+.chatbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.chatbar select{grid-column:1/-1;width:100%}
 #toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%) translateY(20px);background:#fff8ee;color:#2a1d2e;padding:10px 16px;border-radius:12px;font-weight:700;opacity:0;transition:.25s;max-width:90vw;z-index:9;box-shadow:0 6px 20px #0008;pointer-events:none}
 #toast.on{opacity:1;transform:translateX(-50%)}
 .hint{font-size:12px;color:var(--dim);margin:4px 0 0}
@@ -129,7 +132,7 @@ window.__diag = { errors: [], t0: Date.now() };
     </section>
     <details id="consoleBox">
       <summary>Melody Console · Optigan / Omnichord</summary>
-      <p class="hint">The SWoW Sound Gallery's Melody Console, now by the robots' window. Walk up to it and play: strum the metal plate, press the chord buttons, play the Optigan keys, pick a backing rhythm, tap the disc to change its voice, and set the Leslie spinning. Ask Pip or Moss to play too ("Moss, play I IV V I as a bossa").</p>
+      <p class="hint">The SWoW Sound Gallery's Melody Console, now by the robots' window. Walk up to it and play: strum the metal plate, press the chord buttons, play the Optigan keys, pick a backing rhythm, tap or click the disc to change its voice, and set the Leslie spinning. Ask Pip or Moss to play too ("Moss, play I IV V I as a bossa").</p>
       <div class="btns"><button type="button" class="primary" id="cview">Walk up to the console</button></div>
       <div class="row">
         <label class="pick">Key<select id="ckey"></select></label>
@@ -147,7 +150,7 @@ window.__diag = { errors: [], t0: Date.now() };
     </details>
     <details id="mkBox">
       <summary>Workshop · 3D printer</summary>
-      <p class="hint">Pip and Moss design things from simple parts and print them layer by layer: shapes, wheels, gears and pulleys, plus lights, motors, switches and little chips joined by wires printed in conductive filament. A battery makes them work. Ask in the chat ("Moss, 3D print a lighthouse") or print one yourself. Tap a printed thing in the room to flip its switch.</p>
+      <p class="hint">Pip and Moss design things from simple parts and print them layer by layer: shapes, wheels, gears and pulleys, plus lights, motors, switches and little chips joined by wires printed in conductive filament. A battery makes them work. Ask in the chat ("Moss, 3D print a lighthouse") or print one yourself. Tap or click a printed thing in the room to press its button or flip its switch.</p>
       <div class="btns"><button type="button" id="mkView">Go over to the workbench</button></div>
       <p class="hint" id="mkCells"></p>
       <div class="btns"><button type="button" id="mkRestock">Restock the battery cupboard</button><button type="button" id="mkGlueRestock">Fresh super glue</button></div>
@@ -170,7 +173,7 @@ window.__diag = { errors: [], t0: Date.now() };
     </details>
     <details id="libBox">
       <summary>Study shelf · research books</summary>
-      <p class="hint">Books on the shelf that Pip and Moss read a chapter at a time. Tap the bookshelf in the room to see what they've read. Add a book: give it a title, then list Wikipedia articles (one per line), or write <b>wikibooks: Book Name</b> for a Wikibooks textbook, or add a text file.</p>
+      <p class="hint">Books on the shelf that Pip and Moss read a chapter at a time. Tap or click the bookshelf in the room to see what they've read. Add a book: give it a title, then list Wikipedia articles (one per line), or write <b>wikibooks: Book Name</b> for a Wikibooks textbook, or add a text file.</p>
       <ul class="memlist" id="libList"></ul>
       <input id="libTitle" placeholder="Book title" maxlength="60" autocomplete="off" aria-label="Book title" style="width:100%;margin-top:8px">
       <textarea id="libPages" rows="3" placeholder="Wikipedia articles, one per line (or wikibooks: Music Theory)" aria-label="What is in the book" style="width:100%;margin-top:8px"></textarea>
@@ -216,13 +219,13 @@ window.__diag = { errors: [], t0: Date.now() };
       <div class="btns"><button type="button" id="diagCopy">Copy diagnostics</button><button type="button" id="diagClear">Clear crash log</button></div>
     </details>
     <label class="pick">AI engine
-      <select id="engine"><option value="native">Native on this phone (fastest, app only)</option><option value="cpu">Phone's processor (reliable, slower)</option><option value="gpu">Graphics chip, WebGPU (fast, crashes some phones)</option></select>
+      <select id="engine"><option value="native">Native on this phone (fastest, app only)</option><option value="cpu">This device's processor (reliable, slower)</option><option value="gpu">Graphics chip, WebGPU (fast, crashes some phones)</option></select>
     </label>
     <details id="cloudBox">
       <summary>Smart mode (free cloud minds, optional)</summary>
-      <p class="hint">Bigger minds on Cloudflare's free Workers AI: Llama 3.1 8B for Pip and Qwen3 30B for Moss. You run your own free Worker (the instructions are in the worker folder of the GitHub repo). On the free plan it can never charge you: after about 700 turns a day it stops until midnight UTC, and the robots switch back to their on-phone minds by themselves.</p>
+      <p class="hint">Bigger minds on Cloudflare's free Workers AI: Llama 3.1 8B for Pip and Qwen3 30B for Moss. You run your own free Worker (the instructions are in the worker folder of the GitHub repo). On the free plan it can never charge you: after about 700 turns a day it stops until midnight UTC, and the robots switch back to their on-device minds by themselves.</p>
       <label class="pick">Your Worker address<input id="cloudUrl" placeholder="https://two-minds-smart.yourname.workers.dev" autocomplete="off" inputmode="url"></label>
-      <label class="pick">Use the cloud for<select id="cloudRoute"><option value="all">Every turn</option><option value="hard">Only harder turns (answering you, events, writing); on-phone minds do the rest and your daily allowance lasts longer</option></select></label>
+      <label class="pick">Use the cloud for<select id="cloudRoute"><option value="all">Every turn</option><option value="hard">Only harder turns (answering you, events, writing); on-device minds do the rest and your daily allowance lasts longer</option></select></label>
       <div class="btns"><select id="cloudOn" aria-label="Smart mode"><option value="off">Smart mode off</option><option value="on">Smart mode on</option></select><button type="button" id="cloudTest">Test</button></div>
       <p class="hint" id="cloudState"></p>
     </details>
@@ -315,11 +318,13 @@ const bar = p => { progEl.style.display = 'block'; progEl.firstElementChild.styl
 
 /* ---------- Scene ---------- */
 const stage = $('#stage');
-const PHONE = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || (navigator.deviceMemory && navigator.deviceMemory <= 8);
+const PHONE = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) || (matchMedia('(pointer:coarse)').matches && !matchMedia('(any-pointer:fine)').matches);
+const LOWMEM = !!(navigator.deviceMemory && navigator.deviceMemory <= 4);   // a small computer: go easy on graphics and memory
+const DEV = PHONE ? 'phone' : 'computer';
 const crashes = (store.get('crashes', []) || []).filter(c => Date.now() - c.t < 6 * 3600e3);
 const SAFE = crashes.some(c => Date.now() - c.t < 20 * 60e3);
 const GFX_OFF = store.get('gfx', '') === 'off';
-const LITE = SAFE || GFX_OFF || store.get('gfx', PHONE ? 'lite' : 'full') === 'lite';
+const LITE = SAFE || GFX_OFF || store.get('gfx', PHONE || LOWMEM ? 'lite' : 'full') === 'lite';
 window.__appStarted = true;
 let renderer, NO3D = false;
 try { if (GFX_OFF) throw new Error('3D switched off for an AI test'); renderer = new THREE.WebGLRenderer({ antialias: !LITE, powerPreference: 'default' }); }
@@ -4204,7 +4209,7 @@ async function loop() {
         logNote(`${c.name}'s model failed: ${trimTxt(e && e.message ? e.message : e, 140)}`);
         if (aiFails >= 2) {
           running = false; pauseBtn.textContent = 'Resume'; thinking(c, false);
-          const msg = 'The AI models stopped responding, probably because the phone ran out of graphics memory. Switch Graphics to Lite, then reload. The models are saved, so reloading is quick.';
+          const msg = 'The AI models stopped responding, probably because the device ran out of graphics memory. Switch Graphics to Lite, then reload. The models are saved, so reloading is quick.';
           status(msg); toast('AI stopped. See the message under the buttons', 6000); break;
         }
         toast(`${c.name}'s model hiccupped, so this turn is scripted`); res = scriptDecide(c, o);
@@ -4254,7 +4259,7 @@ function begin(m) {
   mode = m; running = true; pauseBtn.disabled = false; pauseBtn.textContent = 'Pause';
   const cl = m === 'ai' && cloudReady();
   for (const c of chars) c.tag.textContent = c.name + ' · ' + (m !== 'ai' ? 'scripted' : cl ? 'smart mode' : short(c.modelId));
-  logNote(m !== 'ai' ? 'Scripted demo (no AI)' : cl ? `Smart mode: Pip and Moss think in the cloud on your free Worker${chars[0].engine ? `, with ${short(chars[0].modelId)} and ${short(chars[1].modelId)} on the phone as backup` : '. If it stops, their on-phone minds load as a backup'}` : `AI mode: Pip runs ${short(chars[0].modelId)}, Moss runs ${short(chars[1].modelId)}`);
+  logNote(m !== 'ai' ? 'Scripted demo (no AI)' : cl ? `Smart mode: Pip and Moss think in the cloud on your free Worker${chars[0].engine ? `, with ${short(chars[0].modelId)} and ${short(chars[1].modelId)} on the phone as backup` : '. If it stops, their on-device minds load as a backup'}` : `AI mode: Pip runs ${short(chars[0].modelId)}, Moss runs ${short(chars[1].modelId)}`);
   loop();
 }
 pauseBtn.onclick = () => {
@@ -5277,20 +5282,20 @@ async function cloudDecide(c, o) {
 const hardTurn = c => pendingFor(c).length > 0 || events.some(e => e.left > 0);
 function cloudFailed(e) {
   const quota = e && e.quota, now = Date.now();
-  if (e && e.soft) { window.__addDiag && window.__addDiag('Smart mode: ' + e.message + ', so this turn used the on-phone mind'); return; }
+  if (e && e.soft) { window.__addDiag && window.__addDiag('Smart mode: ' + e.message + ', so this turn used the on-device mind'); return; }
   if (quota) { const d = new Date(); d.setUTCHours(24, 0, 30, 0); cloudDownUntil = d.getTime(); } else cloudDownUntil = now + 5 * 60e3;
   const why = quota ? "today's free cloud allowance is used up (it resets at midnight UTC)" : `the cloud didn't answer (${trimTxt(e && e.message ? e.message : e, 80)})`;
   window.__addDiag && window.__addDiag('Smart mode: ' + why);
-  if (cloudNote !== why) { cloudNote = why; logNote(`Smart mode paused: ${why}. Using the on-phone minds for now.`); }
+  if (cloudNote !== why) { cloudNote = why; logNote(`Smart mode paused: ${why}. Using the on-device minds for now.`); }
   const st = $('#cloudState'); if (st) st.textContent = 'Paused: ' + why + '.';
 }
-// the cloud failed and no on-phone minds are loaded yet: load them now (the visitor sees progress), then carry on
+// the cloud failed and no on-device minds are loaded yet: load them now (the visitor sees progress), then carry on
 let localLoading = null;
 async function ensureLocal() {
   if (chars.every(c => c.engine)) return true;
   if (aiBackend === 'gpu') { status('Smart mode is paused. Tap Start with AI to load the on-device minds.'); return false; }
   if (!localLoading) localLoading = (async () => {
-    const was = running; toast('Loading the on-phone minds as a backup…', 4000);
+    const was = running; toast('Loading the on-device minds as a backup…', 4000);
     const ok = aiBackend === 'native' ? await startNative(selA.value, selB.value) : await startCPU(selA.value, selB.value);
     running = was; if (ok) for (const c of chars) c.tag.textContent = c.name + ' · ' + short(c.modelId);
     return ok;
@@ -5307,7 +5312,12 @@ async function initAI() {
   let gpuOK = false, f16 = false;
   status('Checking for WebGPU…');
   try { if (navigator.gpu) { const ad = await navigator.gpu.requestAdapter(); if (ad) { gpuOK = true; f16 = ad.features.has('shader-f16'); } } } catch {}
-  if (!gpuOK) { fillEmpty('WebGPU not available'); status("This browser has no WebGPU, so the AI models can't run here. Try Chrome on Android or desktop. The scripted demo still works."); return; }
+  if (!gpuOK) {
+    // no working graphics chip for AI here: use the processor instead, which works in every modern browser
+    aiBackend = 'cpu'; if ($('#engine')) $('#engine').value = 'cpu';
+    toast("This browser's graphics chip can't run the AI, so the minds will use the processor", 5000);
+    return initAI();
+  }
   status('Loading the WebLLM library…');
   try { webllm = await import('https://esm.run/@mlc-ai/web-llm'); }
   catch (e) { console.error(e); fillEmpty('Library failed to load'); status("Couldn't load WebLLM from the CDN. Check your connection and reload."); toast('WebLLM library failed to load'); return; }
@@ -5387,7 +5397,7 @@ async function startNative(a, b) {
   status('Both minds are running natively on your phone.');
   return true;
 }
-let aiBackend = (() => { const e = store.get('engine', ''); if (LLAMA) return e === 'cpu' || e === 'gpu' ? e : 'native'; return e === 'gpu' || (!e && !PHONE) ? 'gpu' : 'cpu'; })();
+let aiBackend = (() => { const e = store.get('engine', ''); if (LLAMA) return e === 'cpu' || e === 'gpu' ? e : 'native'; return e === 'gpu' || (!e && !PHONE && !LOWMEM && navigator.gpu) ? 'gpu' : 'cpu'; })();
 let wllamaMod = null, WasmFromCDN = null;
 function fillCPU() {
   const nat = aiBackend === 'native', list = CPU_MODELS.filter(m => nat || !m.native);
@@ -5404,7 +5414,7 @@ function fillCPU() {
     selB.value = ids.includes(sb) && sb !== selA.value ? sb : (selA.value === 'cpu-qwen2.5-0.5b' ? 'cpu-smollm2-360m' : 'cpu-qwen2.5-0.5b');
   }
   selA.disabled = selB.disabled = false; goBtn.disabled = false;
-  status("The minds run on your phone's processor, not the graphics chip, so they can't crash the 3D room. Each turn takes longer, often 20 to 60 seconds. The first start downloads both models, which are then saved on this device.");
+  status(`The minds run on your ${DEV}'s processor, not the graphics chip, so they can't crash the 3D room. Each turn takes longer, often 20 to 60 seconds. The first start downloads both models, which are then saved on this device.`);
 }
 const CPU_CTX = 1536;
 const WL_LOG = { debug() {}, log() {}, warn: console.warn, error: e => { console.error(e); window.__addDiag && window.__addDiag('llama.cpp: ' + e); } };
@@ -5456,11 +5466,11 @@ async function startCPU(a, b) {
   store.set('cA', a); store.set('cB', b);
   loadedKey = 'cpu|' + a + '|' + b; curModel = null;
   goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none';
-  status("Both minds are ready on your phone's processor. Each turn takes a while, so the room keeps moving while they think.");
+  status(`Both minds are ready on your ${DEV}'s processor. Each turn takes a while, so the room keeps moving while they think.`);
   return true;
 }
 const CHAT_OPTS = { context_window_size: 2048, prefill_chunk_size: 128 };
-let aiMode = store.get('aimode', PHONE ? 'saver' : 'fast'), curModel = null, gpuQueue = Promise.resolve();
+let aiMode = store.get('aimode', PHONE || LOWMEM ? 'saver' : 'fast'), curModel = null, gpuQueue = Promise.resolve();
 async function useMind(c) {
   if (c.backend || aiMode !== 'saver' || curModel === c.modelId) return;
   const t0 = performance.now(); status(`Waking up ${c.name}'s mind…`);
@@ -5475,7 +5485,7 @@ function withMind(c, fn) {
         await new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));   // let the 3D view's last frame finish
         try { const gl = !NO3D && renderer.getContext && renderer.getContext(); if (gl && !gl.isContextLost()) gl.finish(); } catch {}
       }
-      const t0 = performance.now(), iv = c.backend === 'cpu' || c.backend === 'native' ? setInterval(() => status(`${c.name} is thinking on the phone's processor… ${Math.round((performance.now() - t0) / 1000)} s`), 1000) : null;
+      const t0 = performance.now(), iv = c.backend === 'cpu' || c.backend === 'native' ? setInterval(() => status(`${c.name} is thinking on the ${c.backend === 'native' ? 'phone' : DEV}'s processor… ${Math.round((performance.now() - t0) / 1000)} s`), 1000) : null;
       try { await useMind(c); return await fn(); } finally { if (iv) { clearInterval(iv); status(`${c.name} took ${Math.round((performance.now() - t0) / 1000)} s to think.`); } }
     } finally { aiBusy--; }
   });
@@ -5522,7 +5532,7 @@ goBtn.onclick = async () => {
   if (cloudReady() && store.get('cloudRoute', 'all') === 'all') {
     goBtn.disabled = true; status('Checking your smart mode Worker…');
     try { await cloudCall({ ping: 1 }, 15000); goBtn.disabled = false; status('Smart mode is on: the robots think in the cloud, on your free Worker.'); toast('Pip and Moss are awake. Smart mode is on!'); begin('ai'); return; }
-    catch (e) { goBtn.disabled = false; cloudFailed(e); toast("Smart mode didn't answer, so the on-phone minds will be used", 4000); }
+    catch (e) { goBtn.disabled = false; cloudFailed(e); toast("Smart mode didn't answer, so the on-device minds will be used", 4000); }
   }
   if (aiBackend === 'native') {
     const a = selA.value, b = selB.value;
@@ -5847,7 +5857,19 @@ async function showBook(x) {
     if (shelfHit) { showShelf(shelfHit.object.userData.book); return; }
     const h = rc.intersectObjects(hits, false)[0]; if (h) h.object.userData.act();
   });
+  // with a mouse: show a pointing hand over anything that can be clicked
+  if (matchMedia('(hover:hover) and (pointer:fine)').matches) {
+    let lastMv = 0; const cv = renderer.domElement;
+    cv.addEventListener('pointermove', e => {
+      if (e.buttons || performance.now() - lastMv < 90) return; lastMv = performance.now();
+      const r = cv.getBoundingClientRect(); nd.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); rc.setFromCamera(nd, camera);
+      const over = !!(rc.intersectObjects(makes.filter(m => m.group && m.group.visible).map(m => m.group), true)[0] || rc.intersectObjects(shelfGroup.children, false)[0] || rc.intersectObjects(hits, false)[0]);
+      cv.classList.toggle('pointy', over);
+    });
+    cv.addEventListener('pointerleave', () => cv.classList.remove('pointy'));
+  }
 }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) { sheet.hidden = true; e.preventDefault(); } });
 /* ---------- Study shelf panel */
 function renderLibrary() {
   const ul = $('#libList'); if (!ul) return; ul.innerHTML = '';
@@ -6058,7 +6080,7 @@ if (/[?&]debug\b/.test(location.search)) window.__pm = { THREE, camera, controls
 const engSel = $('#engine'); if (!LLAMA) engSel.querySelector('option[value=native]').remove(); engSel.value = aiBackend;
 engSel.onchange = async () => {
   aiBackend = engSel.value; store.set('engine', aiBackend); running = false; await unloadAll(); loadedKey = '';
-  toast(aiBackend === 'native' ? 'Using the native engine' : aiBackend === 'cpu' ? "Using the phone's processor" : 'Using the graphics chip (WebGPU)'); initAI();
+  toast(aiBackend === 'native' ? 'Using the native engine' : aiBackend === 'cpu' ? `Using the ${DEV}'s processor` : 'Using the graphics chip (WebGPU)'); initAI();
 };
 const aiSel = $('#aimode'); aiSel.value = aiMode;
 aiSel.onchange = () => { aiMode = aiSel.value; store.set('aimode', aiMode); toast(aiMode === 'saver' ? 'Memory saver on. Tap Start with AI to apply' : 'Fast mode on. Tap Start with AI to apply'); };
@@ -6081,7 +6103,7 @@ function diagText() {
     `AI: ${aiBackend === 'native' ? 'native llama.cpp (app)' : aiBackend === 'cpu' ? 'phone processor (llama.cpp in the browser)' : 'graphics chip (WebGPU), ' + aiMode + ' mode'} · ${loadedKey ? 'models ' + short(chars[0].modelId) + ' + ' + short(chars[1].modelId) : 'not loaded'}${curModel ? ' · awake: ' + short(curModel) : ''} · ${running ? 'running' : 'stopped'}${aiBusy ? ' · thinking' : ''}`,
     `Voices: ${voiceMode} · sound ${actx ? actx.state : 'not started yet (tap the screen)'} · retro voice ${SamJs ? 'loaded' : samLoad ? 'loading' : 'not loaded'}${VOX ? ' · app voices ' + (voxInfo ? (voxInfo.ready ? (voxInfo.voices || []).length + ' English' : 'unavailable') : 'starting') : ''}`,
     `Smart mode: ${store.get('cloudOn', 'off') === 'on' ? (cloudUrl() ? (cloudReady() ? 'on' : 'paused' + (cloudNote ? ' (' + cloudNote + ')' : '')) : 'on, but no Worker address') : 'off'} · library: Pip ${chars[0].mind.know.length}, Moss ${chars[1].mind.know.length} pieces`,
-    `AI processor cores: ${window.crossOriginIsolated ? 'all (multi-thread)' : 'one (single-thread)'} · ${navigator.hardwareConcurrency || '?'} cores on this phone`,
+    `AI processor cores: ${window.crossOriginIsolated ? 'all (multi-thread)' : 'one (single-thread)'} · ${navigator.hardwareConcurrency || '?'} cores on this ${DEV}`,
     `Crashes (last 6 h): ${cr.length ? '\n  ' + cr.join('\n  ') : 'none'}`
   ].join('\n');
 }
