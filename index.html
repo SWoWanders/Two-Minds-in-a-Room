@@ -28,6 +28,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
 #boardWrap canvas{display:block;width:100%;height:auto;margin-top:8px;border-radius:8px;border:4px solid #c8ccd4;touch-action:none;background:#f7f8f4}
 .swatches{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.swatch{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:3px solid transparent;box-shadow:0 0 0 1px #0006}.swatch.on{border-color:#fff8ee}
 .memlist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto}.memlist li{background:#1d1424;border-radius:8px;padding:7px 9px;font-size:13px}.memlist .meta{font-size:11px;color:var(--dim);margin-top:2px}.mbtns{display:flex;gap:6px;margin-top:5px}.mbtns button{min-height:32px;padding:3px 10px;font-size:13px}
+.diag{white-space:pre-wrap;font:12px/1.4 ui-monospace,Menlo,monospace;background:#1d1424;border-radius:8px;padding:8px;margin:6px 0;color:#e9d8b4;overflow-wrap:anywhere}
 .blist{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--dim)}
 #crash{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:24px;background:#1d1424f2;z-index:3;text-align:center}#crash[hidden]{display:none}#crash p{margin:0 auto;max-width:420px}#crash button{align-self:center;padding:10px 28px}
 #title{position:absolute;left:12px;top:10px;font:600 20px Fredoka,sans-serif;text-shadow:0 2px 8px #000a;pointer-events:none}
@@ -65,6 +66,16 @@ form.nudge{display:flex;gap:8px}form.nudge input{flex:1}
 .hint{font-size:12px;color:var(--dim);margin:4px 0 0}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
+<script>
+window.__diag = { errors: [], t0: Date.now() };
+(function () {
+  var add = function (msg) { try { window.__diag.errors.push(new Date().toTimeString().slice(0, 8) + ' ' + String(msg).slice(0, 300)); var el = document.getElementById('diagErr'); if (el) el.textContent = window.__diag.errors.slice(-12).join('\n'); } catch (e) {} };
+  window.__addDiag = add;
+  window.addEventListener('error', function (e) { add('Error: ' + (e.message || e) + (e.filename ? ' @' + e.filename.split('/').pop() + ':' + e.lineno : '')); }, true);
+  window.addEventListener('unhandledrejection', function (e) { add('Promise: ' + (e.reason && (e.reason.message || e.reason))); });
+  setTimeout(function () { if (!window.__appStarted) add('The app did not start within 20 s. The 3D library may not have downloaded (check your connection).'); }, 20000);
+})();
+</script>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
 </script>
@@ -96,6 +107,13 @@ form.nudge{display:flex;gap:8px}form.nudge input{flex:1}
     <label class="pick">Pace
       <select id="spd"><option value="6000">Calm</option><option value="3000" selected>Normal</option><option value="1000">Quick</option></select>
     </label>
+    <details id="diagBox">
+      <summary>Diagnostics</summary>
+      <p class="hint">If something goes wrong, open this and send a screenshot. It shows what the graphics and AI were doing.</p>
+      <pre id="diagInfo" class="diag"></pre>
+      <pre id="diagErr" class="diag">No errors so far.</pre>
+      <div class="btns"><button type="button" id="diagCopy">Copy diagnostics</button><button type="button" id="diagClear">Clear crash log</button></div>
+    </details>
     <label class="pick">AI memory use
       <select id="aimode"><option value="saver">Memory saver: one mind in graphics memory at a time (best for phones)</option><option value="fast">Fast: both minds loaded at once (needs a strong device)</option></select>
     </label>
@@ -174,7 +192,10 @@ const bar = p => { progEl.style.display = 'block'; progEl.firstElementChild.styl
 /* ---------- Scene ---------- */
 const stage = $('#stage');
 const PHONE = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || (navigator.deviceMemory && navigator.deviceMemory <= 8);
-const LITE = store.get('gfx', PHONE ? 'lite' : 'full') === 'lite';
+const crashes = (store.get('crashes', []) || []).filter(c => Date.now() - c.t < 6 * 3600e3);
+const SAFE = crashes.some(c => Date.now() - c.t < 20 * 60e3);
+const LITE = SAFE || store.get('gfx', PHONE ? 'lite' : 'full') === 'lite';
+window.__appStarted = true;
 let renderer, NO3D = false;
 try { renderer = new THREE.WebGLRenderer({ antialias: !LITE, powerPreference: 'default' }); }
 catch (e) {
@@ -183,13 +204,17 @@ catch (e) {
   const cv = document.createElement('canvas');
   renderer = { domElement: cv, shadowMap: {}, setPixelRatio() {}, setSize() {}, render() {}, setViewport() {}, setScissor() {}, setScissorTest() {}, setAnimationLoop(fn) { const step = () => { fn(); requestAnimationFrame(step); }; requestAnimationFrame(step); } };
 }
-renderer.setPixelRatio(Math.min(devicePixelRatio, LITE ? 1 : PHONE ? 1.25 : 1.5));
+renderer.setPixelRatio(Math.min(devicePixelRatio, SAFE ? .75 : LITE ? 1 : PHONE ? 1.25 : 1.5));
 renderer.shadowMap.enabled = !LITE; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 stage.prepend(renderer.domElement);
-renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); store.set('gfx', 'lite'); store.set('aimode', 'saver'); store.set('eyes', false); $('#crash').hidden = false; toast('3D view stopped: out of graphics memory', 5000); });
+renderer.domElement.addEventListener('webglcontextlost', e => {
+  e.preventDefault();
+  try { const log = (store.get('crashes', []) || []).slice(-9); log.push({ t: Date.now(), ai: typeof aiMode !== 'undefined' ? aiMode : '?', loaded: typeof loadedKey !== 'undefined' && !!loadedKey, running: typeof running !== 'undefined' && running, busy: typeof aiBusy !== 'undefined' ? aiBusy : 0, mins: Math.round((Date.now() - window.__diag.t0) / 6e4) }); store.set('crashes', log); } catch {}
+  window.__addDiag && window.__addDiag('3D context lost (graphics process crashed or reset)'); store.set('gfx', 'lite'); store.set('aimode', 'saver'); store.set('eyes', false); $('#crash').hidden = false; toast('3D view stopped: out of graphics memory', 5000); });
 if (NO3D) { $('#crashmsg').innerHTML = "<b>Chrome has paused 3D graphics for this page.</b> It does this for a while after its graphics process crashes. To reset it, close Chrome completely (swipe it away in your recent apps), then open this page again. The robots' memories are safe."; $('#crash').hidden = false; }
+if (SAFE && !NO3D) setTimeout(() => toast('Safe graphics mode is on because the 3D view crashed recently', 5000), 800);
 renderer.domElement.addEventListener('webglcontextrestored', () => { $('#crash').hidden = true; toast('3D view recovered'); });
 $('#reload').onclick = () => location.reload();
 const scene = new THREE.Scene(); scene.background = new THREE.Color(0x140d19);
@@ -1092,7 +1117,7 @@ renderer.setAnimationLoop(() => {
   if (camTw) { camTw.t = Math.min(1, camTw.t + dt / .9); const e = camTw.t * camTw.t * (3 - 2 * camTw.t); camera.position.lerpVectors(camTw.fp, camTw.tp, e); controls.target.lerpVectors(camTw.ft, camTw.tt, e); if (camTw.t >= 1) camTw = null; }
   controls.update();
   const nowMs = performance.now();
-  if (nowMs - lastDraw < (aiBusy ? 125 : 33)) { placeLabels(); return; }
+  if (nowMs - lastDraw < (aiBusy ? 125 : SAFE ? 50 : 33)) { placeLabels(); return; }
   lastDraw = nowMs;
   const w = stage.clientWidth, h = stage.clientHeight;
   renderer.shadowMap.needsUpdate = true;
@@ -2354,6 +2379,27 @@ const gfxSel = $('#gfx'); gfxSel.value = LITE ? 'lite' : 'full';
 gfxSel.onchange = () => { store.set('gfx', gfxSel.value); toast('Reloading to apply the graphics setting…'); setTimeout(() => location.reload(), 900); };
 const eyesSel = $('#eyes'); eyesSel.value = eyesOn ? '1' : '0'; stage.classList.toggle('eyes-off', !eyesOn);
 eyesSel.onchange = () => { eyesOn = eyesSel.value === '1'; store.set('eyes', eyesOn); stage.classList.toggle('eyes-off', !eyesOn); toast(eyesOn ? 'Showing what each robot sees' : 'Eye views hidden'); };
+function diagText() {
+  let gl = 'unknown';
+  try { const ctx = renderer.getContext && renderer.getContext(); if (ctx) { const ext = ctx.getExtension('WEBGL_debug_renderer_info'); gl = (ext ? ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ctx.getParameter(ctx.RENDERER)) + (ctx.isContextLost() ? ' (CONTEXT LOST)' : ''); } } catch (e) { gl = 'error: ' + e.message; }
+  const inf = renderer.info || {}, mem = inf.memory || {}, rd = inf.render || {};
+  const cv = renderer.domElement;
+  const cr = (store.get('crashes', []) || []).slice(-5).map(c => `${new Date(c.t).toTimeString().slice(0, 5)} after ${c.mins} min · AI ${c.loaded ? 'loaded (' + c.ai + ')' : 'not loaded'}${c.running ? ', running' : ''}${c.busy ? ', thinking' : ''}`);
+  return [
+    `3D: ${NO3D ? 'BLOCKED by Chrome' : 'on'} · ${SAFE ? 'SAFE mode' : LITE ? 'Lite' : 'Full'} graphics · eye views ${eyesOn ? 'on' : 'off'}`,
+    `GPU: ${gl}`,
+    `Canvas: ${cv.width}×${cv.height}px (pixel ratio ${renderer.getPixelRatio ? renderer.getPixelRatio() : '?'}) · draw calls ${rd.calls ?? '?'} · triangles ${rd.triangles ?? '?'}`,
+    `GPU buffers: ${mem.geometries ?? '?'} shapes, ${mem.textures ?? '?'} textures`,
+    `Device: ${navigator.deviceMemory ? navigator.deviceMemory + ' GB RAM (reported)' : 'RAM not reported'} · ${PHONE ? 'phone' : 'computer'} · WebGPU ${navigator.gpu ? 'yes' : 'no'}`,
+    `AI: ${aiMode} mode · ${loadedKey ? 'models ' + short(chars[0].modelId) + ' + ' + short(chars[1].modelId) : 'not loaded'}${curModel ? ' · awake: ' + short(curModel) : ''} · ${running ? 'running' : 'stopped'}${aiBusy ? ' · thinking' : ''}`,
+    `Crashes (last 6 h): ${cr.length ? '\n  ' + cr.join('\n  ') : 'none'}`
+  ].join('\n');
+}
+setInterval(() => { const d = $('#diagBox'); if (d && d.open) $('#diagInfo').textContent = diagText(); }, 1000);
+$('#diagBox').addEventListener('toggle', () => { $('#diagInfo').textContent = diagText(); });
+$('#diagCopy').onclick = async () => { const t = diagText() + '\n\nErrors:\n' + (window.__diag.errors.join('\n') || 'none'); try { await navigator.clipboard.writeText(t); toast('Diagnostics copied'); } catch { toast('Copy was blocked. Take a screenshot instead'); } };
+$('#diagClear').onclick = () => { store.set('crashes', []); toast('Crash log cleared. Normal graphics return on the next reload'); $('#diagInfo').textContent = diagText(); };
+if (crashes.length) $('#diagBox').open = true;
 initAI();
 </script>
 </body>
