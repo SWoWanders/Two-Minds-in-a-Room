@@ -124,7 +124,7 @@ window.__diag = { errors: [], t0: Date.now() };
       <select id="eyes"><option value="1">Show what each robot sees</option><option value="0">Hide (uses less graphics power)</option></select>
     </label>
     <label class="pick">Graphics
-      <select id="gfx"><option value="full">Full (shadows, smoother edges)</option><option value="lite">Lite (uses less memory)</option></select>
+      <select id="gfx"><option value="full">Full (shadows, smoother edges)</option><option value="lite">Lite (uses less memory)</option><option value="off">Off: test the AI without 3D</option></select>
     </label>
     <details>
       <summary>Personalities</summary>
@@ -194,10 +194,11 @@ const stage = $('#stage');
 const PHONE = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || (navigator.deviceMemory && navigator.deviceMemory <= 8);
 const crashes = (store.get('crashes', []) || []).filter(c => Date.now() - c.t < 6 * 3600e3);
 const SAFE = crashes.some(c => Date.now() - c.t < 20 * 60e3);
-const LITE = SAFE || store.get('gfx', PHONE ? 'lite' : 'full') === 'lite';
+const GFX_OFF = store.get('gfx', '') === 'off';
+const LITE = SAFE || GFX_OFF || store.get('gfx', PHONE ? 'lite' : 'full') === 'lite';
 window.__appStarted = true;
 let renderer, NO3D = false;
-try { renderer = new THREE.WebGLRenderer({ antialias: !LITE, powerPreference: 'default' }); }
+try { if (GFX_OFF) throw new Error('3D switched off for an AI test'); renderer = new THREE.WebGLRenderer({ antialias: !LITE, powerPreference: 'default' }); }
 catch (e) {
   // Chrome refuses new 3D contexts for a while after its graphics process has crashed. Keep the rest of the app alive.
   console.error(e); NO3D = true;
@@ -213,7 +214,8 @@ renderer.domElement.addEventListener('webglcontextlost', e => {
   e.preventDefault();
   try { const log = (store.get('crashes', []) || []).slice(-9); log.push({ t: Date.now(), ai: typeof aiMode !== 'undefined' ? aiMode : '?', loaded: typeof loadedKey !== 'undefined' && !!loadedKey, running: typeof running !== 'undefined' && running, busy: typeof aiBusy !== 'undefined' ? aiBusy : 0, mins: Math.round((Date.now() - window.__diag.t0) / 6e4) }); store.set('crashes', log); } catch {}
   window.__addDiag && window.__addDiag('3D context lost (graphics process crashed or reset)'); store.set('gfx', 'lite'); store.set('aimode', 'saver'); store.set('eyes', false); $('#crash').hidden = false; toast('3D view stopped: out of graphics memory', 5000); });
-if (NO3D) { $('#crashmsg').innerHTML = "<b>Chrome has paused 3D graphics for this page.</b> It does this for a while after its graphics process crashes. To reset it, close Chrome completely (swipe it away in your recent apps), then open this page again. The robots' memories are safe."; $('#crash').hidden = false; }
+if (NO3D && GFX_OFF) { $('#crashmsg').innerHTML = '<b>3D is switched off for an AI test.</b> The robots still live, see, move and remember. You just can\'t watch them. Follow along in the log below. Switch Graphics back to Lite to see the room again.'; $('#reload').hidden = true; $('#crash').hidden = false; }
+else if (NO3D) { $('#crashmsg').innerHTML = "<b>Chrome has paused 3D graphics for this page.</b> It does this for a while after its graphics process crashes. To reset it, close Chrome completely (swipe it away in your recent apps), then open this page again. The robots' memories are safe."; $('#crash').hidden = false; }
 if (SAFE && !NO3D) setTimeout(() => toast('Safe graphics mode is on because the 3D view crashed recently', 5000), 800);
 renderer.domElement.addEventListener('webglcontextrestored', () => {
   setTimeout(refreshTextures, 50); $('#crash').hidden = true; toast('3D view recovered'); });
@@ -1118,7 +1120,7 @@ renderer.setAnimationLoop(() => {
   if (camTw) { camTw.t = Math.min(1, camTw.t + dt / .9); const e = camTw.t * camTw.t * (3 - 2 * camTw.t); camera.position.lerpVectors(camTw.fp, camTw.tp, e); controls.target.lerpVectors(camTw.ft, camTw.tt, e); if (camTw.t >= 1) camTw = null; }
   controls.update();
   const nowMs = performance.now();
-  if (nowMs - lastDraw < (aiBusy ? 125 : SAFE ? 50 : 33)) { placeLabels(); return; }
+  if (aiBusy || nowMs - lastDraw < (SAFE ? 50 : 33)) { placeLabels(); return; }
   lastDraw = nowMs;
   const w = stage.clientWidth, h = stage.clientHeight;
   renderer.shadowMap.needsUpdate = true;
@@ -2138,7 +2140,7 @@ async function initAI() {
   goBtn.disabled = false;
   status(`${list.length} free models available. The first start downloads both (sizes shown) and caches them on this device, so later visits load fast and work offline.`);
 }
-const CHAT_OPTS = { context_window_size: 2048, prefill_chunk_size: 256 };
+const CHAT_OPTS = { context_window_size: 2048, prefill_chunk_size: 128 };
 let aiMode = store.get('aimode', PHONE ? 'saver' : 'fast'), curModel = null, gpuQueue = Promise.resolve();
 async function useMind(c) {
   if (aiMode !== 'saver' || curModel === c.modelId) return;
@@ -2147,7 +2149,14 @@ async function useMind(c) {
   status(`${c.name}'s mind is awake (${((performance.now() - t0) / 1000).toFixed(1)} s to switch).`);
 }
 function withMind(c, fn) {
-  const run = gpuQueue.then(async () => { aiBusy++; try { await useMind(c); return await fn(); } finally { aiBusy--; } });
+  const run = gpuQueue.then(async () => {
+    aiBusy++;
+    try {
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));   // let the 3D view's last frame finish
+      try { const gl = !NO3D && renderer.getContext && renderer.getContext(); if (gl && !gl.isContextLost()) gl.finish(); } catch {}
+      await useMind(c); return await fn();
+    } finally { aiBusy--; }
+  });
   gpuQueue = run.catch(() => {}); return run;
 }
 async function unloadAll() {
@@ -2376,7 +2385,7 @@ async function runLabAction(c, act) {
 renderMem(); loadMinds();
 const aiSel = $('#aimode'); aiSel.value = aiMode;
 aiSel.onchange = () => { aiMode = aiSel.value; store.set('aimode', aiMode); toast(aiMode === 'saver' ? 'Memory saver on. Tap Start with AI to apply' : 'Fast mode on. Tap Start with AI to apply'); };
-const gfxSel = $('#gfx'); gfxSel.value = LITE ? 'lite' : 'full';
+const gfxSel = $('#gfx'); gfxSel.value = GFX_OFF ? 'off' : LITE ? 'lite' : 'full';
 gfxSel.onchange = () => { store.set('gfx', gfxSel.value); toast('Reloading to apply the graphics setting…'); setTimeout(() => location.reload(), 900); };
 const eyesSel = $('#eyes'); eyesSel.value = eyesOn ? '1' : '0'; stage.classList.toggle('eyes-off', !eyesOn);
 eyesSel.onchange = () => { eyesOn = eyesSel.value === '1'; store.set('eyes', eyesOn); stage.classList.toggle('eyes-off', !eyesOn); toast(eyesOn ? 'Showing what each robot sees' : 'Eye views hidden'); };
