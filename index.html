@@ -85,6 +85,9 @@ form.nudge{display:flex;gap:8px}form.nudge input{flex:1}
     <label class="pick">Pace
       <select id="spd"><option value="6000">Calm</option><option value="3000" selected>Normal</option><option value="1000">Quick</option></select>
     </label>
+    <label class="pick">Model storage
+      <select id="cachemode"><option value="cache">Standard cache (default)</option><option value="indexeddb">IndexedDB (try if loading stalls)</option></select>
+    </label>
     <details>
       <summary>Personalities</summary>
       <label>Pip<textarea id="pA"></textarea></label>
@@ -807,35 +810,66 @@ async function unloadAll() {
   for (const c of chars) if (c.engine && !seen.has(c.engine)) { seen.add(c.engine); try { await c.engine.unload(); } catch {} }
   for (const c of chars) c.engine = null;
 }
+const cacheSel = $('#cachemode'); cacheSel.value = store.get('cache', 'cache') === 'indexeddb' ? 'indexeddb' : 'cache';
+cacheSel.onchange = () => { store.set('cache', cacheSel.value); loadedKey = ''; toast(`Next load will use ${cacheSel.value === 'indexeddb' ? 'IndexedDB' : 'the standard cache'} storage`); };
+async function preflight(id) {
+  const rec = webllm.prebuiltAppConfig.model_list.find(m => m.model_id === id);
+  if (!rec || !rec.model) return 'That model is missing from the catalogue';
+  const base = rec.model.includes('/resolve/') ? rec.model.replace(/\/?$/, '/') : rec.model.replace(/\/$/, '') + '/resolve/main/';
+  const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 15000);
+  try {
+    const r = await fetch(base + 'mlc-chat-config.json', { signal: ctl.signal, cache: 'no-store' });
+    clearTimeout(tm); if (!r.ok) return `The model server answered with error ${r.status}`; await r.json(); return null;
+  } catch (e) { clearTimeout(tm); return e.name === 'AbortError' ? 'The model server (huggingface.co) did not answer within 15 seconds' : "Couldn't reach the model server (huggingface.co)"; }
+}
+function loadFail(msg) {
+  status(msg); toast(msg, 6000);
+  goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none';
+}
 goBtn.onclick = async () => {
   const a = selA.value, b = selB.value;
   if (!webllm || !a || !b) { toast("AI models aren't available here. Try the scripted demo."); return; }
-  if (a === b) { toast('Pick two different models so each character has its own mind'); return; }
+  if (a === b) { toast('Pick two different models so each robot has its own mind'); return; }
   store.set('mA', a); store.set('mB', b);
   if (loadedKey !== a + '|' + b) {
     running = false; goBtn.disabled = selA.disabled = selB.disabled = true; bar(0);
     await unloadAll();
-    let lastP = -1, lastT = performance.now(), warned = false;
-    const cb = r => {
-      if (r.progress !== lastP) { lastP = r.progress; lastT = performance.now(); warned = false; }
-      bar(r.progress); status(`Loading the minds: ${Math.round((r.progress || 0) * 100)}% · ${r.text}`);
+    status('Checking the model server…');
+    for (const id of [a, b]) { const pf = await preflight(id); if (pf) { loadFail(pf + '. Check your Wi-Fi or data, then tap Start again.'); return; } }
+    try {
+      const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null;
+      if (est && est.quota && est.quota - est.usage < 1.2e9) toast(`Low browser storage: about ${Math.round((est.quota - est.usage) / 1e6)} MB free. The download may fail`, 7000);
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+    } catch {}
+    const idb = cacheSel.value === 'indexeddb';
+    const appConfig = { ...webllm.prebuiltAppConfig, cacheBackend: idb ? 'indexeddb' : 'cache', useIndexedDBCache: idb };
+    const t0 = performance.now(); let lastP = -1, lastT = t0, warned = false, label = '', txt = 'starting';
+    const tick = () => {
+      const s = Math.round((performance.now() - t0) / 1000);
+      status(`${label}: ${Math.round(Math.max(0, lastP) * 100)}% · ${txt} · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} elapsed`);
     };
     const watch = setInterval(() => {
-      if (!warned && performance.now() - lastT > 45000) { warned = true; toast('No download progress for 45 seconds. Check your connection', 5000); statusEl.textContent += ' · Stalled? Check your connection, or reload to retry.'; }
-    }, 5000);
-    try {
-      const eng = await webllm.CreateMLCEngine([a, b], { initProgressCallback: cb });
-      chars[0].engine = chars[1].engine = eng;
-    } catch (e) {
-      console.warn('Combined load failed, trying one engine per model', e);
-      try {
-        chars[0].engine = await webllm.CreateMLCEngine(a, { initProgressCallback: cb });
-        chars[1].engine = await webllm.CreateMLCEngine(b, { initProgressCallback: cb });
-      } catch (e2) {
-        clearInterval(watch); console.error(e2); await unloadAll();
-        status('Model load failed: ' + (e2.message || e2)); toast('Could not load the models. Try smaller ones.');
-        goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none'; return;
+      tick();
+      if (!warned && performance.now() - lastT > 90000) {
+        warned = true;
+        toast(idb ? 'No progress for 90 seconds. Check your connection, or reload and try again' : 'No progress for 90 seconds. Try setting Model storage to IndexedDB, then reload', 8000);
       }
+    }, 1000);
+    try {
+      for (let i = 0; i < 2; i++) {
+        label = `Loading ${chars[i].name}'s mind (${i + 1} of 2)`; lastP = -1; lastT = performance.now(); txt = 'starting'; tick();
+        chars[i].engine = await webllm.CreateMLCEngine([a, b][i], {
+          appConfig,
+          initProgressCallback: r => {
+            if (r.progress !== lastP) { lastP = r.progress; lastT = performance.now(); warned = false; }
+            txt = String(r.text || '').replace(/\s+/g, ' ').slice(0, 90); bar((i + (r.progress || 0)) / 2); tick();
+          }
+        });
+      }
+    } catch (e) {
+      clearInterval(watch); console.error(e); await unloadAll();
+      loadFail('Model load failed: ' + (e && e.message ? e.message : e) + '. Try smaller models, or switch Model storage.');
+      return;
     }
     clearInterval(watch); chars[0].modelId = a; chars[1].modelId = b; loadedKey = a + '|' + b;
     goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none';
