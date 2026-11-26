@@ -34,7 +34,7 @@ button.primary{background:var(--accent);color:#2a1d2e;border-color:var(--accent)
 button:disabled{opacity:.45;cursor:default}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .btns{display:flex;flex-wrap:wrap;gap:8px}.btns button{flex:1 1 auto}
-#prog{height:8px;background:#1d1424;border-radius:5px;overflow:hidden;display:none}
+#prog{height:10px;background:#3a2a47;border-radius:5px;overflow:hidden;display:none}
 #prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
 #status{font-size:13px;color:var(--dim);margin:0}
 #log{display:flex;flex-direction:column;gap:8px}
@@ -815,7 +815,14 @@ goBtn.onclick = async () => {
   if (loadedKey !== a + '|' + b) {
     running = false; goBtn.disabled = selA.disabled = selB.disabled = true; bar(0);
     await unloadAll();
-    const cb = r => { bar(r.progress); status(r.text); };
+    let lastP = -1, lastT = performance.now(), warned = false;
+    const cb = r => {
+      if (r.progress !== lastP) { lastP = r.progress; lastT = performance.now(); warned = false; }
+      bar(r.progress); status(`Loading the minds: ${Math.round((r.progress || 0) * 100)}% · ${r.text}`);
+    };
+    const watch = setInterval(() => {
+      if (!warned && performance.now() - lastT > 45000) { warned = true; toast('No download progress for 45 seconds. Check your connection', 5000); statusEl.textContent += ' · Stalled? Check your connection, or reload to retry.'; }
+    }, 5000);
     try {
       const eng = await webllm.CreateMLCEngine([a, b], { initProgressCallback: cb });
       chars[0].engine = chars[1].engine = eng;
@@ -825,14 +832,14 @@ goBtn.onclick = async () => {
         chars[0].engine = await webllm.CreateMLCEngine(a, { initProgressCallback: cb });
         chars[1].engine = await webllm.CreateMLCEngine(b, { initProgressCallback: cb });
       } catch (e2) {
-        console.error(e2); await unloadAll();
+        clearInterval(watch); console.error(e2); await unloadAll();
         status('Model load failed: ' + (e2.message || e2)); toast('Could not load the models. Try smaller ones.');
         goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none'; return;
       }
     }
-    chars[0].modelId = a; chars[1].modelId = b; loadedKey = a + '|' + b;
+    clearInterval(watch); chars[0].modelId = a; chars[1].modelId = b; loadedKey = a + '|' + b;
     goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none';
-    status('Both minds loaded. Tap the scene and drag to look around.');
+    status('Both minds loaded and saved on this phone. Drag the scene to look around.'); toast('Both minds loaded!');
   }
   toast('Two minds, one room. Here we go!'); begin('ai');
 };
