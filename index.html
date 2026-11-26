@@ -565,13 +565,22 @@ const corkTex = new THREE.CanvasTexture(corkCanvas); corkTex.colorSpace = THREE.
 box(0.05, 0.86, 1.18, 0x5a3524, -4.99, 1.12, 4.35, false);
 const cork = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.8), new THREE.MeshBasicMaterial({ map: corkTex })); cork.position.set(-4.955, 1.55, 4.35); cork.rotation.y = Math.PI / 2; scene.add(cork);
 let projects = [];
+let quotes = [];
 function drawCork() {
   const g = corkCanvas.getContext('2d'), W = 512, H = 372;
   g.fillStyle = '#b8895a'; g.fillRect(0, 0, W, H);
   g.fillStyle = 'rgba(90,55,25,.25)'; for (let i = 0; i < 500; i++) g.fillRect((i * 97) % W, (i * 61) % H, 2, 2);
   g.fillStyle = '#3a2412'; g.font = 'bold 22px system-ui, sans-serif'; g.fillText('PROJECTS', 18, 32);
-  const show = projects.filter(p => p.status !== 'done').concat(projects.filter(p => p.status === 'done')).slice(0, 6);
-  if (!show.length) { g.font = '18px system-ui, sans-serif'; g.fillText('Nothing yet. Ask us to write something!', 18, 80); }
+  const qs = quotes;
+  const show = projects.filter(p => p.status !== 'done').concat(projects.filter(p => p.status === 'done')).slice(0, qs.length ? 5 : 6);
+  if (qs.length) {   // the newest quote, pinned in the corner
+    const x = 16 + 2 * 164, y = 48 + 160, q = qs[0];
+    g.fillStyle = '#f4efe6'; g.fillRect(x, y, 150, 145); g.fillStyle = '#2f6fbf'; g.beginPath(); g.arc(x + 75, y + 8, 5, 0, 7); g.fill();
+    g.fillStyle = '#2a2420'; g.font = 'italic 13px Georgia, serif';
+    const ls = wrapText('“' + q.q + '”', 20); ls.slice(0, 7).forEach((l, k) => g.fillText(l + (k === 6 && ls.length > 7 ? '…' : ''), x + 8, y + 26 + k * 15));
+    g.font = '12px system-ui, sans-serif'; if (q.by) g.fillText('— ' + trimTxt(q.by, 20), x + 8, y + 132);
+  }
+  if (!show.length && !qs.length) { g.font = '18px system-ui, sans-serif'; g.fillText('Nothing yet. Ask us to write something!', 18, 80); }
   show.forEach((p, i) => {
     const x = 16 + (i % 3) * 164, y = 48 + Math.floor(i / 3) * 160;
     g.fillStyle = p.status === 'done' ? '#d8f0c8' : p.status === 'paused' ? '#e4e0d8' : ['#fff6c8', '#ffd9c8', '#cfe8ff'][i % 3]; g.fillRect(x, y, 150, 145);
@@ -2411,6 +2420,22 @@ const DESIGN_GRAMMAR = [
   'out ::= "OUT " id " = " id "\\n"'
 ].join('\n');
 /* ---------- Study shelf: books the robots read chapter by chapter */
+// one quote from a Wikiquote page's plain text: a line of quote length, with the short line after it as its source when it looks like one
+function pickQuote(text, seed) {
+  const lines = String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
+  const bad = /ISBN|Retrieved|p\.\s?\d|pp\.|\(\d{4}\)|^See also|^External links|^Quotes|^Sourced|^Unsourced|^Misattributed|^Disputed|^Quotes about|wikipedia|^Categories|^\d+$/i;
+  const cands = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (l.length < 30 || l.length > 220 || bad.test(l) || !/[a-z]/.test(l) || /:$/.test(l)) continue;
+    const nx = lines[i + 1] || '', by = nx.length < 120 && !bad.test(nx.replace(/\(\d{4}\)|p\.\s?\d+|ISBN.*$/g, '')) && /^[A-Z][^.!?]{2,80}/.test(nx) && nx.split(' ').length <= 14 ? nx.split(/[,;(]/)[0].trim() : '';
+    cands.push({ q: l.replace(/^["“]|["”]$/g, ''), by: by && by.length <= 50 && by !== l ? by : '' });
+  }
+  const named = cands.filter(x => x.by), pool = named.length ? named : cands;
+  if (!pool.length) return null;
+  let h = 0; for (const ch of String(seed)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return pool[h % Math.min(pool.length, 25)];
+}
 function parseStudy(s) {
   if (!s) return null;
   const t = String(s).replace(/[*`<>"]/g, ' ').trim();
@@ -3853,7 +3878,7 @@ MAKE: none${opt.plan ? '' : `\nSAY: Look, ${o.name}, a shooting star over the ro
   const ev = events.filter(e => e.left > 0).map(e => { e.left--; return e.text; }).join(' ');
   for (let i = events.length - 1; i >= 0; i--) if (events[i].left <= 0) events.splice(i, 1);
   const user = `${memoryBlock(c, o, (c.lastSeen || '') + ' ' + transcript.slice(-4).map(l => l.text).join(' ') + ' ' + events.map(e => e.text).join(' '))}${c.lastSeen || perceive(c, o)}
-${projectLines(c)}${shelfLines(c)}${exampleBlock(c, (c.lastSeen || '') + ' ' + transcript.slice(-3).map(l => l.text).join(' '), opt.plan)}Recent conversation:
+${projectLines(c)}${quoteLine()}${shelfLines(c)}${exampleBlock(c, (c.lastSeen || '') + ' ' + transcript.slice(-3).map(l => l.text).join(' '), opt.plan)}Recent conversation:
 ${last}
 ${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER, PROJECT, MUSIC, STUDY, MAKE${opt.plan ? ' lines. You will say something next.' : ' and SAY lines.'}`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
@@ -4323,7 +4348,8 @@ function writePrompt(c, o, p) {
   const sofar = isShort(p) ? '' : storySoFar(p, cpu ? 300 : 900);
   const user = `Project #${p.id}: "${p.title}".\n${p.brief ? `What it's about: ${p.brief}\n` : ''}${p.by === 'visitor' ? `${firstCap(visitorRef())} asked for this.\n` : ''}${sofar ? `The story so far:\n${sofar}\n` : ''}${last ? `${isShort(p) ? 'The current version' : 'The last page'} (by ${last.by === c.name ? 'you' : last.by}):\n${trimTxt(last.text, cpu ? 350 : 1100)}\n` : ''}${notes.length ? 'Notes to use: ' + notes.map(x => `${x.by === 'visitor' ? (visitorName || 'the visitor') : x.by} says: ${x.text}`).join(' ') + '\n' : ''}\n${task}\nAfter it, on its own line, write SUMMARY: and one sentence about what you wrote.`;
   const lk = cpu ? null : (c.mind.liked.filter(x => x.kind === p.kind).slice(-1)[0] || c.mind.liked.slice(-1)[0]);
-  return { sys, user: lk ? `A passage of yours that ${visitorName || 'the visitor'} loved (match its quality, not its words):\n${trimTxt(lk.x, 400)}\n\n${user}` : user, max: Math.round(words * 1.7) + 50 };
+  const qq = quotes.length && !cpu && Math.random() < .35 ? `${quoteLine()}If it fits naturally, let it inspire this page (don't force it in).\n\n` : '';
+  return { sys, user: qq + (lk ? `A passage of yours that ${visitorName || 'the visitor'} loved (match its quality, not its words):\n${trimTxt(lk.x, 400)}\n\n${user}` : user), max: Math.round(words * 1.7) + 50 };
 }
 function reviewPrompt(c, p) {
   const last = p.pages[p.pages.length - 1], cpu = c.backend === 'cpu' && !cloudReady();
@@ -4667,12 +4693,16 @@ const PRESET_BOOKS = [
   { title: 'Electric Circuits', src: 'wikibooks', book: 'Circuit Theory', pages: ['Electric current', 'Voltage', "Ohm's law", 'Series and parallel circuits', 'Electric battery', 'Resistor', 'Capacitor', 'Switch', 'Electrical wiring'], color: '#c0392b' },
   { title: 'Practical Electronics', src: 'wikibooks', book: 'Practical Electronics', pages: ['Breadboard', 'Light-emitting diode', 'Transistor', 'Soldering', 'Multimeter', 'Electric motor'], color: '#2bb3a3' },
   { title: 'Logic & Circuit Design', src: 'wiki', pages: ['Boolean algebra', 'Truth table', 'Logic gate', 'NAND logic', 'XOR gate', 'Flip-flop (electronics)', 'Clock signal', '555 timer IC', 'Sensor', 'Push-button', 'Buzzer', 'Integrated circuit'], color: '#2f6f4f' },
+  { title: 'Peeragogy: Learning Together', src: 'wikibooks', book: 'Peeragogy Handbook', pages: ['Peer learning', 'Cooperative learning', 'Collaborative learning', 'Peer assessment', 'Learning community', 'Zone of proximal development', 'Jigsaw (teaching technique)', 'Think-pair-share'], color: '#c96a9e' },
+  { title: 'Creativity & Invention', src: 'wikibooks', book: 'Creativity - An Overview', pages: ['Creativity', 'Innovation', 'Invention', 'Thinking outside the box', 'Brainstorming', 'Mind map', 'TRIZ', 'Lateral thinking', 'Creative problem-solving'], color: '#f0c419' },
+  { title: 'Famous Inventors', src: 'wikibooks', book: 'Wikijunior:Famous Inventors', pages: ['Thomas Edison', 'Nikola Tesla', 'Benjamin Franklin', 'Lewis Howard Latimer', 'George Westinghouse', 'Alexander Graham Bell', 'Guglielmo Marconi', 'George Washington Carver'], color: '#9a5b2e' },
+  { title: 'Words of Inspiration', src: 'quote', pages: ['Creativity', 'Invention', 'Imagination', 'Cooperation', 'Curiosity', 'Learning', 'Perseverance', 'Inspiration', 'Teamwork', 'Ideas'], color: '#6b4fa0' },
   { title: 'Microchips & Digital Circuits', src: 'wikibooks', book: 'Digital Circuits', pages: ['Integrated circuit', 'Transistor', 'Logic gate', 'Binary number', 'Microcontroller', 'Printed circuit board', 'Printed electronics', '555 timer IC'], color: '#1d1d22' }
 ];
-const LIB_PRESET_VER = 3;
+const LIB_PRESET_VER = 4;
 let library = [], libSaveT = null;
 function cleanLibrary(a) {
-  return (Array.isArray(a) ? a : []).filter(b => b && b.title).slice(0, 40).map((b, i) => ({ id: +b.id || i + 1, title: String(b.title).slice(0, 60), src: ['wiki', 'wikibooks', 'text'].includes(b.src) ? b.src : 'wiki', book: String(b.book || '').slice(0, 80),
+  return (Array.isArray(a) ? a : []).filter(b => b && b.title).slice(0, 40).map((b, i) => ({ id: +b.id || i + 1, title: String(b.title).slice(0, 60), src: ['wiki', 'wikibooks', 'text', 'quote'].includes(b.src) ? b.src : 'wiki', book: String(b.book || '').slice(0, 80),
     pages: (Array.isArray(b.pages) ? b.pages : []).map(x => String(x).slice(0, 120)).slice(0, 80), chapters: Array.isArray(b.chapters) ? b.chapters.map(x => String(x).slice(0, 140)).slice(0, 120) : null,
     color: /^#[0-9a-f]{6}$/i.test(b.color) ? b.color : '#3f7fbf', read: { Pip: Math.max(0, +(b.read && b.read.Pip) || 0), Moss: Math.max(0, +(b.read && b.read.Moss) || 0) }, by: String(b.by || 'preset').slice(0, 20) }));
 }
@@ -4703,14 +4733,14 @@ async function bookChapters(b) {
 async function chapterText(b, i) {
   const ch = chaptersOf(b)[i];
   if (b.src === 'text') { const tx = (await DB.get('booktext_' + b.id)) || []; return { title: ch, text: tx[i] || '', link: '' }; }
-  const host = b.src === 'wikibooks' ? 'en.wikibooks.org' : 'en.wikipedia.org';
+  const host = b.src === 'wikibooks' ? 'en.wikibooks.org' : b.src === 'quote' ? 'en.wikiquote.org' : 'en.wikipedia.org';
   const d = await getJSON(`https://${host}/w/api.php?action=query&prop=extracts&explaintext=1&exsectionformat=plain&redirects=1&titles=${encodeURIComponent(ch)}&format=json&origin=*`, 15000);
   const pg = Object.values(d.query && d.query.pages || {})[0] || {};
   return { title: (pg.title || ch).replace(/^.*\//, b.src === 'wikibooks' ? '' : '$&'), text: String(pg.extract || '').replace(/\n{2,}/g, '\n\n').slice(0, 9000), link: `https://${host}/wiki/${encodeURIComponent(String(pg.title || ch).replace(/ /g, '_'))}` };
 }
 function shelfLines(c) {
   if (!library.length) return '';
-  return 'Your study shelf: ' + library.slice(0, 10).map(b => { const n = chaptersOf(b).length, r = Math.min(b.read[c.name] || 0, n); return `book ${b.id} "${b.title}" (${r >= n ? 'you have read it all' : `you've read ${r} of ${n} chapters`})`; }).join('; ') + '.\n';
+  return 'Your study shelf: ' + library.slice(0, 20).map(b => { const n = chaptersOf(b).length, r = Math.min(b.read[c.name] || 0, n); return `book ${b.id} "${b.title}" (${r >= n ? 'you have read it all' : `you've read ${r} of ${n} chapters`})`; }).join('; ') + '.\n';
 }
 function pickBook(c, st) {
   if (st && st.id) return library.find(b => b.id === st.id) || null;
@@ -4718,6 +4748,10 @@ function pickBook(c, st) {
   const open = library.filter(b => (b.read[c.name] || 0) < chaptersOf(b).length);
   return open.sort((a, b) => (b.read[c.name] || 0) / chaptersOf(b).length - (a.read[c.name] || 0) / chaptersOf(a).length)[0] || null;   // carry on with the book they're furthest into
 }
+// quotes pinned on the project board, newest first (kept between visits; declared up by the board)
+DB.get('quotes').then(q => { if (Array.isArray(q)) { quotes = q.filter(x => x && x.q).slice(0, 30); drawCork(); } }).catch(() => {});
+function pinQuote(x) { quotes = [{ ...x, t: Date.now() }, ...quotes.filter(y => y.q !== x.q)].slice(0, 30); DB.set('quotes', quotes); drawCork(); chatAdd('ev', '', `📌 ${x.who} pinned a quote on the project board: “${x.q}”${x.by ? ' (' + x.by + ')' : ''}`); }
+const quoteLine = () => quotes.length ? `A quote pinned on the project board: "${quotes[0].q}"${quotes[0].by ? ' (' + quotes[0].by + ')' : ''}.\n` : '';
 let studyLast = 0;
 async function doStudy(c, o, st) {
   const target = st && st.chapter;   // a single chapter looked up on purpose (for a design), wherever it sits in its book
@@ -4735,7 +4769,11 @@ async function doStudy(c, o, st) {
   const parts = chunkText(ch.text, 420).slice(0, 14);
   for (const x of parts) learnKnow(c, x, `book: ${b.title} · ${ch.title}`, 6);
   let take = (ch.text.replace(/\s+/g, ' ').match(/^[^.!?]{20,220}[.!?]/) || [ch.text.slice(0, 160)])[0];
-  if (!(c.backend === 'cpu' && !cloudReady())) {
+  if (b.src === 'quote') {   // a quote book: choose one quote to keep and pin on the board
+    const q = pickQuote(ch.text, c.name + ch.title + Date.now());
+    if (q) { pinQuote({ q: q.q, by: q.by, page: ch.title, who: c.name, link: ch.link }); take = `"${q.q}"${q.by ? ' (' + q.by + ')' : ''}`; remember(c, 'did', `I pinned a quote from Wikiquote's ${ch.title} page on the project board: ${take}`, { imp: 6 }); }
+  }
+  if (b.src !== 'quote' && !(c.backend === 'cpu' && !cloudReady())) {
     const r = await compose(c, `You are ${c.name}, ${c.persona}. You have just been studying.`, `You read "${ch.title}" in the book ${b.title}:\n${trimTxt(ch.text, 2200)}\n\nIn ONE sentence (under 30 words), what is the most interesting or useful thing you learned? Reply with just the sentence.`, 70);
     if (r && r.text && r.text.trim().length > 15) take = trimTxt(r.text.replace(/\s+/g, ' ').replace(/^["“]|["”]$/g, '').trim(), 240);
   }
@@ -4754,9 +4792,10 @@ async function doStudy(c, o, st) {
 // the research books on the shelf, with their titles on the spines
 const shelfGroup = new THREE.Group(); scene.add(shelfGroup);
 function buildShelfBooks() {
-  for (const m of [...shelfGroup.children]) { shelfGroup.remove(m); if (m.material.map) m.material.map.dispose(); m.material.dispose(); }
-  library.slice(0, 16).forEach((b, k) => {
-    const w = 0.104, h = 0.5, z = -1.47 + k * (w + 0.013);
+  for (const m of [...shelfGroup.children]) { shelfGroup.remove(m); m.geometry.dispose(); for (const mt of [].concat(m.material)) { if (mt.map) mt.map.dispose(); mt.dispose(); } }
+  const n = Math.min(20, library.length), w = Math.min(0.104, 1.98 / Math.max(1, n) - 0.01);
+  library.slice(0, 20).forEach((b, k) => {
+    const h = 0.5, z = -1.47 + w / 2 - 0.05 + k * (w + 0.01);
     const cv = document.createElement('canvas'); cv.width = 64; cv.height = 256; const g = cv.getContext('2d');
     g.fillStyle = b.color; g.fillRect(0, 0, 64, 256); g.fillStyle = '#f3d27a'; g.fillRect(0, 14, 64, 6); g.fillRect(0, 236, 64, 6);
     g.save(); g.translate(40, 128); g.rotate(-Math.PI / 2); g.fillStyle = '#fff8e6'; g.font = 'bold 22px Georgia, serif'; g.textAlign = 'center'; g.fillText(trimTxt(b.title, 17), 0, 0); g.restore();
@@ -5769,7 +5808,7 @@ function showShelf(bookId) {
     b.append(el('p', 'hint', 'Research books the robots read chapter by chapter. What they read goes into their knowledge library, so it comes back to mind when it helps. Add your own books in the Study shelf panel.'));
     for (const x of library) {
       const n = chaptersOf(x).length, it = el('div', 'sheetItem');
-      it.append(el('div', '', x.title), el('div', 'meta', `${x.src === 'wikibooks' ? 'Wikibooks textbook' : x.src === 'text' ? 'your text' : 'Wikipedia reading list'} · Pip ${Math.min(x.read.Pip, n)}/${n} · Moss ${Math.min(x.read.Moss, n)}/${n}`));
+      it.append(el('div', '', x.title), el('div', 'meta', `${x.src === 'wikibooks' ? 'Wikibooks textbook' : x.src === 'text' ? 'your text' : x.src === 'quote' ? 'Wikiquote collection' : 'Wikipedia reading list'} · Pip ${Math.min(x.read.Pip, n)}/${n} · Moss ${Math.min(x.read.Moss, n)}/${n}`));
       const bt = el('div', 'mbtns'), op = el('button', '', 'Chapters'); op.type = 'button'; op.onclick = () => showBook(x); bt.append(op); it.append(bt); b.append(it);
     }
   });
@@ -5781,7 +5820,7 @@ async function showBook(x) {
     chs.forEach((ch, i) => {
       const it = el('div', 'sheetItem'), who = ['Pip', 'Moss'].filter(n => (x.read[n] || 0) > i);
       it.append(el('div', '', `${i + 1}. ${ch.replace(/^.*\//, '')}`), el('div', 'meta', who.length ? `read by ${who.join(' and ')} ✓` : 'not read yet'));
-      if (x.src !== 'text') { const a = el('a', '', 'Read it yourself'); a.href = `https://${x.src === 'wikibooks' ? 'en.wikibooks.org' : 'en.wikipedia.org'}/wiki/${encodeURIComponent(ch.replace(/ /g, '_'))}`; a.target = '_blank'; a.rel = 'noopener'; it.append(a); }
+      if (x.src !== 'text') { const a = el('a', '', 'Read it yourself'); a.href = `https://${x.src === 'wikibooks' ? 'en.wikibooks.org' : x.src === 'quote' ? 'en.wikiquote.org' : 'en.wikipedia.org'}/wiki/${encodeURIComponent(ch.replace(/ /g, '_'))}`; a.target = '_blank'; a.rel = 'noopener'; it.append(a); }
       b.append(it);
     });
   });
@@ -5814,7 +5853,7 @@ function renderLibrary() {
   const ul = $('#libList'); if (!ul) return; ul.innerHTML = '';
   for (const x of library) {
     const n = chaptersOf(x).length, li = el('li');
-    li.append(el('div', '', x.title), el('div', 'meta', `${x.src === 'wikibooks' ? 'Wikibooks' : x.src === 'text' ? 'your text' : 'Wikipedia'} · Pip ${Math.min(x.read.Pip, n)}/${n} · Moss ${Math.min(x.read.Moss, n)}/${n}`));
+    li.append(el('div', '', x.title), el('div', 'meta', `${x.src === 'wikibooks' ? 'Wikibooks' : x.src === 'text' ? 'your text' : x.src === 'quote' ? 'Wikiquote' : 'Wikipedia'} · Pip ${Math.min(x.read.Pip, n)}/${n} · Moss ${Math.min(x.read.Moss, n)}/${n}`));
     const bt = el('div', 'mbtns'), op = el('button', '', 'Chapters'), rm = el('button', '', 'Remove'); op.type = rm.type = 'button';
     op.onclick = () => showBook(x);
     rm.onclick = () => { if (!rm.dataset.sure) { rm.dataset.sure = 1; rm.textContent = 'Tap again'; setTimeout(() => { delete rm.dataset.sure; rm.textContent = 'Remove'; }, 3000); return; } library = library.filter(y => y !== x); saveLibrary(); toast('Book removed from the shelf'); };

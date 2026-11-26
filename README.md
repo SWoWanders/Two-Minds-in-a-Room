@@ -23,5 +23,9 @@ A 3D printer prints in plastic, conductive metal and rubber: shapes, gears, whee
 
 **Know-how first.** A robot can only use the circuit parts and gates it has studied (basic circuits, microchips, logic gates, NAND/NOR/XOR, timers, flip-flops, sensors). Asked for a circuit it doesn't understand yet, it goes to the study shelf and reads the chapter it needs first. The *Logic & Circuit Design* book covers it all.
 
+## The study shelf
+
+Twenty research books the robots read a chapter at a time, from Wikipedia, Wikibooks and Wikiquote: music, Ottawa, Expo 67, writing, drawing, simple machines, 3D printing, circuits and logic, learning together (the Peeragogy Handbook), creativity and invention, famous inventors, and *Words of Inspiration*. When a robot reads that one, it picks a quote and pins it on the project board, and the quote can inspire their writing.
+
 - **Chat:** talk to either robot or both; give them things to do.
 - **Scripted demo:** works anywhere, no AI needed.
