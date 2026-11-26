@@ -27,6 +27,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
 .seen summary{font-size:12px;color:var(--dim);min-height:24px}.seen div{font-size:12px;color:var(--dim);white-space:pre-wrap;margin-top:4px}
 #boardWrap canvas{display:block;width:100%;height:auto;margin-top:8px;border-radius:8px;border:4px solid #c8ccd4;touch-action:none;background:#f7f8f4}
 .swatches{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.swatch{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:3px solid transparent;box-shadow:0 0 0 1px #0006}.swatch.on{border-color:#fff8ee}
+.memlist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto}.memlist li{background:#1d1424;border-radius:8px;padding:7px 9px;font-size:13px}.memlist .meta{font-size:11px;color:var(--dim);margin-top:2px}.mbtns{display:flex;gap:6px;margin-top:5px}.mbtns button{min-height:32px;padding:3px 10px;font-size:13px}
 .blist{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--dim)}
 #crash{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:24px;background:#1d1424f2;z-index:3;text-align:center}#crash[hidden]{display:none}#crash p{margin:0 auto;max-width:420px}#crash button{align-self:center;padding:10px 28px}
 #title{position:absolute;left:12px;top:10px;font:600 20px Fredoka,sans-serif;text-shadow:0 2px 8px #000a;pointer-events:none}
@@ -49,7 +50,6 @@ button:disabled{opacity:.45;cursor:default}
 .fb{display:flex;gap:6px;margin-top:6px}.fb button{min-height:38px;padding:4px 14px;font-size:16px}
 .memcard{background:var(--panel);border-left:4px solid var(--c);border-radius:10px;padding:8px 10px;margin-top:8px}
 .memcard b{color:var(--c)}.memcard ul{margin:2px 0 8px;padding-left:18px;font-size:13px}.memcard li.empty{color:var(--dim);list-style:none;margin-left:-18px}
-#memin{min-height:52px}
 .entry a.src{display:inline-block;margin-top:4px;color:#6cff8a;font-size:13px;min-height:24px}
 .entry .joints{font:12px/1.4 ui-monospace,Menlo,monospace;color:#e9d8b4;margin-top:3px;overflow-wrap:anywhere}
 form.lab{display:flex;flex-direction:column;gap:8px;margin-top:8px}form.lab input{width:100%}
@@ -135,10 +135,17 @@ form.nudge{display:flex;gap:8px}form.nudge input{flex:1}
     </details>
     <details>
       <summary>Memories &amp; learning</summary>
-      <p class="hint">Tap 👍 or 👎 under anything a robot says or does. A 👍 on a movement (including ones you make in the Puppet lab) teaches that robot a new named move it can reuse. Every six turns each robot writes a diary entry, and old entries get squeezed into summaries. Everything is saved on this device only.</p>
-      <div id="mem"></div>
-      <div class="btns" style="margin-top:8px"><button type="button" id="memcopy">Copy memories</button><button type="button" id="memload">Load pasted memories</button></div>
-      <textarea id="memin" placeholder="Paste copied memories here to bring them to this device" aria-label="Paste memories"></textarea>
+      <p class="hint">Each robot remembers what it sees, hears and does from its own point of view. Each turn it recalls only what's relevant, and it reflects every so often to form insights. It learns from what works and fails, from the other robot, and from your 👍 and 👎. Everything is saved in this browser.</p>
+      <label class="pick">Your name (optional, so they can use it)<input id="vname" maxlength="20" autocomplete="off" placeholder="Your name"></label>
+      <div class="row" style="margin-top:8px">
+        <label class="pick">Robot<select id="mwho"><option value="0">Pip</option><option value="1">Moss</option></select></label>
+        <label class="pick">Show<select id="mfilter"><option value="all">All memories</option><option value="reflection">Insights</option><option value="facts">Facts they know</option><option value="learned">What they've learned</option><option value="feedback">Your feedback</option><option value="visitor">About you</option></select></label>
+      </div>
+      <input id="msearch" placeholder="Search memories…" aria-label="Search memories" autocomplete="off" style="width:100%;margin-top:8px">
+      <p class="hint" id="mstats"></p>
+      <ul class="memlist" id="mem"></ul>
+      <div class="btns" style="margin-top:8px"><button type="button" id="mexport">Export memories</button><button type="button" id="mimportBtn">Import memories</button><button type="button" id="mforget">Forget everything</button></div>
+      <input type="file" id="mimport" accept="application/json,.json" hidden>
     </details>
     <div id="log"></div>
   </aside>
@@ -560,6 +567,114 @@ function parseSketch(s) {
   }
   return strokes.length ? { title, strokes } : null;
 }
+/* ---------- Mind: memory stream, recall, learning (pure logic) ---------- */
+const MIND_VER = 2;
+const STOP = new Set('a an the and or but if of to in on at by for with from up down out over under again then once here there when where why how all any both each few more most other some such no nor not only own same so than too very can will just do does did done is am are was were be been being have has had having i me my mine myself you your yours we our us he him his she her it its they them their this that these those what which who whom into about as also just like get got said say says let lets im ive ill youre dont cant its'.split(' '));
+const SYN = { mug: 'cup', cup: 'cup', coffee: 'cup', tea: 'tea', ball: 'ball', board: 'whiteboard', whiteboard: 'whiteboard', marker: 'marker', pen: 'marker', draw: 'draw', drew: 'draw', drawing: 'draw', sketch: 'draw', doodle: 'draw', wrote: 'write', write: 'write', writing: 'write', visitor: 'visitor', human: 'visitor', computer: 'computer', internet: 'computer', search: 'computer', threw: 'toss', throw: 'toss', toss: 'toss', tossed: 'toss', caught: 'catch', catch: 'catch', gave: 'give', give: 'give', handed: 'give' };
+function stem(w) {
+  if (SYN[w]) return SYN[w];
+  if (w.length > 5 && w.endsWith('ing')) w = w.slice(0, -3);
+  else if (w.length > 4 && w.endsWith('ed')) w = w.slice(0, -2);
+  else if (w.length > 4 && w.endsWith('ly')) w = w.slice(0, -2);
+  else if (w.length > 3 && w.endsWith('es')) w = w.slice(0, -2);
+  else if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) w = w.slice(0, -1);
+  return SYN[w] || w;
+}
+function tokens(text) {
+  return (String(text || '').toLowerCase().replace(/[’']/g, '').match(/[a-z0-9]+/g) || []).filter(w => w.length > 1 && !STOP.has(w)).map(stem);
+}
+// Rank memories by relevance (BM25), importance and recency, like the "Generative Agents" retrieval function.
+function recall(mems, query, nowTurn, k = 7, w = { rel: 1.2, imp: .7, rec: .9 }) {
+  if (!mems.length) return [];
+  const q = [...new Set(tokens(query))];
+  const docs = mems.map(m => m._tok || (m._tok = tokens(m.x)));
+  const N = docs.length, avg = docs.reduce((a, d) => a + d.length, 0) / N || 1, df = {};
+  for (const d of docs) for (const t of new Set(d)) df[t] = (df[t] || 0) + 1;
+  const raw = docs.map(d => {
+    let s = 0; if (!q.length) return 0;
+    const tf = {}; for (const t of d) tf[t] = (tf[t] || 0) + 1;
+    for (const t of q) if (tf[t]) { const idf = Math.log(1 + (N - df[t] + .5) / (df[t] + .5)); s += idf * tf[t] * 2.2 / (tf[t] + 1.2 * (.25 + .75 * d.length / avg)); }
+    return s;
+  });
+  const maxR = Math.max(...raw) || 1;
+  const scored = mems.map((m, i) => ({ m, s: w.rel * raw[i] / maxR + w.imp * (m.imp / 10) + w.rec * Math.pow(.96, Math.max(0, nowTurn - (m.turn || 0))) + (m.pin ? .8 : 0) + (m.k === 'reflection' ? .15 : 0) }));
+  scored.sort((a, b) => b.s - a.s);
+  const out = [], seen = [];
+  for (const { m } of scored) {
+    const ts = new Set(docs[mems.indexOf(m)]);
+    if (seen.some(o => jaccard(o, ts) > .7)) continue;
+    out.push(m); seen.push(ts); if (out.length >= k) break;
+  }
+  return out;
+}
+function jaccard(a, b) { if (!a.size && !b.size) return 1; let i = 0; for (const x of a) if (b.has(x)) i++; return i / (a.size + b.size - i || 1); }
+const BASE_IMP = { said: 2, heard: 3, saw: 2, did: 3, result: 4, visitor: 6, feedback: 7, board: 4, computer: 4, reflection: 7, fact: 6, day: 3 };
+const EMO = /\b(love|loved|hate|sad|happy|sorry|thank|thanks|amazing|wonderful|beautiful|scared|afraid|angry|lonely|friend|favourite|favorite|miss|proud|wow|sorry|awful|great)\b/i;
+function importance(kind, text, recentTok) {
+  let s = BASE_IMP[kind] || 3;
+  if (/\bvisitor\b/i.test(text)) s += 2;
+  if (EMO.test(text)) s += 2;
+  if (/\?/.test(text)) s += 1;
+  if (/\b(couldn't|can't|failed|dropped|slipped|landed on the floor|missed)\b/i.test(text)) s += 1;
+  if (recentTok) { const t = new Set(tokens(text)); if (t.size && !recentTok.some(r => jaccard(r, t) > .5)) s += 1; }
+  return Math.max(1, Math.min(10, s));
+}
+const FAIL_RE = /\b(couldn't|can't|isn't holding|aren't|nothing to|hands are (both )?full|too big|slipped|landed on the floor|got to the .* first|needs both hands|not understood|went to erase .* nothing|fumbled)\b/i;
+const outcomeOf = msg => FAIL_RE.test(String(msg || '')) ? 'fail' : 'ok';
+// visitor statements → durable facts
+function factsFrom(text) {
+  const t = String(text || '').trim(), out = [];
+  const name = t.match(/\b(?:my name is|i am called|call me|i'm called)\s+([A-Z][a-z]+|[a-z]{2,15})\b/i) || t.match(/^\s*(?:i'm|i am)\s+([A-Z][a-z]{1,15})\s*[.!]?\s*$/);
+  if (name) out.push({ about: 'visitor', key: 'name', x: `The visitor's name is ${name[1][0].toUpperCase() + name[1].slice(1)}.`, val: name[1][0].toUpperCase() + name[1].slice(1) });
+  const like = t.match(/\bi (?:really )?(?:like|love|enjoy|adore)\s+([^.!?,]{2,40})/i); if (like) out.push({ about: 'visitor', key: 'likes:' + like[1].toLowerCase().trim(), x: `The visitor likes ${like[1].trim()}.` });
+  const dis = t.match(/\bi (?:don't|do not|hate|dislike|can't stand)\s+(?:like\s+)?([^.!?,]{2,40})/i); if (dis) out.push({ about: 'visitor', key: 'dislikes:' + dis[1].toLowerCase().trim(), x: `The visitor doesn't like ${dis[1].trim()}.` });
+  const from = t.match(/\b[iI](?:'m| am) from\s+([A-Z][\w .'-]{1,30}?)(?:[.!?,]|$)/); if (from) out.push({ about: 'visitor', key: 'from', x: `The visitor is from ${from[1].trim()}.` });
+  return out;
+}
+const KIND_WORDS = /\b(thank|thanks|love|great|nice|beautiful|well done|good job|friend|lovely|wonderful|cool|amazing|sweet|kind|glad|happy to see)\b/i;
+const RUDE_WORDS = /\b(stupid|annoying|shut up|boring|hate you|go away|dumb|idiot|ugly|leave me alone)\b/i;
+const bondDelta = text => (KIND_WORDS.test(text) ? 1 : 0) - (RUDE_WORDS.test(text) ? 2 : 0);
+function bondLabel(score) { return score >= 10 ? 'very close to' : score >= 4 ? 'friendly with' : score >= -2 ? 'still getting to know' : 'wary of'; }
+function blankMind() { return { v: MIND_VER, day: 1, lastDate: '', lastSeen: 0, turns: 0, nextId: 1, mem: [], facts: [], skills: [], acts: {}, bonds: {}, enjoys: {}, impSince: 0 }; }
+// accept saved data (current or older format) and return a clean, bounded mind
+function cleanMind(m) {
+  const b = blankMind(); if (!m || typeof m !== 'object') return b;
+  if (m.v === 1) { // migrate the original diary format
+    let id = 1;
+    for (const d of (Array.isArray(m.diary) ? m.diary : [])) if (d && d.text) b.mem.push({ id: id++, t: +d.t || Date.now(), day: 1, turn: 0, k: 'reflection', x: String(d.text).slice(0, 240), imp: 6 });
+    for (const x of (Array.isArray(m.liked) ? m.liked : [])) b.mem.push({ id: id++, t: Date.now(), day: 1, turn: 0, k: 'feedback', x: `The visitor loved it when I said "${String(x).slice(0, 100)}".`, imp: 7 });
+    for (const x of (Array.isArray(m.disliked) ? m.disliked : [])) b.mem.push({ id: id++, t: Date.now(), day: 1, turn: 0, k: 'feedback', x: `The visitor did not like it when I said "${String(x).slice(0, 100)}".`, imp: 6 });
+    b.skills = (Array.isArray(m.skills) ? m.skills : []).filter(s => s && s.name).map(s => ({ name: String(s.name).slice(0, 40), pose: s.pose || null, moves: (Array.isArray(s.moves) ? s.moves : []).map(String).slice(0, 14), uses: 0 }));
+    b.nextId = id; return b;
+  }
+  if (m.v !== MIND_VER) return b;
+  const num = (v, d) => Number.isFinite(+v) ? +v : d;
+  b.day = Math.max(1, num(m.day, 1) | 0); b.lastDate = String(m.lastDate || '').slice(0, 10); b.lastSeen = num(m.lastSeen, 0); b.turns = num(m.turns, 0) | 0; b.impSince = num(m.impSince, 0);
+  const KINDS = Object.keys(BASE_IMP);
+  b.mem = (Array.isArray(m.mem) ? m.mem : []).filter(x => x && x.x && KINDS.includes(x.k)).slice(-800).map(x => ({ id: num(x.id, 0) | 0, t: num(x.t, 0), day: num(x.day, 1) | 0, turn: num(x.turn, 0) | 0, k: x.k, x: String(x.x).slice(0, 260), imp: Math.max(1, Math.min(10, num(x.imp, 3))), pin: !!x.pin }));
+  b.nextId = Math.max(num(m.nextId, 1), ...b.mem.map(x => x.id + 1), 1);
+  b.facts = (Array.isArray(m.facts) ? m.facts : []).filter(f => f && f.x).slice(-60).map(f => ({ key: String(f.key || f.x).slice(0, 80), about: String(f.about || '').slice(0, 20), x: String(f.x).slice(0, 200), conf: Math.max(1, num(f.conf, 1) | 0), t: num(f.t, 0) }));
+  b.skills = (Array.isArray(m.skills) ? m.skills : []).filter(s => s && s.name).slice(-16).map(s => ({ name: String(s.name).slice(0, 40), pose: s.pose ? String(s.pose).slice(0, 20) : null, moves: (Array.isArray(s.moves) ? s.moves : []).map(String).slice(0, 14), uses: num(s.uses, 0) | 0 }));
+  for (const [k, v] of Object.entries(m.acts && typeof m.acts === 'object' ? m.acts : {}).slice(0, 80)) b.acts[String(k).slice(0, 40)] = { ok: num(v && v.ok, 0) | 0, fail: num(v && v.fail, 0) | 0, why: String((v && v.why) || '').slice(0, 140) };
+  for (const [k, v] of Object.entries(m.bonds && typeof m.bonds === 'object' ? m.bonds : {}).slice(0, 6)) b.bonds[String(k).slice(0, 20)] = Math.max(-20, Math.min(30, num(v, 0)));
+  for (const [k, v] of Object.entries(m.enjoys && typeof m.enjoys === 'object' ? m.enjoys : {}).slice(0, 40)) b.enjoys[String(k).slice(0, 30)] = Math.max(-20, Math.min(50, num(v, 0)));
+  return b;
+}
+// forget gracefully: keep pins, reflections and the most valuable memories; summarise is done by the caller
+function pruneOrder(mems, nowTurn) {
+  return mems.filter(m => !m.pin && m.k !== 'reflection').map(m => ({ m, v: m.imp / 10 + Math.pow(.98, Math.max(0, nowTurn - (m.turn || 0))) })).sort((a, b) => a.v - b.v).map(o => o.m);
+}
+// what kind of thing the visitor reacted to, for learning their tastes
+function enjoyTags(res) {
+  const tags = [];
+  if (res.board) tags.push(res.board.verb === 'write' ? 'writing on the whiteboard' : res.board.verb === 'sketch' ? 'freehand sketches' : res.board.verb === 'erase' ? 'erasing the board' : 'drawings on the whiteboard');
+  if (res.hands) tags.push(res.hands.verb === 'toss' ? 'playing catch' : res.hands.verb === 'give' ? 'sharing things' : 'handling objects');
+  if (res.computer) tags.push('looking things up on the computer');
+  if (res.pose && ['dance', 'jump', 'cheer'].includes(res.pose)) tags.push('dancing and lively moves');
+  else if (res.pose || (res.moves && res.moves.length)) tags.push('expressive body language');
+  if (res.say && res.say !== '(puppet lab)') tags.push(/\?\s*$/.test(res.say) ? 'questions' : 'chatting');
+  return tags;
+}
 /* Parse a model reply: GO / POSE / MOVE / HANDS / BOARD / COMPUTER / SAY lines */
 function parseReply(txt, myName, otherName, placeFinder) {
   const line = k => { const m = txt.match(new RegExp('^\\s*\\**' + k + '\\**\\s*[:\\-]\\s*(.*)$', 'im')); return m ? m[1].replace(/^\*+\s*/, '').trim() : undefined; };
@@ -647,97 +762,236 @@ for (const c of chars) {
   c.tag = document.createElement('div'); c.tag.className = 'tag'; c.tag.style.background = c.color; c.tag.textContent = c.name;
   bubbles.append(c.tag, c.bub);
 }
-/* ---------- Memory & learning (saved on this device) ---------- */
-const MEM_VER = 1;
-const blankMem = () => ({ v: MEM_VER, diary: [], skills: [], liked: [], disliked: [] });
-function cleanMem(m) {
-  const b = blankMem(); if (!m || m.v !== MEM_VER) return b;
-  b.diary = (Array.isArray(m.diary) ? m.diary : []).filter(d => d && d.text).map(d => ({ t: +d.t || Date.now(), text: String(d.text).slice(0, 260), old: !!d.old })).slice(-11);
-  b.skills = (Array.isArray(m.skills) ? m.skills : []).filter(s => s && s.name).map(s => ({ name: String(s.name).slice(0, 40), pose: POSE_NAMES.includes(s.pose) ? s.pose : null, moves: (Array.isArray(s.moves) ? s.moves : []).map(String).slice(0, 14) })).slice(-12);
-  for (const k of ['liked', 'disliked']) b[k] = (Array.isArray(m[k]) ? m[k] : []).map(x => String(x).slice(0, 120)).slice(-4);
-  return b;
-}
-function saveMem(c) { store.set('mem_' + c.name, c.mem); renderMem(); }
-for (const c of chars) { c.mem = cleanMem(store.get('mem_' + c.name, null)); c.turns = 0; }
+/* ---------- Mind: memory stream, reflection and learning (saved in this browser) ---------- */
 const trimTxt = (s, n) => (s = String(s || '').replace(/\s+/g, ' ').trim()).length > n ? s.slice(0, n - 1) + '…' : s;
-const skillList = c => c.mem.skills.length ? ', ' + c.mem.skills.map(s => s.name).join(', ') : '';
+// IndexedDB key/value store (much roomier than localStorage), falling back to localStorage
+const DB = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => { const r = indexedDB.open('two-minds', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
+  return {
+    async get(k) { try { const db = await open(); return await new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); } catch { return store.get('kv_' + k, undefined); } },
+    async set(k, v) { try { const db = await open(); await new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); } catch { store.set('kv_' + k, v); } }
+  };
+})();
+for (const c of chars) { c.mind = c.mem = blankMind(); c.turns = 0; }
+let mindsReady = false, visitorName = String(store.get('visitorName', '') || '').slice(0, 20);
+const visitorRef = () => visitorName ? `the visitor (${visitorName})` : 'the visitor';
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const agoText = ms => { const h = ms / 36e5; return h < 1 ? Math.max(1, Math.round(ms / 6e4)) + ' minutes' : h < 48 ? Math.round(h) + ' hours' : Math.round(h / 24) + ' days'; };
+const stripTok = m => ({ ...m, mem: m.mem.map(({ _tok, n, ...x }) => x) });
+let mindSaveT;
+function saveMinds() {
+  if (!mindsReady) return;
+  clearTimeout(mindSaveT);
+  mindSaveT = setTimeout(async () => { for (const c of chars) { c.mind.lastSeen = Date.now(); await DB.set('mind_' + c.name, stripTok(c.mind)); } renderMem(); }, 700);
+}
+async function loadMinds() {
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch {}
+  for (const c of chars) {
+    let m = await DB.get('mind_' + c.name);
+    if (!m) m = store.get('mem_' + c.name, null);     // older version of the app
+    c.mind = c.mem = cleanMind(m);
+  }
+  mindsReady = true;
+  for (const c of chars) {
+    const md = c.mind, now = Date.now();
+    if (md.lastDate !== today()) { if (md.lastDate) { md.day++; remember(c, 'day', `A new day began: day ${md.day} in the room.`, { imp: 3 }); } md.lastDate = today(); }
+    if (md.lastSeen && now - md.lastSeen > 30 * 60e3) { remember(c, 'visitor', `${visitorRef()[0].toUpperCase() + visitorRef().slice(1)} came back to the room after ${agoText(now - md.lastSeen)} away.`); bond(c, 'visitor', 1); }
+  }
+  saveMinds(); renderMem();
+}
+function remember(c, k, text, opt = {}) {
+  const md = c.mind; text = trimTxt(text, 240); if (!text) return null;
+  const tk = new Set(tokens(text));
+  const recentTok = md.mem.slice(-30).map(m => new Set(m._tok || (m._tok = tokens(m.x))));
+  const dup = md.mem.slice(-8).find(m => m.k === k && jaccard(new Set(m._tok || (m._tok = tokens(m.x))), tk) > .85);
+  if (dup) { dup.imp = Math.min(10, dup.imp + .5); dup.turn = md.turns; dup.t = Date.now(); saveMinds(); return dup; }
+  const imp = opt.imp || importance(k, text, recentTok);
+  const m = { id: md.nextId++, t: Date.now(), day: md.day, turn: md.turns, k, x: text, imp };
+  md.mem.push(m); if (k !== 'reflection') md.impSince += imp;
+  if (md.mem.length > 600) forgetSome(c);
+  saveMinds(); return m;
+}
+// old, unimportant memories fade; their gist survives as one summary memory
+function forgetSome(c) {
+  const md = c.mind, drop = pruneOrder(md.mem, md.turns).slice(0, 80), ids = new Set(drop.map(m => m.id));
+  const gist = drop.filter(m => m.imp >= 4).slice(-5).map(m => m.x.replace(/\.$/, '')).join('; ');
+  md.mem = md.mem.filter(m => !ids.has(m.id));
+  if (gist && drop.length) md.mem.unshift({ id: md.nextId++, t: drop[0].t, day: drop[0].day, turn: drop[0].turn, k: 'reflection', x: trimTxt('Faded memories: ' + gist, 250), imp: 5 });
+}
+function learnFact(c, f) {
+  const md = c.mind, tk = new Set(tokens(f.x));
+  const ex = md.facts.find(x => f.key && x.key === f.key) || md.facts.find(x => jaccard(new Set(tokens(x.x)), tk) > .6);
+  if (ex) { ex.x = f.x; ex.conf = Math.min(9, ex.conf + 1); ex.t = Date.now(); }
+  else { md.facts.push({ key: f.key || f.x.toLowerCase().slice(0, 80), about: f.about || '', x: f.x, conf: 1, t: Date.now() }); if (md.facts.length > 60) { md.facts.sort((a, b) => b.conf - a.conf || b.t - a.t); md.facts.length = 50; } }
+  if (f.key === 'name' && f.val) { visitorName = f.val.slice(0, 20); store.set('visitorName', visitorName); const vn = $('#vname'); if (vn) vn.value = visitorName; }
+  saveMinds();
+}
+function bond(c, who, d) { if (!d) return; const b = c.mind.bonds; b[who] = Math.max(-20, Math.min(30, (b[who] || 0) + d)); saveMinds(); }
+function experience(c, key, ok, why) {
+  const a = c.mind.acts[key] || (c.mind.acts[key] = { ok: 0, fail: 0, why: '' });
+  if (ok) a.ok++; else { a.fail++; a.why = trimTxt(why || '', 140); }
+  saveMinds();
+}
+const ACT_TEXT = { grab: 'picking up', put: 'putting down', give: 'handing over', toss: 'tossing', drop: 'dropping', draw: 'drawing on the whiteboard', write: 'writing on the whiteboard', sketch: 'freehand sketching', erase: 'erasing the whiteboard', computer: 'using the computer' };
+function experienceLines(c) {
+  return Object.entries(c.mind.acts).map(([k, a]) => {
+    const [v, th] = k.split(':'), n = a.ok + a.fail;
+    return { n, fail: a.fail, line: `${ACT_TEXT[v] || v}${th && th !== '-' ? ' the ' + th : ''} worked ${a.ok} of ${n} time${n === 1 ? '' : 's'}${a.fail && a.why ? ` (last problem: ${a.why})` : ''}` };
+  }).sort((a, b) => b.fail - a.fail || b.n - a.n).slice(0, 5).map(o => o.line);
+}
+const firstCap = s => s[0].toUpperCase() + s.slice(1);
+function memoryBlock(c, o, query) {
+  const md = c.mind, parts = [];
+  const got = recall(md.mem, query, md.turns, 7);
+  for (const m of got) m.n = (m.n || 0) + 1;
+  c.lastRecall = got.map(m => m.x);
+  if (got.length) parts.push('Memories that come to mind (most relevant first):\n' + got.map(m => `- ${m.day < md.day ? `[${md.day - m.day === 1 ? 'yesterday' : `${md.day - m.day} days ago`}] ` : ''}${m.x}`).join('\n'));
+  const facts = md.facts.slice().sort((a, b) => b.conf - a.conf || b.t - a.t).slice(0, 6);
+  if (facts.length) parts.push('Things you know: ' + facts.map(f => f.x).join(' '));
+  parts.push(`Your feelings: you are ${bondLabel(md.bonds[o.name] || 0)} ${o.name}, and ${bondLabel(md.bonds.visitor || 0)} ${visitorRef()}.`);
+  const ex = experienceLines(c); if (ex.length) parts.push('What experience has taught you: ' + ex.join('; ') + '.');
+  const en = Object.entries(md.enjoys).sort((a, b) => b[1] - a[1]);
+  const likes = en.filter(e => e[1] > 0).slice(0, 3).map(e => e[0]), dislikes = en.filter(e => e[1] < 0).slice(-2).map(e => e[0]);
+  if (likes.length) parts.push(`${firstCap(visitorRef())} seems to enjoy: ${likes.join(', ')}.`);
+  if (dislikes.length) parts.push(`They seem less keen on: ${dislikes.join(', ')}.`);
+  if (md.skills.length) parts.push('Moves you have learned (write the name as your POSE): ' + md.skills.map(s => s.name).join(', ') + '.');
+  let out = parts.join('\n'); if (out.length > 1800) out = out.slice(0, 1800) + '…';
+  return out + '\n\n';
+}
+const skillList = c => c.mind.skills.length ? ', ' + c.mind.skills.map(s => s.name).join(', ') : '';
 function findSkill(c, raw) {
   const s = (raw || '').toLowerCase();
-  return c.mem.skills.filter(k => s.includes(k.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0]?.name || null;
+  return c.mind.skills.filter(k => s.includes(k.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0]?.name || null;
 }
-function memoryBlock(c) {
-  const m = c.mem, out = [];
-  if (m.diary.length) out.push('Your diary (oldest first):\n' + m.diary.map(d => '- ' + d.text).join('\n'));
-  if (m.skills.length) out.push('Moves you have learned (write the name as your POSE): ' + m.skills.map(s => s.name).join(', ') + '.');
-  if (m.liked.length) out.push('Things you said that the visitor loved: ' + m.liked.map(x => `"${x}"`).join(' '));
-  if (m.disliked.length) out.push('The visitor did not like these, so avoid anything similar: ' + m.disliked.map(x => `"${x}"`).join(' '));
-  return out.length ? out.join('\n') + '\n\n' : '';
+async function askRaw(c, sys, user, max = 60) {
+  if (mode !== 'ai' || !c.engine) return null;
+  try { const r = await c.engine.chat.completions.create({ model: c.modelId, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], max_tokens: max, temperature: 0.7 }); return r.choices?.[0]?.message?.content || null; }
+  catch (e) { console.warn(e); return null; }
 }
 async function ask(c, sys, user, max = 60) {
-  if (mode !== 'ai' || !c.engine) return null;
-  try {
-    const r = await c.engine.chat.completions.create({ model: c.modelId, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], max_tokens: max, temperature: 0.7 });
-    return (r.choices?.[0]?.message?.content || '').split('\n').map(x => x.replace(/[*#`"“”]/g, '').trim()).find(Boolean) || null;
-  } catch (e) { console.warn(e); return null; }
+  const t = await askRaw(c, sys, user, max);
+  return t ? t.split('\n').map(x => x.replace(/[*#`"“”]/g, '').trim()).find(Boolean) || null : null;
 }
-async function writeDiary(c, o) {
-  const recent = transcript.slice(-12).map(l => `${l.who}: ${l.text}`).join('\n'); if (!recent) return;
-  status(`${c.name} is writing in their diary…`);
-  let text = await ask(c, `You are ${c.name}, ${c.persona}. Write ONE diary sentence, under 25 words, in first person, about what just happened with ${o.name}. Note anything worth remembering.`, recent, 60);
-  if (!text) {
-    const theirs = transcript.filter(l => l.who === o.name).slice(-1)[0], mine = transcript.filter(l => l.who === c.name).slice(-1)[0];
-    text = `At the ${c.place.label}.${theirs ? ` ${o.name} said "${trimTxt(theirs.text, 60)}"` : ''}${mine ? ` I said "${trimTxt(mine.text, 60)}"` : ''}`;
+function heuristicInsights(c, o) {
+  const md = c.mind, out = [];
+  const en = Object.entries(md.enjoys).sort((a, b) => b[1] - a[1]);
+  if (en[0] && en[0][1] > 0) out.push(`${firstCap(visitorRef())} seems to enjoy ${en[0][0]}.`);
+  const fails = Object.entries(md.acts).filter(([, a]) => a.fail > a.ok);
+  if (fails[0]) out.push(`I keep having trouble ${ACT_TEXT[fails[0][0].split(':')[0]] || fails[0][0]}; I should try it a different way.`);
+  const b = md.bonds[o.name] || 0;
+  out.push(b >= 4 ? `${o.name} and I are getting along well.` : `I'd like to get to know ${o.name} better.`);
+  return out.slice(0, 2);
+}
+// turn a batch of experiences into lasting insights and facts
+async function reflect(c, o) {
+  const md = c.mind; md.impSince = 0;
+  const recent = md.mem.slice(-40).filter(m => m.k !== 'reflection' && m.k !== 'day').sort((a, b) => b.imp - a.imp).slice(0, 14).sort((a, b) => a.id - b.id);
+  if (recent.length < 4) return;
+  status(`${c.name} is thinking over what happened…`);
+  const txt = await askRaw(c, `You are ${c.name}, ${c.persona}. You are quietly thinking back over recent events.`,
+    `Recent memories:\n${recent.map(m => '- ' + m.x).join('\n')}\n\nWrite 2 short insights, one per line, each starting with "INSIGHT:". They can be about yourself, ${o.name}, ${visitorRef()}, or how things work in this room. If you learned a lasting fact, add a line starting with "FACT:".`, 150);
+  let ins = [], facts = [];
+  if (txt) for (const line of txt.split('\n')) { const l = line.replace(/[*#`]/g, '').trim(); let m; if ((m = l.match(/^insight\s*\d*\s*[:\-]\s*(.{8,})/i))) ins.push(m[1]); else if ((m = l.match(/^fact\s*\d*\s*[:\-]\s*(.{6,})/i))) facts.push(m[1]); }
+  if (!ins.length) ins = heuristicInsights(c, o);
+  for (const x of ins.slice(0, 3)) remember(c, 'reflection', x, { imp: 7 });
+  for (const x of facts.slice(0, 2)) learnFact(c, { x: trimTxt(x, 180), about: '' });
+  logNote(`${c.name} reflected: “${trimTxt(ins.slice(0, 2).join(' '), 220)}”`); status('New insight saved in memory.');
+}
+// --- recording what each robot experiences, from its own point of view ---
+function noteSpeech(c, o, text) {
+  if (!text || text === '(puppet lab)') return;
+  remember(c, 'said', `I said to ${o.name}: "${text}"`);
+  remember(o, 'heard', `${c.name} said: "${text}"`);
+  bond(o, c.name, bondDelta(text));
+}
+function noteSeen(c, o) {
+  const held = heldText(o).map(x => x.replace(/ \((left|right|both) hands?\)/, ''));
+  const sig = (c.seeOther || '') + '|' + held.join();
+  if (sig !== c.lastSig) {
+    c.lastSig = sig;
+    if (c.seeOther && !/^(standing by|walking)/.test(c.seeOther)) remember(c, 'saw', `I saw ${o.name} ${c.seeOther}${held.length ? ', holding ' + held.join(' and ') : ''}.`);
   }
-  text = trimTxt(text, 200);
-  c.mem.diary.push({ t: Date.now(), text });
-  if (c.mem.diary.length > 10) {
-    const old = c.mem.diary.splice(0, 5);
-    let sum = await ask(c, `You are ${c.name}. Combine these diary notes into ONE sentence under 35 words that keeps the most important memories.`, old.map(d => '- ' + d.text).join('\n'), 70);
-    if (!sum) sum = old.map(d => trimTxt(d.text, 40)).join(' / ');
-    c.mem.diary.unshift({ t: old[0].t, text: trimTxt('Long ago: ' + sum.replace(/^long ago:\s*/i, ''), 240), old: true });
+  if (c.lastSeen && /whiteboard \(/.test(c.lastSeen) && boardItems.length) {
+    const bs = boardSummary();
+    if (bs !== c.lastBoard) { c.lastBoard = bs; remember(c, 'board', `The whiteboard shows: ${bs}.`); }
   }
-  saveMem(c); logNote(`${c.name} wrote in their diary: “${text}”`); status('Diary saved on this device.');
+}
+function firstPerson(msg, name) {
+  return msg.replace(new RegExp(`\\b${name}'s\\b`, 'g'), 'my').replace(new RegExp(`\\b${name}\\b`, 'g'), 'I')
+    .replace(/\bI isn't\b/g, "I'm not").replace(/\bI is\b/g, 'I am').replace(/\bI (needs|has|looks|goes|keeps|tries|wants)\b/g, (m, v) => 'I ' + ({ needs: 'need', has: 'have', looks: 'look', goes: 'go', keeps: 'keep', tries: 'try', wants: 'want' })[v])
+    .replace(/^my /, 'My ').replace(/\bwith (left|right) hand\b/, 'with my $1 hand');
+}
+function noteResult(c, o, key, msg) {
+  if (!msg) return;
+  const ok = outcomeOf(msg) === 'ok';
+  experience(c, key, ok, ok ? '' : firstPerson(msg, c.name));
+  remember(c, ok ? 'did' : 'result', firstPerson(msg, c.name));
+  remember(o, 'saw', msg);
+  if (/caught it/.test(msg)) { bond(c, o.name, 1); bond(o, c.name, 1); }
+  if (/handed the .* to/.test(msg)) bond(o, c.name, 2);
+}
+function noteVisitor(text, raw, kind = 'visitor') {
+  for (const c of chars) {
+    remember(c, kind, text); bond(c, 'visitor', 1);
+    if (raw) for (const f of factsFrom(raw)) learnFact(c, f);
+  }
 }
 async function feedback(c, res, good, btns) {
   for (const b of btns) b.disabled = true;
-  const m = c.mem, said = res.say && res.say !== '(puppet lab)';
-  if (!good) {
-    if (said) { m.disliked.push(trimTxt(res.say, 100)); if (m.disliked.length > 4) m.disliked.shift(); }
-    saveMem(c); toast(`${c.name} will try to avoid that`); return;
-  }
-  if (said) { m.liked.push(trimTxt(res.say, 100)); if (m.liked.length > 4) m.liked.shift(); }
+  if (!mindsReady) { toast('Memory is still loading. Try again in a moment'); for (const b of btns) b.disabled = false; return; }
+  const md = c.mind, said = res.say && res.say !== '(puppet lab)';
+  const what = said ? `when I said "${trimTxt(res.say, 90)}"` : res.pose ? `when I did the ${res.pose} pose` : res.board ? 'what I made on the whiteboard' : 'what I just did';
+  remember(c, 'feedback', good ? `${firstCap(visitorRef())} loved it ${what}.` : `${firstCap(visitorRef())} didn't like it ${what}.`, { imp: good ? 8 : 7 });
+  bond(c, 'visitor', good ? 2 : -1);
+  for (const tg of enjoyTags(res)) md.enjoys[tg] = (md.enjoys[tg] || 0) + (good ? 1 : -1);
+  if (!good) { saveMinds(); toast(`${c.name} will remember you didn't like that`); return; }
   const hasMove = (res.moves && res.moves.length) || (res.pose && !['sit', 'floorsit'].includes(res.pose));
-  if (hasMove && !res.skill) {
+  if (res.skill) { const sk = md.skills.find(s => s.name === res.skill); if (sk) sk.uses++; toast(`${c.name} is glad you liked “${res.skill}”`); }
+  else if (hasMove) {
     toast(`${c.name} is naming the move…`);
     let name = await ask(c, `You are ${c.name}. Give a fun 2 or 3 word name for this body movement. Reply with the name only.`, `Pose: ${res.pose || 'none'}. Joint moves: ${(res.applied || []).join(', ') || 'none'}. You said: ${res.say}`, 12);
     name = (name || '').toLowerCase().replace(/[^a-z' -]/g, ' ').trim().split(/\s+/).slice(0, 3).join(' ');
-    if (name.length < 3 || POSE_NAMES.includes(name.replace(/\s/g, '')) || m.skills.some(s => s.name === name)) name = `${c.name.toLowerCase()} move ${m.skills.length + 1}`;
-    m.skills.push({ name, pose: res.pose || null, moves: (res.moves || []).map(String) }); if (m.skills.length > 12) m.skills.shift();
+    if (name.length < 3 || POSE_NAMES.includes(name.replace(/\s/g, '')) || md.skills.some(s => s.name === name)) name = `${c.name.toLowerCase()} move ${md.skills.length + 1}`;
+    md.skills.push({ name, pose: res.pose || null, moves: (res.moves || []).map(String), uses: 0 }); if (md.skills.length > 16) md.skills.shift();
+    remember(c, 'feedback', `I learned a new move called "${name}" because ${visitorRef()} liked it.`, { imp: 7 });
     logNote(`${c.name} learned a new move: “${name}”`); toast(`${c.name} learned “${name}”!`);
   } else toast(`${c.name} will remember you liked that`);
-  saveMem(c);
+  saveMinds();
 }
+// --- memory inspector ---
+const KIND_LABEL = { said: 'said', heard: 'heard', saw: 'saw', did: 'did', result: 'setback', visitor: 'you', feedback: 'your feedback', board: 'whiteboard', computer: 'computer', reflection: 'insight', fact: 'fact', day: 'day' };
 function renderMem() {
-  const el = $('#mem'); if (!el) return; el.innerHTML = '';
-  for (const c of chars) {
-    const box = document.createElement('div'); box.className = 'memcard'; box.style.setProperty('--c', c.color);
-    const h = document.createElement('b'); h.textContent = c.name; box.append(h);
-    const add = (label, items) => {
-      const p = document.createElement('div'); p.className = 'act'; p.textContent = label;
-      const ul = document.createElement('ul');
-      for (const it of items.length ? items : ['Nothing yet']) { const li = document.createElement('li'); li.textContent = it; if (!items.length) li.className = 'empty'; ul.append(li); }
-      box.append(p, ul);
-    };
-    add('Diary', c.mem.diary.map(d => d.text));
-    add('Learned moves', c.mem.skills.map(s => s.name));
-    add('Lines you liked', c.mem.liked);
-    const f = document.createElement('button'); f.type = 'button'; f.textContent = `Forget what ${c.name} learned`;
-    f.onclick = () => {
-      if (f.dataset.sure) { c.mem = blankMem(); saveMem(c); toast(`${c.name}'s memory wiped`); }
-      else { f.dataset.sure = '1'; f.textContent = 'Tap again to confirm'; toast('Tap again to wipe it'); }
-    };
-    box.append(f); el.append(box);
+  const ul = $('#mem'), st = $('#mstats'); if (!ul || !st) return;
+  const c = chars[+($('#mwho') ? $('#mwho').value : 0)], md = c.mind, f = $('#mfilter') ? $('#mfilter').value : 'all';
+  const q = ($('#msearch') ? $('#msearch').value : '').trim().toLowerCase();
+  st.textContent = mindsReady ? `${c.name} remembers ${md.mem.length} things over ${md.day} day${md.day === 1 ? '' : 's'} · ${md.mem.filter(m => m.k === 'reflection').length} insights · ${md.facts.length} facts · ${md.skills.length} learned moves · ${bondLabel(md.bonds.visitor || 0)} you, ${bondLabel(md.bonds[chars[1 - c.i].name] || 0)} ${chars[1 - c.i].name}.` : 'Loading memories…';
+  ul.innerHTML = '';
+  const li = (text, meta, btns = []) => { const e = document.createElement('li'); const p = document.createElement('div'); p.textContent = text; e.append(p); if (meta) { const m = document.createElement('div'); m.className = 'meta'; m.textContent = meta; e.append(m); } if (btns.length) { const b = document.createElement('div'); b.className = 'mbtns'; b.append(...btns); e.append(b); } ul.append(e); };
+  const btn = (label, fn, aria) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (aria) b.setAttribute('aria-label', aria); b.onclick = fn; return b; };
+  if (f === 'facts') {
+    const fs = md.facts.filter(x => !q || x.x.toLowerCase().includes(q));
+    if (!fs.length) li('No facts yet. They learn facts from what you tell them and from reflecting.');
+    for (const x of fs) li(x.x, `confidence ${x.conf}`, [btn('Forget', () => { md.facts = md.facts.filter(y => y !== x); saveMinds(); renderMem(); toast('Fact forgotten'); }, 'Forget this fact')]);
+    return;
   }
+  if (f === 'learned') {
+    const ex = experienceLines(c), en = Object.entries(md.enjoys).sort((a, b) => b[1] - a[1]);
+    for (const l of ex) li(firstCap(l) + '.', 'experience');
+    for (const [k, v] of en) li(`${firstCap(visitorRef())} ${v > 0 ? 'enjoys' : 'is less keen on'} ${k}`, `${v > 0 ? '+' : ''}${v} from your feedback`);
+    for (const s of md.skills) li(`Learned move: “${s.name}”`, `${s.pose ? 'pose ' + s.pose + ', ' : ''}${s.moves.length} joint moves · used ${s.uses} times`, [btn('Forget', () => { md.skills = md.skills.filter(y => y !== s); saveMinds(); renderMem(); toast('Move forgotten'); }, 'Forget this move')]);
+    for (const [who, v] of Object.entries(md.bonds)) li(`Feels ${bondLabel(v)} ${who === 'visitor' ? 'you' : who}`, `bond ${v}`);
+    if (!ul.children.length) li('Nothing learned yet. Use 👍 and 👎 in the log, and let them try things.');
+    return;
+  }
+  let ms = md.mem.slice().reverse();
+  if (f === 'reflection' || f === 'feedback' || f === 'visitor') ms = ms.filter(m => m.k === f || (f === 'visitor' && /\bvisitor\b/i.test(m.x)));
+  if (q) ms = ms.filter(m => m.x.toLowerCase().includes(q));
+  if (!ms.length) li(q ? 'No memories match that search.' : 'No memories here yet.');
+  for (const m of ms.slice(0, 80)) li(m.x, `day ${m.day} · ${KIND_LABEL[m.k] || m.k} · importance ${Math.round(m.imp)}${m.pin ? ' · pinned' : ''}`, [
+    btn(m.pin ? 'Unpin' : 'Pin', () => { m.pin = !m.pin; saveMinds(); renderMem(); toast(m.pin ? 'Pinned: this will come to mind more often' : 'Unpinned'); }, m.pin ? 'Unpin memory' : 'Pin memory'),
+    btn('Forget', () => { md.mem = md.mem.filter(y => y !== m); saveMinds(); renderMem(); toast('Memory forgotten'); }, 'Forget this memory')
+  ]);
 }
 
 function buildPose(c, pd) {
@@ -1595,7 +1849,7 @@ SAY: Look, ${o.name}, a shooting star over the rooftops!`;
   const last = transcript.slice(-6).map(l => `${l.who}: ${l.text}`).join('\n') || '(nobody has spoken yet)';
   const ev = events.filter(e => e.left > 0).map(e => { e.left--; return e.text; }).join(' ');
   for (let i = events.length - 1; i >= 0; i--) if (events[i].left <= 0) events.splice(i, 1);
-  const user = `${memoryBlock(c)}${c.lastSeen || perceive(c, o)}
+  const user = `${memoryBlock(c, o, (c.lastSeen || '') + ' ' + transcript.slice(-4).map(l => l.text).join(' ') + ' ' + events.map(e => e.text).join(' '))}${c.lastSeen || perceive(c, o)}
 Recent conversation:
 ${last}
 ${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER and SAY lines.`;
@@ -1618,7 +1872,7 @@ function scriptDecide(c, o) {
   const pose = Math.random() < 0.6 ? POSE_NAMES[(Math.random() * POSE_NAMES.length) | 0] : null;
   const moves = []; for (let n = (Math.random() * 3) | 0; n > 0; n--) moves.push(EXTRA[(Math.random() * EXTRA.length) | 0]);
   const line = ev ? `Did you see that, ${o.name}? ${ev.text.replace(/\.$/, '')}!` : c.seeOther && Math.random() < 0.35 ? `I can see you ${c.seeOther}, ${o.name}!` : LINES[c.i][(Math.random() * LINES[c.i].length) | 0];
-  const sk = c.mem.skills.length && Math.random() < 0.35 ? c.mem.skills[(Math.random() * c.mem.skills.length) | 0].name : null;
+  const sk = c.mind.skills.length && Math.random() < 0.35 ? c.mind.skills[(Math.random() * c.mind.skills.length) | 0].name : null;
   const NET = [['search theremin', 'onthisday', 'weather Ottawa', 'archive robot cartoons', 'search tiki bar'], ['search ferns', 'books gardening', 'weather Ottawa', 'search green tea', 'onthisday']];
   const computer = !ev && Math.random() < 0.2 ? parseComputer(NET[c.i][(Math.random() * NET[c.i].length) | 0]) : null;
   let hands = null, board = null;
@@ -1635,13 +1889,14 @@ function scriptDecide(c, o) {
 function apply(c, res) {
   if (res.hands || res.board) { res.place = null; res.computer = null; }
   if (res.computer) res.place = 'computer';
-  if (res.skill) { const sk = c.mem.skills.find(s => s.name === res.skill); if (sk) { res.pose = res.pose || sk.pose; res.moves = [...sk.moves, ...(res.moves || [])]; } else res.skill = null; }
+  if (res.skill) { const sk = c.mind.skills.find(s => s.name === res.skill); if (sk) { res.pose = res.pose || sk.pose; res.moves = [...sk.moves, ...(res.moves || [])]; } else res.skill = null; }
   const p = res.place ? byKey(res.place) : null;
   res.moved = !!(p && p !== c.place);
   const check = neutral(); res.notes = []; res.applied = A(check, (res.moves || []).join(','), res.notes);
   if (res.moved) { c.place = p; c.target = spot(c, p); c.seatH = 0; c.poseName = null; c.lastApplied = []; c.pose = neutral(); c.anim = null; c.pending = { pose: res.pose, moves: res.moves }; }
   else { const b = buildPose(c, { pose: res.pose, moves: res.moves }); res.pose = b.name; }
   say(c, res.say);
+  noteSpeech(c, chars[1 - c.i], res.say);
   transcript.push({ who: c.name, text: res.say }); if (transcript.length > 30) transcript.shift();
   logEntry(c, res);
 }
@@ -1660,6 +1915,7 @@ function logEntry(c, res) {
   up.type = dn.type = 'button'; up.textContent = '👍'; dn.textContent = '👎'; up.setAttribute('aria-label', 'Like'); dn.setAttribute('aria-label', 'Dislike');
   up.onclick = () => feedback(c, res, true, [up, dn]); dn.onclick = () => feedback(c, res, false, [up, dn]);
   fb.append(up, dn); d.append(fb);
+  if (res.recalled && res.recalled.length) { const det = document.createElement('details'); det.className = 'seen'; const sm = document.createElement('summary'); sm.textContent = `What ${c.name} remembered`; const pre = document.createElement('div'); pre.textContent = res.recalled.map(x => '• ' + x).join('\n'); det.append(sm, pre); d.append(det); }
   if (res.seen) { const det = document.createElement('details'); det.className = 'seen'; const sm = document.createElement('summary'); sm.textContent = `What ${c.name} saw`; const pre = document.createElement('div'); pre.textContent = res.seen; det.append(sm, pre); d.append(det); }
   if (res.raw) d.title = res.raw;
   logEl.prepend(d); while (logEl.children.length > 60) logEl.lastChild.remove();
@@ -1751,6 +2007,7 @@ async function useComputer(c, q) {
   screen(out.lines[0] === label ? out.lines : [label, ...out.lines], img);
   transcript.push({ who: 'Computer', text: `${c.name} looked up ${q.cmd === 'onthisday' ? 'this day in history' : `"${q.arg}" (${q.cmd})`}. Screen shows: ${out.text}` });
   if (transcript.length > 30) transcript.shift();
+  { const what = q.cmd === 'onthisday' ? 'this day in history' : `"${q.arg}"`, failed = /couldn't|^ERROR/.test(out.text); remember(c, 'computer', `I looked up ${what} on the computer: ${out.text}`); remember(chars[1 - c.i], 'computer', `${c.name} looked up ${what} on the computer: ${out.text}`); experience(c, 'computer:-', !failed, failed ? out.text : ''); }
   const d = document.createElement('div'); d.className = 'entry'; d.style.setProperty('--c', '#6cff8a');
   const b = document.createElement('b'); b.textContent = `${c.name} at the computer `; const cmd = document.createElement('span'); cmd.className = 'm'; cmd.textContent = label;
   const p = document.createElement('div'); p.textContent = out.text; d.append(b, cmd, p);
@@ -1765,7 +2022,8 @@ async function loop() {
   if (busy) return; busy = true;
   while (running) {
     const c = chars[turn % 2], o = chars[(turn + 1) % 2];
-    try { c.lastSeen = perceive(c, o); } catch (e) { console.warn(e); c.lastSeen = null; }
+    try { c.lastSeen = perceive(c, o); noteSeen(c, o); } catch (e) { console.warn(e); c.lastSeen = null; }
+    c.lastRecall = null; c.mind.turns++;
     thinking(c, true);
     let res;
     if (mode === 'ai' && c.engine) {
@@ -1784,14 +2042,15 @@ async function loop() {
     } else { await sleep(500); res = scriptDecide(c, o); }
     thinking(c, false);
     if (res && c.lastSeen) res.seen = c.lastSeen;
+    if (res && c.lastRecall && !res.scripted) res.recalled = c.lastRecall;
     apply(c, res); turn++;
     const t0 = performance.now(); while (c.target && performance.now() - t0 < 9000) await sleep(100);
     await sleep(+$('#spd').value + (c.anim ? 1500 : 0));
     const report = msg => { if (!msg) return; transcript.push({ who: 'Room', text: msg }); if (transcript.length > 30) transcript.shift(); logNote(msg); };
-    if (res && res.hands) { try { report(await doHands(c, o, res.hands)); } catch (e) { console.error(e); report(`${c.name} fumbled (${e.message}).`); } }
-    if (res && res.board) { try { report(await doBoard(c, o, res.board)); } catch (e) { console.error(e); report(`${c.name} couldn't use the whiteboard (${e.message}).`); } }
+    if (res && res.hands) { try { const m = await doHands(c, o, res.hands); report(m); noteResult(c, o, `${res.hands.verb}:${res.hands.thing || '-'}`, m); } catch (e) { console.error(e); report(`${c.name} fumbled (${e.message}).`); } }
+    if (res && res.board) { try { const m = await doBoard(c, o, res.board); report(m); noteResult(c, o, `${res.board.verb}:-`, m); } catch (e) { console.error(e); report(`${c.name} couldn't use the whiteboard (${e.message}).`); } }
     if (res && res.computer && running) { await useComputer(c, res.computer); await sleep(1500); }
-    if (++c.turns % 6 === 0 && running) await writeDiary(c, o);
+    if (c.mind.impSince >= 45 && running && mindsReady) await reflect(c, o);
   }
   busy = false;
 }
@@ -1913,7 +2172,7 @@ goBtn.onclick = async () => {
 $('#nudge').addEventListener('submit', e => {
   e.preventDefault(); const inp = $('#ev'); const t = inp.value.trim();
   if (!t) { toast('Type something to happen first'); return; }
-  events.push({ text: t, left: 2 }); transcript.push({ who: 'Event', text: t }); logNote('Event: ' + t); inp.value = '';
+  events.push({ text: t, left: 2 }); transcript.push({ who: 'Event', text: t }); noteVisitor(`${firstCap(visitorRef())} made something happen: ${t}`, t); logNote('Event: ' + t); inp.value = '';
   toast(running ? 'Both robots will notice that' : 'Saved. Press Start so they can react');
 });
 const pA = $('#pA'), pB = $('#pB'); pA.value = chars[0].persona; pB.value = chars[1].persona;
@@ -1938,15 +2197,35 @@ $('#lab').addEventListener('submit', e => {
 });
 $('#preset').onclick = () => { const c = chars[+$('#pr').value]; buildPose(c, {}); toast(`${c.name} relaxed`); };
 
-$('#memcopy').onclick = async () => {
-  const data = JSON.stringify({ Pip: chars[0].mem, Moss: chars[1].mem });
-  try { await navigator.clipboard.writeText(data); toast('Memories copied. Paste them on another device'); }
-  catch { $('#memin').value = data; toast('Copy was blocked, so the text is in the box. Copy it from there'); }
+for (const id of ['mwho', 'mfilter']) $('#' + id).onchange = renderMem;
+$('#msearch').oninput = renderMem;
+const vnameEl = $('#vname'); vnameEl.value = visitorName;
+vnameEl.addEventListener('change', () => {
+  const v = vnameEl.value.trim().replace(/[^\p{L}\p{N} '\-]/gu, '').slice(0, 20);
+  visitorName = v; store.set('visitorName', v); vnameEl.value = v;
+  if (v) for (const c of chars) learnFact(c, { key: 'name', about: 'visitor', x: `The visitor's name is ${v}.`, val: v });
+  toast(v ? `The robots will call you ${v}` : 'Name cleared'); renderMem();
+});
+$('#mexport').onclick = () => {
+  const data = JSON.stringify({ app: 'two-minds-one-room', saved: new Date().toISOString(), visitorName, minds: Object.fromEntries(chars.map(c => [c.name, stripTok(c.mind)])) }, null, 1);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = `two-minds-memories-${today()}.json`;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('Memories exported');
 };
-$('#memload').onclick = () => {
-  let d; try { d = JSON.parse($('#memin').value); } catch { toast("That text isn't memory data"); return; }
-  let n = 0; for (const c of chars) if (d && d[c.name] && d[c.name].v === MEM_VER) { c.mem = cleanMem(d[c.name]); saveMem(c); n++; }
-  toast(n ? 'Memories loaded' : 'No robot memories found in that text');
+$('#mimportBtn').onclick = () => $('#mimport').click();
+$('#mimport').onchange = async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text()), minds = d && (d.minds || d); let n = 0;
+    for (const c of chars) if (minds && minds[c.name]) { const m = cleanMind(minds[c.name]); if (m.mem.length || m.facts.length || m.skills.length) { c.mind = c.mem = m; n++; } }
+    if (d && typeof d.visitorName === 'string') { visitorName = d.visitorName.slice(0, 20); store.set('visitorName', visitorName); vnameEl.value = visitorName; }
+    saveMinds(); renderMem(); toast(n ? `Memories loaded for ${n} robot${n > 1 ? 's' : ''}` : 'No robot memories found in that file');
+  } catch { toast("That file isn't a memories export"); }
+};
+$('#mforget').onclick = () => {
+  const b = $('#mforget'), c = chars[+$('#mwho').value];
+  if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = `Tap again to wipe ${c.name}`; setTimeout(() => { delete b.dataset.sure; b.textContent = 'Forget everything'; }, 3500); return; }
+  delete b.dataset.sure; b.textContent = 'Forget everything';
+  const day = c.mind.day; c.mind = c.mem = blankMind(); c.mind.day = day; c.mind.lastDate = today(); saveMinds(); renderMem(); toast(`${c.name}'s memory was wiped`);
 };
 /* ---------- Whiteboard panel: the visitor can draw and write too ---------- */
 $('#boardWrap').append(bcanvas);
@@ -1973,7 +2252,7 @@ const endVis = () => {
   if (!visStroke) return; const v = visStroke; visStroke = null;
   const slot = slotOf((v.x0 + v.x1) / 2 / BW, (v.y0 + v.y1) / 2 / BH), last = boardItems[boardItems.length - 1];
   if (last && last.by === 'the visitor' && last.kind === 'free' && last.slot === slot && Date.now() - last.t < 30000) last.t = Date.now();
-  else { boardItems.push({ slot, by: 'the visitor', kind: 'free', what: 'a freehand drawing', color: penCol, t: Date.now() }); transcript.push({ who: 'Event', text: `The visitor drew something in ${penCol} on the whiteboard (${SLOTNAME[slot]}).` }); }
+  else { boardItems.push({ slot, by: 'the visitor', kind: 'free', what: 'a freehand drawing', color: penCol, t: Date.now() }); transcript.push({ who: 'Event', text: `The visitor drew something in ${penCol} on the whiteboard (${SLOTNAME[slot]}).` }); noteVisitor(`${firstCap(visitorRef())} drew something in ${penCol} on the whiteboard (${SLOTNAME[slot]}).`, ''); }
   saveBoard();
 };
 bcanvas.addEventListener('pointerup', endVis); bcanvas.addEventListener('pointercancel', endVis);
@@ -1988,6 +2267,7 @@ $('#bwrite').addEventListener('submit', async e => {
   boardTex.needsUpdate = true;
   boardItems.push({ slot, by: 'the visitor', kind: 'write', what: t.slice(0, 40), color: penCol, t: Date.now() }); saveBoard();
   transcript.push({ who: 'Event', text: `The visitor wrote "${t.slice(0, 40)}" on the whiteboard (${SLOTNAME[slot]}).` });
+  noteVisitor(`${firstCap(visitorRef())} wrote "${t.slice(0, 40)}" on the whiteboard.`, t);
   $('#btext').value = ''; toast('Written on the board. The robots can read it');
 });
 $('#bwipe').onclick = () => {
@@ -1995,7 +2275,7 @@ $('#bwipe').onclick = () => {
   if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'Tap again to wipe'; setTimeout(() => { delete b.dataset.sure; b.textContent = 'Wipe board'; }, 3000); return; }
   delete b.dataset.sure; b.textContent = 'Wipe board';
   bctx.fillStyle = BOARD_BG; bctx.fillRect(0, 0, BW, BH); boardTex.needsUpdate = true; boardItems = []; saveBoard();
-  transcript.push({ who: 'Event', text: 'The visitor wiped the whiteboard clean.' }); toast('Board wiped');
+  transcript.push({ who: 'Event', text: 'The visitor wiped the whiteboard clean.' }); noteVisitor(`${firstCap(visitorRef())} wiped the whiteboard clean.`, ''); toast('Board wiped');
 };
 $('#bsave').onclick = () => {
   bcanvas.toBlob(bl => {
@@ -2033,7 +2313,7 @@ async function runLabAction(c, act) {
     if (msg) { logNote(msg); transcript.push({ who: 'Room', text: msg }); toast(msg, 4500); }
   } catch (e) { console.error(e); toast('That action failed: ' + e.message, 5000); }
 }
-renderMem();
+renderMem(); loadMinds();
 const gfxSel = $('#gfx'); gfxSel.value = LITE ? 'lite' : 'full';
 gfxSel.onchange = () => { store.set('gfx', gfxSel.value); toast('Reloading to apply the graphics setting…'); setTimeout(() => location.reload(), 900); };
 const eyesSel = $('#eyes'); eyesSel.value = eyesOn ? '1' : '0'; stage.classList.toggle('eyes-off', !eyesOn);
