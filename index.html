@@ -215,7 +215,8 @@ renderer.domElement.addEventListener('webglcontextlost', e => {
   window.__addDiag && window.__addDiag('3D context lost (graphics process crashed or reset)'); store.set('gfx', 'lite'); store.set('aimode', 'saver'); store.set('eyes', false); $('#crash').hidden = false; toast('3D view stopped: out of graphics memory', 5000); });
 if (NO3D) { $('#crashmsg').innerHTML = "<b>Chrome has paused 3D graphics for this page.</b> It does this for a while after its graphics process crashes. To reset it, close Chrome completely (swipe it away in your recent apps), then open this page again. The robots' memories are safe."; $('#crash').hidden = false; }
 if (SAFE && !NO3D) setTimeout(() => toast('Safe graphics mode is on because the 3D view crashed recently', 5000), 800);
-renderer.domElement.addEventListener('webglcontextrestored', () => { $('#crash').hidden = true; toast('3D view recovered'); });
+renderer.domElement.addEventListener('webglcontextrestored', () => {
+  setTimeout(refreshTextures, 50); $('#crash').hidden = true; toast('3D view recovered'); });
 $('#reload').onclick = () => location.reload();
 const scene = new THREE.Scene(); scene.background = new THREE.Color(0x140d19);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100); camera.position.set(7.5, 6.5, 9);
@@ -905,7 +906,7 @@ function findSkill(c, raw) {
 async function askRaw(c, sys, user, max = 60) {
   if (mode !== 'ai' || !c.engine) return null;
   try { const r = await withMind(c, () => c.engine.chat.completions.create({ model: c.modelId, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], max_tokens: max, temperature: 0.7 })); return r.choices?.[0]?.message?.content || null; }
-  catch (e) { console.warn(e); return null; }
+  catch (e) { console.warn(e); window.__addDiag && window.__addDiag(`${c.name}'s AI side task: ${(e && (e.message || e)) || 'unknown error'}`); return null; }
 }
 async function ask(c, sys, user, max = 60) {
   const t = await askRaw(c, sys, user, max);
@@ -2071,7 +2072,7 @@ async function loop() {
     if (mode === 'ai' && c.engine) {
       try { res = await aiDecide(c, o); }
       catch (e) {
-        console.error(e); aiFails++;
+        console.error(e); aiFails++; window.__addDiag && window.__addDiag(`${c.name}'s AI (${short(c.modelId)}): ${(e && (e.message || e)) || 'unknown error'}`);
         logNote(`${c.name}'s model failed: ${trimTxt(e && e.message ? e.message : e, 140)}`);
         if (aiFails >= 2) {
           running = false; pauseBtn.textContent = 'Resume'; thinking(c, false);
@@ -2400,6 +2401,8 @@ $('#diagBox').addEventListener('toggle', () => { $('#diagInfo').textContent = di
 $('#diagCopy').onclick = async () => { const t = diagText() + '\n\nErrors:\n' + (window.__diag.errors.join('\n') || 'none'); try { await navigator.clipboard.writeText(t); toast('Diagnostics copied'); } catch { toast('Copy was blocked. Take a screenshot instead'); } };
 $('#diagClear').onclick = () => { store.set('crashes', []); toast('Crash log cleared. Normal graphics return on the next reload'); $('#diagInfo').textContent = diagText(); };
 if (crashes.length) $('#diagBox').open = true;
+function refreshTextures() { scene.traverse(o => { const m = o.material; if (m && m.map && m.map.isCanvasTexture) m.map.needsUpdate = true; }); }
+setInterval(() => { if (!aiBusy) refreshTextures(); }, 15000);
 initAI();
 </script>
 </body>
