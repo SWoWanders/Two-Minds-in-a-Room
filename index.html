@@ -144,6 +144,13 @@ window.__diag = { errors: [], t0: Date.now() };
     <label class="pick">AI engine
       <select id="engine"><option value="native">Native on this phone (fastest, app only)</option><option value="cpu">Phone's processor (reliable, slower)</option><option value="gpu">Graphics chip, WebGPU (fast, crashes some phones)</option></select>
     </label>
+    <details id="cloudBox">
+      <summary>Smart mode (free cloud minds, optional)</summary>
+      <p class="hint">Bigger minds on Cloudflare's free Workers AI: Llama 3.1 8B for Pip and Qwen3 30B for Moss. You run your own free Worker (the instructions are in the worker folder of the GitHub repo). On the free plan it can never charge you: after about 700 turns a day it stops until midnight UTC, and the robots switch back to their on-phone minds by themselves.</p>
+      <label class="pick">Your Worker address<input id="cloudUrl" placeholder="https://two-minds-smart.yourname.workers.dev" autocomplete="off" inputmode="url"></label>
+      <div class="btns"><select id="cloudOn" aria-label="Smart mode"><option value="off">Smart mode off</option><option value="on">Smart mode on</option></select><button type="button" id="cloudTest">Test</button></div>
+      <p class="hint" id="cloudState"></p>
+    </details>
     <label class="pick">AI memory use
       <select id="aimode"><option value="saver">Memory saver: one mind in graphics memory at a time (best for phones)</option><option value="fast">Fast: both minds loaded at once (needs a strong device)</option></select>
     </label>
@@ -190,10 +197,21 @@ window.__diag = { errors: [], t0: Date.now() };
       <label class="pick">Your name (optional, so they can use it)<input id="vname" maxlength="20" autocomplete="off" placeholder="Your name"></label>
       <div class="row" style="margin-top:8px">
         <label class="pick">Robot<select id="mwho"><option value="0">Pip</option><option value="1">Moss</option></select></label>
-        <label class="pick">Show<select id="mfilter"><option value="all">All memories</option><option value="reflection">Insights</option><option value="facts">Facts they know</option><option value="learned">What they've learned</option><option value="feedback">Your feedback</option><option value="visitor">About you</option></select></label>
+        <label class="pick">Show<select id="mfilter"><option value="all">All memories</option><option value="reflection">Insights</option><option value="know">Knowledge library</option><option value="facts">Facts they know</option><option value="learned">What they've learned</option><option value="feedback">Your feedback</option><option value="visitor">About you</option></select></label>
       </div>
       <input id="msearch" placeholder="Search memories…" aria-label="Search memories" autocomplete="off" style="width:100%;margin-top:8px">
       <p class="hint" id="mstats"></p>
+      <div id="kbox" hidden>
+        <p class="hint">Each robot has its own library of things it knows about the world. It fills up from what you teach (start a chat message with "remember that…", "did you know…" or "fact:"), from what it looks up on the computer, and, held loosely, from what the other robot says. The most relevant pieces come to mind each turn.</p>
+        <textarea id="kteach" rows="3" maxlength="20000" placeholder="Paste or type something for them to learn…" aria-label="Text to teach" style="width:100%"></textarea>
+        <div class="row" style="margin-top:6px">
+          <label class="pick">Teach<select id="kwho"><option value="both">both robots</option><option value="Pip">Pip only</option><option value="Moss">Moss only</option></select></label>
+          <button type="button" id="kgo">Add to library</button>
+          <button type="button" id="kfileBtn">Add a text file</button>
+          <button type="button" id="kclear">Clear library</button>
+        </div>
+        <input type="file" id="kfile" accept=".txt,.md,.csv,.json,.html,.htm,text/plain,text/markdown,text/html,text/csv" hidden>
+      </div>
       <ul class="memlist" id="mem"></ul>
       <div class="btns" style="margin-top:8px"><button type="button" id="mexport">Export memories</button><button type="button" id="mimportBtn">Import memories</button><button type="button" id="mforget">Forget everything</button></div>
       <input type="file" id="mimport" accept="application/json,.json" hidden>
@@ -701,7 +719,7 @@ function visitorIntent(text, names) {
   return r;
 }
 /* ---------- Mind: memory stream, recall, learning (pure logic) ---------- */
-const MIND_VER = 2;
+const MIND_VER = 2, MEM_MAX = 4000, MEM_PRUNE_AT = 3600;
 const STOP = new Set('a an the and or but if of to in on at by for with from up down out over under again then once here there when where why how all any both each few more most other some such no nor not only own same so than too very can will just do does did done is am are was were be been being have has had having i me my mine myself you your yours we our us he him his she her it its they them their this that these those what which who whom into about as also just like get got said say says let lets im ive ill youre dont cant its'.split(' '));
 const SYN = { mug: 'cup', cup: 'cup', coffee: 'cup', tea: 'tea', ball: 'ball', board: 'whiteboard', whiteboard: 'whiteboard', marker: 'marker', pen: 'marker', draw: 'draw', drew: 'draw', drawing: 'draw', sketch: 'draw', doodle: 'draw', wrote: 'write', write: 'write', writing: 'write', visitor: 'visitor', human: 'visitor', computer: 'computer', internet: 'computer', search: 'computer', threw: 'toss', throw: 'toss', toss: 'toss', tossed: 'toss', caught: 'catch', catch: 'catch', gave: 'give', give: 'give', handed: 'give' };
 function stem(w) {
@@ -768,7 +786,7 @@ const KIND_WORDS = /\b(thank|thanks|love|great|nice|beautiful|well done|good job
 const RUDE_WORDS = /\b(stupid|annoying|shut up|boring|hate you|go away|dumb|idiot|ugly|leave me alone)\b/i;
 const bondDelta = text => (KIND_WORDS.test(text) ? 1 : 0) - (RUDE_WORDS.test(text) ? 2 : 0);
 function bondLabel(score) { return score >= 10 ? 'very close to' : score >= 4 ? 'friendly with' : score >= -2 ? 'still getting to know' : 'wary of'; }
-function blankMind() { return { v: MIND_VER, day: 1, lastDate: '', lastSeen: 0, turns: 0, nextId: 1, mem: [], facts: [], skills: [], acts: {}, bonds: {}, enjoys: {}, impSince: 0 }; }
+function blankMind() { return { v: MIND_VER, day: 1, lastDate: '', lastSeen: 0, turns: 0, nextId: 1, mem: [], facts: [], skills: [], acts: {}, bonds: {}, enjoys: {}, impSince: 0, know: [] }; }
 // accept saved data (current or older format) and return a clean, bounded mind
 function cleanMind(m) {
   const b = blankMind(); if (!m || typeof m !== 'object') return b;
@@ -784,13 +802,14 @@ function cleanMind(m) {
   const num = (v, d) => Number.isFinite(+v) ? +v : d;
   b.day = Math.max(1, num(m.day, 1) | 0); b.lastDate = String(m.lastDate || '').slice(0, 10); b.lastSeen = num(m.lastSeen, 0); b.turns = num(m.turns, 0) | 0; b.impSince = num(m.impSince, 0);
   const KINDS = Object.keys(BASE_IMP);
-  b.mem = (Array.isArray(m.mem) ? m.mem : []).filter(x => x && x.x && KINDS.includes(x.k)).slice(-800).map(x => ({ id: num(x.id, 0) | 0, t: num(x.t, 0), day: num(x.day, 1) | 0, turn: num(x.turn, 0) | 0, k: x.k, x: String(x.x).slice(0, 260), imp: Math.max(1, Math.min(10, num(x.imp, 3))), pin: !!x.pin }));
+  b.mem = (Array.isArray(m.mem) ? m.mem : []).filter(x => x && x.x && KINDS.includes(x.k)).slice(-MEM_MAX).map(x => ({ id: num(x.id, 0) | 0, t: num(x.t, 0), day: num(x.day, 1) | 0, turn: num(x.turn, 0) | 0, k: x.k, x: String(x.x).slice(0, 260), imp: Math.max(1, Math.min(10, num(x.imp, 3))), pin: !!x.pin }));
   b.nextId = Math.max(num(m.nextId, 1), ...b.mem.map(x => x.id + 1), 1);
   b.facts = (Array.isArray(m.facts) ? m.facts : []).filter(f => f && f.x).slice(-60).map(f => ({ key: String(f.key || f.x).slice(0, 80), about: String(f.about || '').slice(0, 20), x: String(f.x).slice(0, 200), conf: Math.max(1, num(f.conf, 1) | 0), t: num(f.t, 0) }));
   b.skills = (Array.isArray(m.skills) ? m.skills : []).filter(s => s && s.name).slice(-16).map(s => ({ name: String(s.name).slice(0, 40), pose: s.pose ? String(s.pose).slice(0, 20) : null, moves: (Array.isArray(s.moves) ? s.moves : []).map(String).slice(0, 14), uses: num(s.uses, 0) | 0 }));
   for (const [k, v] of Object.entries(m.acts && typeof m.acts === 'object' ? m.acts : {}).slice(0, 80)) b.acts[String(k).slice(0, 40)] = { ok: num(v && v.ok, 0) | 0, fail: num(v && v.fail, 0) | 0, why: String((v && v.why) || '').slice(0, 140) };
   for (const [k, v] of Object.entries(m.bonds && typeof m.bonds === 'object' ? m.bonds : {}).slice(0, 6)) b.bonds[String(k).slice(0, 20)] = Math.max(-20, Math.min(30, num(v, 0)));
   for (const [k, v] of Object.entries(m.enjoys && typeof m.enjoys === 'object' ? m.enjoys : {}).slice(0, 40)) b.enjoys[String(k).slice(0, 30)] = Math.max(-20, Math.min(50, num(v, 0)));
+  b.know = cleanKnow(m.know);
   return b;
 }
 // forget gracefully: keep pins, reflections and the most valuable memories; summarise is done by the caller
@@ -807,6 +826,77 @@ function enjoyTags(res) {
   else if (res.pose || (res.moves && res.moves.length)) tags.push('expressive body language');
   if (res.say && res.say !== '(puppet lab)') tags.push(/\?\s*$/.test(res.say) ? 'questions' : 'chatting');
   return tags;
+}
+/* ---------- Knowledge library: what each robot knows about the world (separate from its memories) ---------- */
+const KNOW_MAX = 2500;
+function cleanKnow(a) {
+  const num = (v, d) => Number.isFinite(+v) ? +v : d;
+  return (Array.isArray(a) ? a : []).filter(k => k && k.x).slice(-KNOW_MAX).map(k => ({ x: String(k.x).slice(0, 600), src: String(k.src || '').slice(0, 80), conf: Math.max(1, Math.min(9, num(k.conf, 3) | 0)), t: num(k.t, 0), uses: Math.max(0, num(k.uses, 0) | 0) }));
+}
+// "remember that…", "did you know…", "fact: …" → the statement to file, or null
+function teachFrom(text) {
+  const t = String(text || '').trim().replace(/^(hey |hi |ok |okay )?(pip|moss|robots?|you two|both of you)[,:!]?\s*/i, '');
+  const m = t.match(/^(?:please\s+)?(?:remember|learn|note|know)(?:\s+(?:this|that))?\s*[:,-]?\s*(.{6,500})$/i) || t.match(/^did you know(?: that)?\s*[:,-]?\s*(.{6,500}?)\??$/i) || t.match(/^(?:fact|note|tip|fyi|for your library)\s*[:\-]\s*(.{4,500})$/i);
+  if (!m) return null;
+  let s = m[1].trim().replace(/^that\s+/i, '');
+  if (s.length < 6) return null;
+  s = s[0].toUpperCase() + s.slice(1);
+  return /[.!?]$/.test(s) ? s : s + '.';
+}
+// a robot's spoken line that sounds like a claim about the world (heard knowledge, held loosely)
+function claimFrom(text) {
+  const t = String(text || '').trim();
+  if (t.length < 28 || t.length > 220 || /\?/.test(t)) return null;
+  if (/\b(I|I'm|I've|I'll|me|my|you|you're|your|we|let's|us|our|shall|maybe|perhaps|think|guess|wonder)\b/i.test(t)) return null;
+  if (!/\b(is|are|was|were|has|have|had|can|grows?|lives?|means?|makes?|contains?|built|invented|discovered|called|named)\b/i.test(t)) return null;
+  return t;
+}
+// split long text into pieces that fit in a prompt, on paragraph and sentence boundaries
+function chunkText(text, size = 420) {
+  const clean = String(text || '').replace(/\r/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  const sents = clean.split(/\n\n+/).flatMap(p => p.replace(/\n/g, ' ').match(/[^.!?]+(?:[.!?]+["')\]]*|$)\s*/g) || [p]);
+  const out = []; let cur = '';
+  for (let s of sents) {
+    s = s.trim(); if (!s) continue;
+    while (s.length > size) { const cut = s.lastIndexOf(' ', size) > size * .5 ? s.lastIndexOf(' ', size) : size; if (cur) { out.push(cur); cur = ''; } out.push(s.slice(0, cut).trim()); s = s.slice(cut).trim(); }
+    if ((cur + ' ' + s).trim().length > size) { if (cur) out.push(cur); cur = s; } else cur = (cur + ' ' + s).trim();
+  }
+  if (cur) out.push(cur);
+  return out.filter(x => x.length > 15);
+}
+// add to a library: repeats strengthen what's already there instead of piling up copies
+function addKnow(know, e, now = Date.now()) {
+  const x = String(e.x || '').replace(/\s+/g, ' ').trim().slice(0, 600); if (x.length < 6) return null;
+  const tk = new Set(tokens(x));
+  const ex = know.find(k => k.x === x) || know.slice(-600).find(k => jaccard(new Set(k._tok || (k._tok = tokens(k.x))), tk) > .8);
+  if (ex) { ex.conf = Math.min(9, Math.max(ex.conf, e.conf || 1) + (ex.src === e.src ? 0 : 1)); ex.t = now; return ex; }
+  const k = { x, src: String(e.src || '').slice(0, 80), conf: Math.max(1, Math.min(9, e.conf || 3)), t: now, uses: 0 };
+  know.push(k);
+  if (know.length > KNOW_MAX) {      // let the least trusted, least used, oldest pieces go first
+    const order = know.map((y, i) => ({ i, v: y.conf + y.uses * .5 + (y.t / now) })).sort((a, b) => a.v - b.v).slice(0, know.length - KNOW_MAX).map(o => o.i);
+    for (const i of order.sort((a, b) => b - a)) know.splice(i, 1);
+  }
+  return k;
+}
+// find the most relevant pieces for this moment (BM25, nudged by how much the robot trusts each one)
+function recallKnow(know, query, k = 4) {
+  if (!know.length) return [];
+  const q = [...new Set(tokens(query))]; if (!q.length) return [];
+  const docs = know.map(d => d._tok || (d._tok = tokens(d.x)));
+  const N = docs.length, avg = docs.reduce((a, d) => a + d.length, 0) / N || 1, df = {};
+  for (const t of q) df[t] = 0;
+  for (const d of docs) for (const t of new Set(d)) if (t in df) df[t]++;
+  const scored = [];
+  docs.forEach((d, i) => {
+    let s = 0, hits = 0; const tf = {};
+    for (const t of d) if (t in df) tf[t] = (tf[t] || 0) + 1;
+    for (const t of q) if (tf[t]) { hits++; const idf = Math.log(1 + (N - df[t] + .5) / (df[t] + .5)); s += idf * tf[t] * 2.2 / (tf[t] + 1.2 * (.25 + .75 * d.length / avg)); }
+    if (hits && s > .4) scored.push({ k: know[i], s: s * (1 + know[i].conf / 12) });
+  });
+  scored.sort((a, b) => b.s - a.s);
+  const out = [], seen = [];
+  for (const { k: e } of scored) { const ts = new Set(e._tok); if (seen.some(o => jaccard(o, ts) > .6)) continue; out.push(e); seen.push(ts); if (out.length >= k) break; }
+  return out;
 }
 /* Parse a model reply: GO / POSE / MOVE / HANDS / BOARD / COMPUTER / SAY lines */
 function parseReply(txt, myName, otherName, placeFinder) {
@@ -913,12 +1003,13 @@ let mindsReady = false, visitorName = String(store.get('visitorName', '') || '')
 const visitorRef = () => visitorName ? `the visitor (${visitorName})` : 'the visitor';
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const agoText = ms => { const h = ms / 36e5; return h < 1 ? Math.max(1, Math.round(ms / 6e4)) + ' minutes' : h < 48 ? Math.round(h) + ' hours' : Math.round(h / 24) + ' days'; };
-const stripTok = m => ({ ...m, mem: m.mem.map(({ _tok, n, ...x }) => x) });
+const stripTok = m => ({ ...m, mem: m.mem.map(({ _tok, n, ...x }) => x), know: (m.know || []).map(({ _tok, ...x }) => x) });
+const stripMind = m => { const { know, ...r } = stripTok(m); return r; };
 let mindSaveT;
 function saveMinds() {
   if (!mindsReady) return;
   clearTimeout(mindSaveT);
-  mindSaveT = setTimeout(async () => { for (const c of chars) { c.mind.lastSeen = Date.now(); await DB.set('mind_' + c.name, stripTok(c.mind)); } renderMem(); }, 700);
+  mindSaveT = setTimeout(async () => { for (const c of chars) { c.mind.lastSeen = Date.now(); await DB.set('mind_' + c.name, stripMind(c.mind)); if (c.knowDirty) { c.knowDirty = false; await DB.set('know_' + c.name, stripTok(c.mind).know); } } renderMem(); }, 700);
 }
 async function loadMinds() {
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch {}
@@ -926,6 +1017,7 @@ async function loadMinds() {
     let m = await DB.get('mind_' + c.name);
     if (!m) m = store.get('mem_' + c.name, null);     // older version of the app
     c.mind = c.mem = cleanMind(m);
+    const kn = await DB.get('know_' + c.name); if (Array.isArray(kn)) c.mind.know = cleanKnow(kn);
   }
   mindsReady = true;
   for (const c of chars) {
@@ -944,12 +1036,12 @@ function remember(c, k, text, opt = {}) {
   const imp = opt.imp || importance(k, text, recentTok);
   const m = { id: md.nextId++, t: Date.now(), day: md.day, turn: md.turns, k, x: text, imp };
   md.mem.push(m); if (k !== 'reflection') md.impSince += imp;
-  if (md.mem.length > 600) forgetSome(c);
+  if (md.mem.length > MEM_PRUNE_AT) forgetSome(c);
   saveMinds(); return m;
 }
 // old, unimportant memories fade; their gist survives as one summary memory
 function forgetSome(c) {
-  const md = c.mind, drop = pruneOrder(md.mem, md.turns).slice(0, 80), ids = new Set(drop.map(m => m.id));
+  const md = c.mind, drop = pruneOrder(md.mem, md.turns).slice(0, 300), ids = new Set(drop.map(m => m.id));
   const gist = drop.filter(m => m.imp >= 4).slice(-5).map(m => m.x.replace(/\.$/, '')).join('; ');
   md.mem = md.mem.filter(m => !ids.has(m.id));
   if (gist && drop.length) md.mem.unshift({ id: md.nextId++, t: drop[0].t, day: drop[0].day, turn: drop[0].turn, k: 'reflection', x: trimTxt('Faded memories: ' + gist, 250), imp: 5 });
@@ -961,6 +1053,9 @@ function learnFact(c, f) {
   else { md.facts.push({ key: f.key || f.x.toLowerCase().slice(0, 80), about: f.about || '', x: f.x, conf: 1, t: Date.now() }); if (md.facts.length > 60) { md.facts.sort((a, b) => b.conf - a.conf || b.t - a.t); md.facts.length = 50; } }
   if (f.key === 'name' && f.val) { visitorName = f.val.slice(0, 20); store.set('visitorName', visitorName); const vn = $('#vname'); if (vn) vn.value = visitorName; }
   saveMinds();
+}
+function learnKnow(c, x, src, conf) {
+  const k = addKnow(c.mind.know, { x, src, conf }); if (k) { c.knowDirty = true; saveMinds(); } return k;
 }
 function bond(c, who, d) { if (!d) return; const b = c.mind.bonds; b[who] = Math.max(-20, Math.min(30, (b[who] || 0) + d)); saveMinds(); }
 function experience(c, key, ok, why) {
@@ -978,7 +1073,7 @@ function experienceLines(c) {
 const firstCap = s => s[0].toUpperCase() + s.slice(1);
 function memoryBlock(c, o, query) {
   const md = c.mind, parts = [];
-  const got = recall(md.mem, query, md.turns, c.backend === 'cpu' ? 3 : 7);
+  const small = c.backend === 'cpu' && !c.cloudTurn, got = recall(md.mem, query, md.turns, small ? 3 : 7);
   for (const m of got) m.n = (m.n || 0) + 1;
   c.lastRecall = got.map(m => m.x);
   if (got.length) parts.push('Memories that come to mind (most relevant first):\n' + got.map(m => `- ${m.day < md.day ? `[${md.day - m.day === 1 ? 'yesterday' : `${md.day - m.day} days ago`}] ` : ''}${m.x}`).join('\n'));
@@ -991,7 +1086,11 @@ function memoryBlock(c, o, query) {
   if (likes.length) parts.push(`${firstCap(visitorRef())} seems to enjoy: ${likes.join(', ')}.`);
   if (dislikes.length) parts.push(`They seem less keen on: ${dislikes.join(', ')}.`);
   if (md.skills.length) parts.push('Moves you have learned (write the name as your POSE): ' + md.skills.map(s => s.name).join(', ') + '.');
-  let out = parts.join('\n'); const cap = c.backend === 'cpu' ? 520 : 1300; if (out.length > cap) out = out.slice(0, cap) + '…';
+  const cpu = small, kn = recallKnow(md.know, query, cpu ? 2 : 4);
+  for (const k of kn) k.uses++;
+  c.lastKnow = kn.map(k => k.x);
+  if (kn.length) parts.splice(1, 0, 'Things you know that might help (from your library):\n' + kn.map(k => `- ${trimTxt(k.x, cpu ? 170 : 300)}${k.conf <= 2 ? ' (heard, not sure)' : ''}`).join('\n'));
+  let out = parts.join('\n'); const cap = cpu ? 720 : 2200; if (out.length > cap) out = out.slice(0, cap) + '…';
   return out + '\n\n';
 }
 const skillList = c => c.mind.skills.length ? ', ' + c.mind.skills.map(s => s.name).join(', ') : '';
@@ -1039,6 +1138,7 @@ function noteSpeech(c, o, text) {
   remember(c, 'said', `I said to ${o.name}: "${text}"`);
   remember(o, 'heard', `${c.name} said: "${text}"`);
   bond(o, c.name, bondDelta(text));
+  const cl = claimFrom(text); if (cl) learnKnow(o, cl, 'heard from ' + c.name, 2);
 }
 function noteSeen(c, o) {
   const held = heldText(o).map(x => x.replace(/ \((left|right|both) hands?\)/, ''));
@@ -1104,6 +1204,15 @@ function renderMem() {
   ul.innerHTML = '';
   const li = (text, meta, btns = []) => { const e = document.createElement('li'); const p = document.createElement('div'); p.textContent = text; e.append(p); if (meta) { const m = document.createElement('div'); m.className = 'meta'; m.textContent = meta; e.append(m); } if (btns.length) { const b = document.createElement('div'); b.className = 'mbtns'; b.append(...btns); e.append(b); } ul.append(e); };
   const btn = (label, fn, aria) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (aria) b.setAttribute('aria-label', aria); b.onclick = fn; return b; };
+  $('#kbox').hidden = f !== 'know';
+  if (f === 'know') {
+    const ks = md.know.slice().reverse().filter(x => !q || x.x.toLowerCase().includes(q) || x.src.toLowerCase().includes(q));
+    st.textContent = `${c.name}'s library holds ${md.know.length} piece${md.know.length === 1 ? '' : 's'} of knowledge` + (md.know.length ? ` from ${new Set(md.know.map(k => k.src.replace(/^(computer|from|taught by|heard from):?\s.*$/, '$1'))).size} kinds of source.` : '.');
+    if (!ks.length) li(q ? 'Nothing in the library matches that search.' : 'The library is empty. Teach them below, or let them use the computer.');
+    for (const x of ks.slice(0, 120)) li(x.x, `${x.src || 'unknown source'} · trust ${x.conf}/9 · came to mind ${x.uses} time${x.uses === 1 ? '' : 's'}`, [btn('Forget', () => { md.know = md.know.filter(y => y !== x); c.knowDirty = true; saveMinds(); renderMem(); toast('Removed from the library'); }, 'Remove from library')]);
+    if (ks.length > 120) li(`…and ${ks.length - 120} more. Search to find them.`);
+    return;
+  }
   if (f === 'facts') {
     const fs = md.facts.filter(x => !q || x.x.toLowerCase().includes(q));
     if (!fs.length) li('No facts yet. They learn facts from what you tell them and from reflecting.');
@@ -2129,6 +2238,11 @@ function chatAdd(kind, who, text, color, to) {
   log.scrollTop = log.scrollHeight;
 }
 async function aiDecide(c, o) {
+  if (cloudReady()) {
+    try { return await cloudDecide(c, o); }
+    catch (e) { if (!e.cloud) throw e; cloudFailed(e); }
+  }
+  if (!c.engine) { if (!(await ensureLocal())) return scriptDecide(c, o); }
   if (c.backend === 'cpu') {
     const msgs = buildMsgsLite(c, o), t0 = performance.now(); let timer, r;
     const limit = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('took longer than 3 minutes')), 180000); });
@@ -2328,7 +2442,7 @@ async function useComputer(c, q) {
   screen(out.lines[0] === label ? out.lines : [label, ...out.lines], img);
   transcript.push({ who: 'Computer', text: `${c.name} looked up ${q.cmd === 'onthisday' ? 'this day in history' : `"${q.arg}" (${q.cmd})`}. Screen shows: ${out.text}` });
   if (transcript.length > 30) transcript.shift();
-  { const what = q.cmd === 'onthisday' ? 'this day in history' : `"${q.arg}"`, failed = /couldn't|^ERROR/.test(out.text); remember(c, 'computer', `I looked up ${what} on the computer: ${out.text}`); remember(chars[1 - c.i], 'computer', `${c.name} looked up ${what} on the computer: ${out.text}`); experience(c, 'computer:-', !failed, failed ? out.text : ''); }
+  { const what = q.cmd === 'onthisday' ? 'this day in history' : `"${q.arg}"`, failed = /couldn't|^ERROR/.test(out.text); remember(c, 'computer', `I looked up ${what} on the computer: ${out.text}`); remember(chars[1 - c.i], 'computer', `${c.name} looked up ${what} on the computer: ${out.text}`); experience(c, 'computer:-', !failed, failed ? out.text : ''); if (!failed && !/^(NOTHING|NO )/.test(out.lines[0] || '')) learnKnow(c, out.text, `computer: ${q.cmd}${q.arg ? ' ' + q.arg : ''}`, 5); }
   const d = document.createElement('div'); d.className = 'entry'; d.style.setProperty('--c', '#6cff8a');
   const b = document.createElement('b'); b.textContent = `${c.name} at the computer `; const cmd = document.createElement('span'); cmd.className = 'm'; cmd.textContent = label;
   const p = document.createElement('div'); p.textContent = out.text; d.append(b, cmd, p);
@@ -2350,7 +2464,7 @@ async function loop() {
     }
     thinking(c, true);
     let res;
-    if (mode === 'ai' && c.engine) {
+    if (mode === 'ai' && (c.engine || cloudReady() || store.get('cloudOn', 'off') === 'on')) {
       try { const pf = c.prefetch; c.prefetch = null; res = await (pf || aiDecide(c, o)); }
       catch (e) {
         console.error(e); aiFails++; window.__addDiag && window.__addDiag(`${c.name}'s AI (${short(c.modelId)}): ${(e && (e.message || e)) || 'unknown error'}`);
@@ -2370,7 +2484,7 @@ async function loop() {
     for (const m of pendingFor(c)) m.done[c.name] = true;
     apply(c, res); turn = c.i + 1;
     // phone-processor minds are slow: let the other robot start thinking now, while this one walks, acts and talks
-    if (mode === 'ai' && running && o.engine && o.backend === 'cpu' && !o.prefetch) {
+    if (mode === 'ai' && running && o.engine && (o.backend === 'cpu' || o.backend === 'native') && !cloudReady() && !o.prefetch) {
       try { o.lastSeen = perceive(o, c); noteSeen(o, c); } catch (e) { o.lastSeen = null; }
       o.lastRecall = null; o.mind.turns++; thinking(o, true);
       o.prefetchT = Date.now(); o.prefetch = aiDecide(o, c); o.prefetch.catch(() => {});
@@ -2388,8 +2502,9 @@ async function loop() {
 }
 function begin(m) {
   mode = m; running = true; pauseBtn.disabled = false; pauseBtn.textContent = 'Pause';
-  for (const c of chars) c.tag.textContent = c.name + ' · ' + (m === 'ai' ? short(c.modelId) : 'scripted');
-  logNote(m === 'ai' ? `AI mode: Pip runs ${short(chars[0].modelId)}, Moss runs ${short(chars[1].modelId)}` : 'Scripted demo (no AI)');
+  const cl = m === 'ai' && cloudReady();
+  for (const c of chars) c.tag.textContent = c.name + ' · ' + (m !== 'ai' ? 'scripted' : cl ? 'smart mode' : short(c.modelId));
+  logNote(m !== 'ai' ? 'Scripted demo (no AI)' : cl ? `Smart mode: Pip and Moss think in the cloud on your free Worker${chars[0].engine ? `, with ${short(chars[0].modelId)} and ${short(chars[1].modelId)} on the phone as backup` : '. If it stops, their on-phone minds load as a backup'}` : `AI mode: Pip runs ${short(chars[0].modelId)}, Moss runs ${short(chars[1].modelId)}`);
   loop();
 }
 pauseBtn.onclick = () => {
@@ -2398,6 +2513,57 @@ pauseBtn.onclick = () => {
 };
 $('#demo').onclick = () => { toast('Scripted demo running, no AI needed'); begin('script'); };
 
+
+/* ---------- Smart mode: optional free cloud minds on the visitor's own Cloudflare Worker ---------- */
+let cloudDownUntil = 0, cloudNote = '';
+const cloudUrl = () => String(store.get('cloudUrl', '') || '').trim();
+const cloudReady = () => store.get('cloudOn', 'off') === 'on' && /^https:\/\//.test(cloudUrl()) && navigator.onLine !== false && Date.now() > cloudDownUntil;
+async function cloudCall(body, ms = 30000) {
+  const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(cloudUrl(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.error) { const e = new Error(j.error || `the Worker answered ${r.status}`); e.quota = !!j.quota || r.status === 429; throw e; }
+    return j;
+  } catch (e) { if (e.name === 'AbortError') throw new Error('the cloud took longer than 30 seconds'); throw e; }
+  finally { clearTimeout(tm); }
+}
+async function cloudDecide(c, o) {
+  c.cloudTurn = true; let msgs;
+  try { msgs = buildMsgs(c, o); } finally { c.cloudTurn = false; }
+  const t0 = performance.now(); aiBusy++;
+  let j; try { j = await cloudCall({ who: c.i ? 'moss' : 'pip', messages: msgs, max_tokens: 220, temperature: 0.85 }); } catch (e) { e.cloud = true; throw e; } finally { aiBusy--; }
+  const txt = j.text || '';
+  if (!/^\s*\**(GO|SAY)\b/im.test(txt)) throw Object.assign(new Error('the cloud reply was empty or off-format'), { cloud: true, soft: true });
+  c.cloudModel = j.model || 'cloud';
+  window.__addDiag && window.__addDiag(`${c.name} thought in the cloud (${c.cloudModel}) in ${Math.round((performance.now() - t0) / 100) / 10} s`);
+  if (cloudNote) { cloudNote = ''; logNote('Smart mode is back: the robots are thinking in the cloud again'); }
+  c.tag.textContent = `${c.name} · ${c.cloudModel} (smart mode)`;
+  const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; if (!p.pose) p.skill = findSkill(c, p.poseRaw);
+  return withIntent(c, o, p);
+}
+function cloudFailed(e) {
+  const quota = e && e.quota, now = Date.now();
+  if (e && e.soft) { window.__addDiag && window.__addDiag('Smart mode: ' + e.message + ', so this turn used the on-phone mind'); return; }
+  if (quota) { const d = new Date(); d.setUTCHours(24, 0, 30, 0); cloudDownUntil = d.getTime(); } else cloudDownUntil = now + 5 * 60e3;
+  const why = quota ? "today's free cloud allowance is used up (it resets at midnight UTC)" : `the cloud didn't answer (${trimTxt(e && e.message ? e.message : e, 80)})`;
+  window.__addDiag && window.__addDiag('Smart mode: ' + why);
+  if (cloudNote !== why) { cloudNote = why; logNote(`Smart mode paused: ${why}. Using the on-phone minds for now.`); }
+  const st = $('#cloudState'); if (st) st.textContent = 'Paused: ' + why + '.';
+}
+// the cloud failed and no on-phone minds are loaded yet: load them now (the visitor sees progress), then carry on
+let localLoading = null;
+async function ensureLocal() {
+  if (chars.every(c => c.engine)) return true;
+  if (aiBackend === 'gpu') { status('Smart mode is paused. Tap Start with AI to load the on-device minds.'); return false; }
+  if (!localLoading) localLoading = (async () => {
+    const was = running; toast('Loading the on-phone minds as a backup…', 4000);
+    const ok = aiBackend === 'native' ? await startNative(selA.value, selB.value) : await startCPU(selA.value, selB.value);
+    running = was; if (ok) for (const c of chars) c.tag.textContent = c.name + ' · ' + short(c.modelId);
+    return ok;
+  })().finally(() => { localLoading = null; });
+  return localLoading;
+}
 
 /* ---------- WebLLM ---------- */
 let webllm = null;
@@ -2587,6 +2753,20 @@ async function unloadAll() {
   for (const c of chars) if (c.engine && !seen.has(c.engine)) { seen.add(c.engine); try { await c.engine.unload(); } catch {} }
   for (const c of chars) c.engine = null;
 }
+{
+  const u = $('#cloudUrl'), on = $('#cloudOn'), st = $('#cloudState');
+  u.value = cloudUrl(); on.value = store.get('cloudOn', 'off') === 'on' ? 'on' : 'off';
+  const show = () => { st.textContent = on.value !== 'on' ? 'Off. The robots use their on-device minds.' : !/^https:\/\//.test(u.value.trim()) ? 'Paste your Worker address (it starts with https://) to use smart mode.' : 'On. The cloud is used whenever it answers.'; };
+  u.addEventListener('change', () => { const v = u.value.trim().replace(/\/+$/, ''); u.value = v; store.set('cloudUrl', v); cloudDownUntil = 0; show(); toast(v ? 'Worker address saved' : 'Worker address cleared'); });
+  on.onchange = () => { store.set('cloudOn', on.value); cloudDownUntil = 0; show(); toast(on.value === 'on' ? 'Smart mode on' : 'Smart mode off'); };
+  $('#cloudTest').onclick = async () => {
+    if (!/^https:\/\//.test(u.value.trim())) { toast('Paste your Worker address first'); return; }
+    store.set('cloudUrl', u.value.trim().replace(/\/+$/, '')); st.textContent = 'Testing…';
+    try { const j = await cloudCall({ ping: 1 }, 15000); cloudDownUntil = 0; st.textContent = `Connected. Pip: ${j.models && j.models.pip || '?'}, Moss: ${j.models && j.models.moss || '?'}.`; toast('Smart mode Worker is working'); }
+    catch (e) { st.textContent = `Couldn't reach it: ${e.message}. Check the address, and that the Worker allows this page.`; toast("Couldn't reach the Worker"); }
+  };
+  show();
+}
 const cacheSel = $('#cachemode'); cacheSel.value = store.get('cache', 'cache') === 'indexeddb' ? 'indexeddb' : 'cache';
 cacheSel.onchange = () => { store.set('cache', cacheSel.value); loadedKey = ''; toast(`Next load will use ${cacheSel.value === 'indexeddb' ? 'IndexedDB' : 'the standard cache'} storage`); };
 async function preflight(id) {
@@ -2604,6 +2784,11 @@ function loadFail(msg) {
   goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none';
 }
 goBtn.onclick = async () => {
+  if (cloudReady()) {
+    goBtn.disabled = true; status('Checking your smart mode Worker…');
+    try { await cloudCall({ ping: 1 }, 15000); goBtn.disabled = false; status('Smart mode is on: the robots think in the cloud, on your free Worker.'); toast('Two minds, one room. Smart mode is on!'); begin('ai'); return; }
+    catch (e) { goBtn.disabled = false; cloudFailed(e); toast("Smart mode didn't answer, so the on-phone minds will be used", 4000); }
+  }
   if (aiBackend === 'native') {
     const a = selA.value, b = selB.value;
     if (a === b) { toast('Pick two different models so each robot has its own mind'); return; }
@@ -2689,6 +2874,8 @@ $('#nudge').addEventListener('submit', e => {
   transcript.push({ who: visitorWho(), text: (to === 'both' ? '' : `(to ${to}) `) + t }); if (transcript.length > 30) transcript.shift();
   noteVisitor(`${firstCap(visitorRef())} said to ${to === 'both' ? 'Pip and Moss' : to}: "${t}"`, t);
   chatAdd('me', '', t, null, to === 'both' ? '' : 'to ' + to);
+  const taught = teachFrom(t);
+  if (taught) { const who = chars.filter(c => to === 'both' || c.name === to); for (const c of who) learnKnow(c, taught, 'taught by ' + (visitorName || 'the visitor'), 6); chatAdd('ev', '', `📚 Added to ${who.map(c => c.name).join(' and ')}'s library: ${taught}`); renderMem(); }
   toast(running ? `${to === 'both' ? 'Pip or Moss' : to} will answer on the next turn` : 'Press Start with AI so they can answer');
 });
 const pA = $('#pA'), pB = $('#pB'); pA.value = chars[0].persona; pB.value = chars[1].persona;
@@ -2722,6 +2909,39 @@ vnameEl.addEventListener('change', () => {
   if (v) for (const c of chars) learnFact(c, { key: 'name', about: 'visitor', x: `The visitor's name is ${v}.`, val: v });
   toast(v ? `The robots will call you ${v}` : 'Name cleared'); renderMem();
 });
+function teachText(text, src, conf) {
+  const whoSel = $('#kwho').value, who = chars.filter(c => whoSel === 'both' || c.name === whoSel);
+  const parts = chunkText(text); let added = 0;
+  for (const c of who) for (const x of parts) { const n = c.mind.know.length; learnKnow(c, x, src, conf); if (c.mind.know.length > n) added++; }
+  renderMem();
+  return { parts: parts.length, added, who: who.map(c => c.name).join(' and ') };
+}
+$('#kgo').onclick = () => {
+  const t = $('#kteach').value.trim(); if (!t) { toast('Type or paste something to teach first'); return; }
+  if (!mindsReady) { toast('Memory is still loading. Try again in a moment'); return; }
+  const r = teachText(t, 'taught by ' + (visitorName || 'the visitor'), 6); $('#kteach').value = '';
+  toast(r.parts ? `${r.who} learned ${r.parts} piece${r.parts === 1 ? '' : 's'}` : 'That was too short to learn from');
+};
+$('#kfileBtn').onclick = () => $('#kfile').click();
+$('#kfile').onchange = async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+  if (!mindsReady) { toast('Memory is still loading. Try again in a moment'); return; }
+  if (f.size > 3e6) { toast('That file is too big (3 MB at most)'); return; }
+  try {
+    let t = await f.text();
+    if (/\.html?$/i.test(f.name) || /^\s*<(!doctype|html)/i.test(t)) t = new DOMParser().parseFromString(t, 'text/html').body.textContent || '';
+    if (/\.json$/i.test(f.name)) { try { t = JSON.stringify(JSON.parse(t), null, 1).replace(/[{}\[\]",]/g, ' '); } catch {} }
+    const r = teachText(t, 'from ' + f.name.slice(0, 60), 5);
+    toast(r.parts ? `${r.who} read ${f.name} and learned ${r.parts} piece${r.parts === 1 ? '' : 's'}` : `Couldn't find any text in ${f.name}`, 4000);
+    logNote(`📚 ${r.who} read “${f.name}” (${r.parts} pieces added to the library)`);
+  } catch (err) { toast("Couldn't read that file: " + (err.message || err)); }
+};
+$('#kclear').onclick = () => {
+  const b = $('#kclear'), c = chars[+$('#mwho').value];
+  if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = `Tap again to clear ${c.name}'s library`; setTimeout(() => { delete b.dataset.sure; b.textContent = 'Clear library'; }, 3500); return; }
+  delete b.dataset.sure; b.textContent = 'Clear library';
+  c.mind.know = []; c.knowDirty = true; saveMinds(); renderMem(); toast(`${c.name}'s library is empty`);
+};
 $('#mexport').onclick = () => {
   const data = JSON.stringify({ app: 'two-minds-one-room', saved: new Date().toISOString(), visitorName, minds: Object.fromEntries(chars.map(c => [c.name, stripTok(c.mind)])) }, null, 1);
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = `two-minds-memories-${today()}.json`;
@@ -2732,7 +2952,7 @@ $('#mimport').onchange = async e => {
   const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
     const d = JSON.parse(await f.text()), minds = d && (d.minds || d); let n = 0;
-    for (const c of chars) if (minds && minds[c.name]) { const m = cleanMind(minds[c.name]); if (m.mem.length || m.facts.length || m.skills.length) { c.mind = c.mem = m; n++; } }
+    for (const c of chars) if (minds && minds[c.name]) { const m = cleanMind(minds[c.name]); if (m.mem.length || m.facts.length || m.skills.length || m.know.length) { c.mind = c.mem = m; c.knowDirty = true; n++; } }
     if (d && typeof d.visitorName === 'string') { visitorName = d.visitorName.slice(0, 20); store.set('visitorName', visitorName); vnameEl.value = visitorName; }
     saveMinds(); renderMem(); toast(n ? `Memories loaded for ${n} robot${n > 1 ? 's' : ''}` : 'No robot memories found in that file');
   } catch { toast("That file isn't a memories export"); }
@@ -2741,7 +2961,7 @@ $('#mforget').onclick = () => {
   const b = $('#mforget'), c = chars[+$('#mwho').value];
   if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = `Tap again to wipe ${c.name}`; setTimeout(() => { delete b.dataset.sure; b.textContent = 'Forget everything'; }, 3500); return; }
   delete b.dataset.sure; b.textContent = 'Forget everything';
-  const day = c.mind.day; c.mind = c.mem = blankMind(); c.mind.day = day; c.mind.lastDate = today(); saveMinds(); renderMem(); toast(`${c.name}'s memory was wiped`);
+  const day = c.mind.day, know = c.mind.know; c.mind = c.mem = blankMind(); c.mind.day = day; c.mind.lastDate = today(); c.mind.know = know; saveMinds(); renderMem(); toast(`${c.name}'s memory was wiped (the knowledge library was kept)`);
 };
 /* ---------- Whiteboard panel: the visitor can draw and write too ---------- */
 $('#boardWrap').append(bcanvas);
@@ -2854,6 +3074,7 @@ function diagText() {
     `GPU buffers: ${mem.geometries ?? '?'} shapes, ${mem.textures ?? '?'} textures`,
     `Device: ${navigator.deviceMemory ? navigator.deviceMemory + ' GB RAM (reported)' : 'RAM not reported'} · ${PHONE ? 'phone' : 'computer'} · WebGPU ${navigator.gpu ? 'yes' : 'no'}`,
     `AI: ${aiBackend === 'native' ? 'native llama.cpp (app)' : aiBackend === 'cpu' ? 'phone processor (llama.cpp in the browser)' : 'graphics chip (WebGPU), ' + aiMode + ' mode'} · ${loadedKey ? 'models ' + short(chars[0].modelId) + ' + ' + short(chars[1].modelId) : 'not loaded'}${curModel ? ' · awake: ' + short(curModel) : ''} · ${running ? 'running' : 'stopped'}${aiBusy ? ' · thinking' : ''}`,
+    `Smart mode: ${store.get('cloudOn', 'off') === 'on' ? (cloudUrl() ? (cloudReady() ? 'on' : 'paused' + (cloudNote ? ' (' + cloudNote + ')' : '')) : 'on, but no Worker address') : 'off'} · library: Pip ${chars[0].mind.know.length}, Moss ${chars[1].mind.know.length} pieces`,
     `AI processor cores: ${window.crossOriginIsolated ? 'all (multi-thread)' : 'one (single-thread)'} · ${navigator.hardwareConcurrency || '?'} cores on this phone`,
     `Crashes (last 6 h): ${cr.length ? '\n  ' + cr.join('\n  ') : 'none'}`
   ].join('\n');

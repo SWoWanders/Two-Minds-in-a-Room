@@ -15,7 +15,7 @@ echo "==> Copying web files into www/"
 rm -rf www && mkdir www
 tar -C "$ROOT" -cf - \
   --exclude './.git' --exclude './.github' --exclude './android-app' \
-  --exclude './README.md' --exclude './.nojekyll' --exclude './coi-sw.js' . | tar -C www -xf -
+  --exclude './README.md' --exclude './.nojekyll' --exclude './coi-sw.js' --exclude './worker' . | tar -C www -xf -
 test -f www/index.html || { echo "::error::index.html not found in repo root"; exit 1; }
 
 # App-only tweaks (the website itself is never changed):

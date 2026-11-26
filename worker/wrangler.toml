@@ -1,0 +1,13 @@
+name = "two-minds-smart"
+main = "smart-mode.js"
+compatibility_date = "2025-06-01"
+
+[ai]
+binding = "AI"
+
+# Optional: your own daily cap on robot turns. Create a KV namespace, paste its id, and uncomment.
+# [[kv_namespaces]]
+# binding = "USAGE"
+# id = "PASTE_KV_NAMESPACE_ID"
+# [vars]
+# DAILY_LIMIT = "600"
