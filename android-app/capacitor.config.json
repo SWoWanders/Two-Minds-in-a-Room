@@ -1,0 +1,9 @@
+{
+  "appId": "io.github.swowanders.twominds",
+  "appName": "Two Minds",
+  "webDir": "www",
+  "backgroundColor": "#1d1424",
+  "android": {
+    "allowMixedContent": false
+  }
+}
