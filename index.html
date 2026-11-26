@@ -2205,12 +2205,14 @@ async function loop() {
   if (busy) return; busy = true;
   while (running) {
     const c = chars[turn % 2], o = chars[(turn + 1) % 2];
-    try { c.lastSeen = perceive(c, o); noteSeen(c, o); } catch (e) { console.warn(e); c.lastSeen = null; }
-    c.lastRecall = null; c.mind.turns++;
+    if (!c.prefetch) {
+      try { c.lastSeen = perceive(c, o); noteSeen(c, o); } catch (e) { console.warn(e); c.lastSeen = null; }
+      c.lastRecall = null; c.mind.turns++;
+    }
     thinking(c, true);
     let res;
     if (mode === 'ai' && c.engine) {
-      try { res = await aiDecide(c, o); }
+      try { const pf = c.prefetch; c.prefetch = null; res = await (pf || aiDecide(c, o)); }
       catch (e) {
         console.error(e); aiFails++; window.__addDiag && window.__addDiag(`${c.name}'s AI (${short(c.modelId)}): ${(e && (e.message || e)) || 'unknown error'}`);
         logNote(`${c.name}'s model failed: ${trimTxt(e && e.message ? e.message : e, 140)}`);
@@ -2227,6 +2229,12 @@ async function loop() {
     if (res && c.lastSeen) res.seen = c.lastSeen;
     if (res && c.lastRecall && !res.scripted) res.recalled = c.lastRecall;
     apply(c, res); turn++;
+    // phone-processor minds are slow: let the other robot start thinking now, while this one walks, acts and talks
+    if (mode === 'ai' && running && o.engine && o.backend === 'cpu' && !o.prefetch) {
+      try { o.lastSeen = perceive(o, c); noteSeen(o, c); } catch (e) { o.lastSeen = null; }
+      o.lastRecall = null; o.mind.turns++; thinking(o, true);
+      o.prefetch = aiDecide(o, c); o.prefetch.catch(() => {});
+    }
     const t0 = performance.now(); while (c.target && performance.now() - t0 < 9000) await sleep(100);
     if (c.speaking) { await Promise.race([c.speaking, sleep(30000)]); c.speaking = null; }
     await sleep(+$('#spd').value + (c.anim ? 1500 : 0));
