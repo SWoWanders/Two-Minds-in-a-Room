@@ -27,7 +27,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
 .seen summary{font-size:12px;color:var(--dim);min-height:24px}.seen div{font-size:12px;color:var(--dim);white-space:pre-wrap;margin-top:4px}
 #boardWrap canvas{display:block;width:100%;height:auto;margin-top:8px;border-radius:8px;border:4px solid #c8ccd4;touch-action:none;background:#f7f8f4}
 .swatches{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.swatch{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:3px solid transparent;box-shadow:0 0 0 1px #0006}.swatch.on{border-color:#fff8ee}
-.page{white-space:pre-wrap;font-family:'Courier New',Courier,monospace;font-size:14px;line-height:1.45;background:#f7f1e1;color:#2a2420;border-radius:8px;padding:10px 12px;margin-top:6px}.pjnote{font-size:13px;color:var(--dim);margin:4px 0 0}.memlist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto}.memlist li{background:#1d1424;border-radius:8px;padding:7px 9px;font-size:13px}.memlist .meta{font-size:11px;color:var(--dim);margin-top:2px}.mbtns{display:flex;gap:6px;margin-top:5px}.mbtns button{min-height:32px;padding:3px 10px;font-size:13px}
+.page{white-space:pre-wrap;font-family:'Courier New',Courier,monospace;font-size:14px;line-height:1.45;background:#f7f1e1;color:#2a2420;border-radius:8px;padding:10px 12px;margin-top:6px}.pjnote{font-size:13px;color:var(--dim);margin:4px 0 0}#sheet{position:fixed;inset:0;z-index:60;background:rgba(10,6,14,.55);display:flex;align-items:flex-end;justify-content:center}#sheet[hidden]{display:none}.sheetIn{background:var(--panel,#241a2c);color:inherit;width:min(640px,100%);max-height:80vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px 16px 24px;box-shadow:0 -8px 30px rgba(0,0,0,.4)}.sheetHead{display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:-14px;background:inherit;padding:6px 0}.sheetHead h3{margin:0;font-size:18px}.sheetItem{border-top:1px solid rgba(255,255,255,.1);padding:10px 0}.sheetItem .meta{font-size:13px;opacity:.75}.sheetItem a{color:#7fd0ff;word-break:break-all}.memlist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto}.memlist li{background:#1d1424;border-radius:8px;padding:7px 9px;font-size:13px}.memlist .meta{font-size:11px;color:var(--dim);margin-top:2px}.mbtns{display:flex;gap:6px;margin-top:5px}.mbtns button{min-height:32px;padding:3px 10px;font-size:13px}
 .diag{white-space:pre-wrap;font:12px/1.4 ui-monospace,Menlo,monospace;background:#1d1424;border-radius:8px;padding:8px;margin:6px 0;color:#e9d8b4;overflow-wrap:anywhere}
 .blist{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--dim)}
 #crash{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:24px;background:#1d1424f2;z-index:3;text-align:center}#crash[hidden]{display:none}#crash p{margin:0 auto;max-width:420px}#crash button{align-self:center;padding:10px 28px}
@@ -135,6 +135,25 @@ window.__diag = { errors: [], t0: Date.now() };
         <label class="pick">Key<select id="ckey"></select></label>
         <label class="pick">Tempo<input type="range" id="cbpm" min="60" max="160" step="2" style="padding:10px 0"></label>
       </div>
+    </details>
+    <details id="radioBox">
+      <summary>Radio · background music</summary>
+      <p class="hint">Five stations of gentle music, made live and never quite the same twice. Pip and Moss can switch it on and off and change stations too.</p>
+      <div class="row">
+        <label class="pick">Station<select id="rstation"><option value="0">1 · Tiki Lounge</option><option value="1">2 · Moonlit Window</option><option value="2">3 · Expo '67 Futurama</option><option value="3">4 · Rainy Typewriter Jazz</option><option value="4">5 · Carnival Dark Ride</option></select></label>
+        <label class="pick">Volume<input type="range" id="rvol" min="0" max="1" step="0.05" style="padding:10px 0"></label>
+      </div>
+      <div class="btns"><button type="button" id="rpower">Turn the radio on</button></div>
+    </details>
+    <details id="libBox">
+      <summary>Study shelf · research books</summary>
+      <p class="hint">Books on the shelf that Pip and Moss read a chapter at a time. Tap the bookshelf in the room to see what they've read. Add a book: give it a title, then list Wikipedia articles (one per line), or write <b>wikibooks: Book Name</b> for a Wikibooks textbook, or add a text file.</p>
+      <ul class="memlist" id="libList"></ul>
+      <input id="libTitle" placeholder="Book title" maxlength="60" autocomplete="off" aria-label="Book title" style="width:100%;margin-top:8px">
+      <textarea id="libPages" rows="3" placeholder="Wikipedia articles, one per line (or wikibooks: Music Theory)" aria-label="What is in the book" style="width:100%;margin-top:8px"></textarea>
+      <div class="btns" style="margin-top:8px"><button type="button" class="primary" id="libAdd">Put it on the shelf</button><button type="button" id="libFileBtn">Add a text file as a book</button></div>
+      <input type="file" id="libFile" accept=".txt,.md,.html,.htm,text/plain,text/markdown,text/html" hidden>
+      <label class="pick">How often they study<select id="libPace"><option value="some">Now and then</option><option value="often">Often</option><option value="free">Only when they decide to (or you ask)</option></select></label>
     </details>
     <details id="projBox">
       <summary>Project board · typewriter</summary>
@@ -252,6 +271,7 @@ window.__diag = { errors: [], t0: Date.now() };
     <div id="log"></div>
   </aside>
 </div>
+<div id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle"><div class="sheetIn"><div class="sheetHead"><h3 id="sheetTitle"></h3><button type="button" id="sheetClose" aria-label="Close">✕</button></div><div id="sheetBody"></div></div></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script type="module">
@@ -370,7 +390,7 @@ box(0.5, 2.6, 0.06, 0x5a3524, -4.75, 0, -1.57); box(0.5, 2.6, 0.06, 0x5a3524, -4
 const bookCols = [0xb8475a, 0xe8a33d, 0x3f7fbf, 0x5cc8b4, 0x8c5ab8, 0xf3e3c8, 0x4f8f4a, 0xd96c3b];
 [0, 0.65, 1.3, 1.95].forEach((h, s) => {
   box(0.5, 0.05, 2.2, 0x5a3524, -4.75, h, -0.5);
-  let z = -1.5; while (z < 0.45) { const w = Math.round((0.07 + Math.random() * 0.07) * 50) / 50, bh = Math.round((0.32 + Math.random() * 0.22) * 20) / 20; if (Math.random() > .12) box(0.34, bh, w, bookCols[(Math.random() * 8) | 0], -4.78, h + 0.05, z + w / 2); z += w + 0.01; }
+  let z = s === 2 ? 0.6 : -1.5; while (z < 0.45) { const w = Math.round((0.07 + Math.random() * 0.07) * 50) / 50, bh = Math.round((0.32 + Math.random() * 0.22) * 20) / 20; if (Math.random() > .12) box(0.34, bh, w, bookCols[(Math.random() * 8) | 0], -4.78, h + 0.05, z + w / 2); z += w + 0.01; }
 });
 box(0.5, 0.05, 2.2, 0x5a3524, -4.75, 2.55, -0.5);
 // plant
@@ -385,7 +405,21 @@ const lampLight = new THREE.PointLight(0xffa850, 4, 8, 1); lampLight.position.se
 // radio (moved to the right-hand side to make room for the Melody Console)
 box(1.2, 0.8, 0.6, 0x6a3f25, 4.3, 0, -0.6); box(0.8, 0.45, 0.3, 0xd9a35b, 4.3, 0.8, -0.6);
 const grille = new THREE.Mesh(new THREE.CircleGeometry(0.14, 20), mat(0x3a2a1c)); grille.position.set(4.1, 1.02, -0.44); scene.add(grille);
-const radioLed = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), new THREE.MeshStandardMaterial({ color: 0xff4040, emissive: 0xff2020, emissiveIntensity: 2 })); radioLed.position.set(4.55, 1.1, -0.44); scene.add(radioLed);
+const radioLed = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), new THREE.MeshStandardMaterial({ color: 0xff4040, emissive: 0xff2020, emissiveIntensity: 2 })); radioLed.position.set(4.6, 1.17, -0.44); scene.add(radioLed);
+const dialCanvas = document.createElement('canvas'); dialCanvas.width = 256; dialCanvas.height = 112;
+const dialTex = new THREE.CanvasTexture(dialCanvas); dialTex.colorSpace = THREE.SRGBColorSpace;
+const radioDial = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.13), new THREE.MeshBasicMaterial({ map: dialTex })); radioDial.position.set(4.44, 0.97, -0.447); scene.add(radioDial);
+function drawRadioDial() {
+  const g = dialCanvas.getContext('2d'), on = radio.on;
+  g.fillStyle = on ? '#f4d68a' : '#9c8a62'; g.fillRect(0, 0, 256, 112);
+  g.strokeStyle = '#3a2a1c'; g.lineWidth = 4; g.strokeRect(2, 2, 252, 108);
+  g.fillStyle = '#3a2a1c'; g.font = 'bold 22px system-ui, sans-serif'; g.textAlign = 'center';
+  for (let k = 0; k < 5; k++) { const x = 32 + k * 48; g.fillRect(x - 1, 50, 2, 14); g.fillText(String(k + 1), x, 40); }
+  g.font = 'bold 15px system-ui, sans-serif'; g.fillText(on ? RADIO_STATIONS[radio.st].toUpperCase() : 'OFF', 128, 96);
+  const nx = 32 + radio.st * 48; g.strokeStyle = '#c0392b'; g.lineWidth = 4; g.beginPath(); g.moveTo(nx, 16); g.lineTo(nx, 70); g.stroke();
+  dialTex.needsUpdate = true;
+  radioLed.material.emissiveIntensity = on ? 2.2 : 0.15;
+}
 // armchair
 box(1.1, 0.45, 1.1, 0x2f7a6b, 3.6, 0, 1.6); box(0.3, 1.0, 1.1, 0x24604f, 4.15, 0, 1.6);
 box(1.1, 0.65, 0.22, 0x24604f, 3.6, 0, 1.0); box(1.1, 0.65, 0.22, 0x24604f, 3.6, 0, 2.2);
@@ -1401,7 +1435,9 @@ function updateMelody(dt) {
   CONSOLE = {
     root: consoleRoot, mel, org, OPT_STYLES, OPT_DISCS, SP_N, ROMANS,
     ensureAudio, update: updateMelody, strumZone, strumRun, chordDown, chordUp, chordLabel, setKeyByName,
-    setStyle(i) { melButton({ t: 'style', i }); }, setDisc, setLeslie(i) { melButton({ t: 'leslie', i }); }, setVoice(i) { melButton({ t: 'voice', i }); },
+    setStyle(i) { melButton({ t: 'style', i }); }, setDisc, setLeslie(i) { melButton({ t: 'leslie', i }); }, setVoice(i) { melButton({ t: 'voice', i }); }, setSus(i) { melButton({ t: 'sus', i }); },
+    voiceAt: (k) => wp(voiceBtns[k].L.m), susAt: (k) => wp(susBtns[k].L.m), lesAt: (k) => wp(lesBtns[k].L.m), discAt: () => wp(optDisc),
+    degreeMidi(k) { const r = NOTE_SEMI[org.root], base = 60 + (r > 5 ? r - 12 : r), sc = SCALES[org.mood], d = k - 1; return Math.max(KB_LO, Math.min(KB_HI, base + sc[d % 7] + 12 * Math.floor(d / 7))); },
     noteOn, noteOff, keyNames: () => `${PC_NAMES[NOTE_SEMI[org.root]]} ${org.mood === 1 ? 'minor' : 'major'}`,
     plateAt: (i) => wp(plateSegs[i].mesh), chordAt: (d) => wp(chordBtns[d].L.m), styleAt: (k) => wp(styleBtns[k].L.m),
     keyAt: (m) => { const k = keyboards[1].keys.find((q) => q.m === m); return k ? wp(k.mesh) : null; },
@@ -1690,7 +1726,7 @@ function planGrammar(o) {
     ...SIDED.map(j => `side ${gq(j + ' ')} (${galt(Object.keys(JT[j]))}) " " num`),
     `side "HAND " (${galt(Object.keys(SHAPES))})`, `side (${galt(FINGERS)}) " " ("curl" | "spread") " " num`];
   return [
-    'root ::= go pose move hands board computer project music',
+    'root ::= go pose move hands board computer project music study',
     `go ::= "GO: " (${galt(['stay', ...o.places])}) "\\n"`,
     `pose ::= "POSE: " ("none" | ${galt(o.poses)}) "\\n"`,
     'move ::= "MOVE: " ("none" | cmd (", " cmd){0,5}) "\\n"',
@@ -1709,10 +1745,11 @@ function planGrammar(o) {
     'pt ::= "(" [0-9] [0-9]? [0-9]? "," [0-9] [0-9]? [0-9]? ")"',
     'computer ::= "COMPUTER: " ("none" | "onthisday" | ("search " | "weather " | "books " | "archive ") [^\\n]{2,40}) "\\n"',
     `project ::= "PROJECT: " ("none" | ("write " | "review ") [0-9] [0-9]? [0-9]? | "start a " (${galt(KIND_LIST)}) " about " [^\\n]{3,60}) "\\n"`,
-    'music ::= "MUSIC: " ("none" | "play " rom (" " rom){1,7} (" in " sty)? (" on " dsc)?) "\\n"',
+    'music ::= "MUSIC: " ("none" | "radio off" | "radio on " [1-5] | "play " rom (" " rom){1,7} (" in " sty)? (" on " dsc)? (" leslie " ("stop" | "slow" | "fast"))? (" voice " ("plain" | "wavy" | "blend"))? (" sustain " ("short" | "medium" | "long"))? (" melody " [1-8] (" " [1-8]){2,15})?) "\\n"',
     `rom ::= ${galt(['VII', 'VI', 'V', 'IV', 'III', 'II', 'I'])}`,
     `sty ::= ${galt(MUSIC_STYLES.slice(1))}`,
-    `dsc ::= ${galt(MUSIC_DISCS)}`
+    `dsc ::= ${galt(MUSIC_DISCS)}`,
+    'study ::= "STUDY: " ("none" | "book " [1-9] [0-9]?) "\\n"'
   ].join('\n');
 }
 // Step 2: one spoken line.
@@ -1725,6 +1762,7 @@ function planWords(p, other) {
   if (p.skill) w.push(`do your move "${p.skill}"`);
   if (p.hands) { const h = p.hands; w.push(h.verb === 'put' ? `put the ${h.thing || 'thing'} on the ${h.surf}` : h.verb === 'give' || h.verb === 'toss' ? `${h.verb} the ${h.thing || 'thing'} to ${h.to || other}` : `${h.verb} the ${h.thing || 'thing'}`); }
   if (p.board) { const b = p.board; w.push(b.verb === 'write' ? `write "${b.text}" on the whiteboard` : b.verb === 'erase' ? 'wipe the whiteboard' : `${b.verb === 'sketch' ? 'sketch' : 'draw'} ${b.text || 'something'} on the whiteboard`); }
+  if (p.study) w.push(`study${p.study.id ? ' book ' + p.study.id : ''} at the bookshelf`);
   if (p.music) w.push(`play ${p.music.chords.join(' ')} on the Melody Console${p.music.style ? ' as ' + p.music.style : ''}`);
   if (p.project) w.push(p.project.verb === 'start' ? `start a new ${p.project.kind} about ${p.project.brief || 'something'} at the typewriter` : p.project.verb === 'review' ? `read project #${p.project.id} on the project board and give a note` : `type the next page of project #${p.project.id} at the typewriter`);
   if (p.computer) w.push(p.computer.cmd === 'onthisday' ? 'check what happened on this day on the computer' : `look up ${p.computer.cmd === 'search' ? '' : p.computer.cmd + ' '}${p.computer.arg} on the computer`);
@@ -1748,6 +1786,8 @@ function visitorIntent(text, names) {
   if ((m = lead.match(/^(?:go|walk|head|move|run|come)\s+(?:over\s+|back\s+)?(?:to|towards|by)\s+(?:the\s+)?([a-z ]{2,20})/i))) r.placeText = m[1];
   if ((m = lead.match(/^(?:do a |do the |show me a |)?(dance|wave|bow|jump|clap|cheer|sit down|sit|shrug|nod|think|point)\b/i))) r.poseText = m[1];
   if (/^(grab|pick up|take|hold|give|pass|toss|throw|put|drop)\b/i.test(lead)) r.handsText = lead;
+  if (studyIntent(t)) r.study = studyIntent(t);
+  if (/\bradio\b/i.test(lead) && /\b(turn|switch|put|change|tune|play|start|stop)\b/i.test(lead)) r.music = parseMusic(lead);
   if (/^(play|jam|strum|perform)\b/i.test(lead) && /\b(music|song|tune|something|console|organ|optigan|omnichord|instrument|piano|keyboard|chords?|bossa|swing|tango|polka|reggae|ballad|melody|[iv]{1,3}\b)/i.test(lead)) r.music = parseMusic(lead.replace(/\b(some )?(music|song|tune|something)\b/i, ' ')) || { chords: ['I', 'V', 'VI', 'IV'], style: null, disc: null };
   return r;
 }
@@ -1868,17 +1908,37 @@ const MUSIC_STYLES = ['off', 'strum', 'bossa', 'ballad', 'polka', 'swing', 'tang
 const MUSIC_DISCS = ['organ', 'hammond', 'harpsichord', 'vibes', 'accordion', 'e.piano', 'theatre'];
 const ROMAN_DEG = { i: 0, ii: 1, iii: 2, iv: 3, v: 4, vi: 5, vii: 6 };
 // MUSIC line → { chords: [tokens], style, disc }
+const RADIO_NAMES = ['tiki', 'moon', 'expo', 'jazz', 'carnival'];
 function parseMusic(s) {
   if (!s) return null;
-  const t = String(s).replace(/[*`<>"]/g, ' ').replace(/[–—,|-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  let t = String(s).replace(/[*`<>"]/g, ' ').replace(/[–—,|-]+/g, ' ').replace(/\s+/g, ' ').trim();
   if (!t || NONE_RE.test(t)) return null;
+  if (/\bradio\b|\bstation\b/i.test(t)) {
+    const low = t.toLowerCase();
+    if (/\b(off|stop|quiet|silence)\b/.test(low)) return { radio: 'off' };
+    const n = low.match(/\b([1-5])\b/), nm = RADIO_NAMES.findIndex(k => low.includes(k));
+    if (n || nm >= 0) return { radio: 'on', station: n ? +n[1] : nm + 1 };
+    return { radio: /\b(next|another|change|switch|different)\b/.test(low) ? 'next' : 'on', station: null };
+  }
+  const mm = t.match(/\bmelody\s+([1-8\s.r-]+)/i);
+  const melody = mm ? mm[1].trim().split(/\s+/).map(x => /^[1-8]$/.test(x) ? +x : 0).slice(0, 16) : null;
+  if (mm) t = t.replace(mm[0], ' ');
+  const opt = (re, list) => { const m = t.match(re); if (!m) return null; t = t.replace(m[0], ' '); return list.indexOf(m[1].toLowerCase()); };
+  const leslie = opt(/\bleslie\s+(stop|slow|fast)\b/i, ['stop', 'slow', 'fast']);
+  const voice = opt(/\bvoice\s+(plain|wavy|blend)\b/i, ['plain', 'wavy', 'blend']);
+  const sustain = opt(/\bsustain\s+(short|medium|long)\b/i, ['short', 'medium', 'long']);
   if (!/\b(play|jam|strum|perform|noodle|improvi[sz]e)\b/i.test(t) && !/\b(i{1,3}|iv|vi{0,2}|[a-g][#b♯♭]?m?)\b/i.test(t)) return null;
   const low = t.toLowerCase();
   const style = MUSIC_STYLES.find(x => new RegExp('\\b' + x + '\\b').test(low)) || null;
   const disc = MUSIC_DISCS.find(x => low.includes(x.replace('.', '').replace('e piano', 'epiano')) || low.includes(x)) || (/\bpiano\b/.test(low) ? 'e.piano' : null);
   const body = t.replace(/^(play|jam|strum|perform)\s*(on\s+the\s+\w+\s*)?/i, '').replace(/\b(in|as|with|on|a|an|the|style|backing|beat|rhythm|disc|voice|sound)\b/gi, ' ');
   const chords = (body.match(/\b(VII|VI|IV|V|III|II|I|vii|vi|iv|v|iii|ii|i|[A-G](?:#|b|♯|♭)?(?:m|min|maj|dim|°)?)\b/g) || []).slice(0, 8);
-  return { chords: chords.length ? chords : ['I', 'V', 'VI', 'IV'], style, disc };
+  const out = { chords: chords.length ? chords : ['I', 'V', 'VI', 'IV'], style, disc };
+  if (melody && melody.length) out.melody = melody;
+  if (leslie != null && leslie >= 0) out.leslie = leslie;
+  if (voice != null && voice >= 0) out.voice = voice;
+  if (sustain != null && sustain >= 0) out.sustain = sustain;
+  return out;
 }
 /* ---------- Projects: things Pip and Moss make together (and with the visitor) at the typewriter ---------- */
 const KINDS = { poem: 'poem', haiku: 'poem', limerick: 'poem', story: 'story', 'short story': 'story', fable: 'story', 'fairy tale': 'story', tale: 'story', novel: 'novel', chapter: 'novel', book: 'novel', song: 'song', lyrics: 'song', letter: 'letter', essay: 'essay', article: 'essay', play: 'play', script: 'play', list: 'notes', notes: 'notes', recipe: 'notes' };
@@ -1951,6 +2011,20 @@ function reviewParts(txt) {
   const done = /\bverdict\s*[:\-]\s*\**\s*(done|finished|complete)/i.test(t);
   const note = t.replace(/\n?\s*\**verdict\**\s*[:\-][\s\S]*$/i, '').replace(/^\s*\**note\**\s*[:\-]\s*/i, '').replace(/\s+/g, ' ').trim().slice(0, 400);
   return { note: note || (done ? 'This feels finished.' : 'Keep going.'), done };
+}
+/* ---------- Study shelf: books the robots read chapter by chapter */
+function parseStudy(s) {
+  if (!s) return null;
+  const t = String(s).replace(/[*`<>"]/g, ' ').trim();
+  if (!t || NONE_RE.test(t)) return null;
+  const m = t.match(/(?:book|read|study)\D*?(\d{1,2})/i) || t.match(/^#?(\d{1,2})$/);
+  if (m) return { id: +m[1] };
+  const q = t.replace(/^(read|study|book|the|about)\s+/gi, '').trim();
+  return q.length > 2 ? { q } : null;
+}
+function studyIntent(text) {
+  const m = String(text || '').match(/\b(?:study|read up on|read about|learn about|read the|read your|go read)\s+(?:the\s+|your\s+|some\s+)?(.{2,60}?)(?:\s+book)?[.!?]*$/i);
+  return m ? { q: m[1].trim() } : null;
 }
 /* ---------- Knowledge library: what each robot knows about the world (separate from its memories) ---------- */
 const KNOW_MAX = 2500;
@@ -2031,10 +2105,10 @@ function parseReply(txt, myName, otherName, placeFinder) {
   const place = g !== undefined ? placeFinder(g) : null;
   const pose = p !== undefined ? findPose(p) : null;
   const moves = (mv || '').split(/[,;]|\band\b/i).map(x => x.trim()).filter(x => x && !/^none$/i.test(x)).slice(0, 14);
-  if (say === undefined) say = (txt.split('\n').map(x => x.trim()).find(x => x && !/^\**(go|pose|moves?|computer|hands|board|project|music)\**\s*[:\-]/i.test(x)) || '');
+  if (say === undefined) say = (txt.split('\n').map(x => x.trim()).find(x => x && !/^\**(go|pose|moves?|computer|hands|board|project|music|study)\**\s*[:\-]/i.test(x)) || '');
   say = say.replace(new RegExp('^(' + myName + '|' + otherName + ')\\s*:\\s*', 'i'), '').replace(/[*_#`]/g, '').replace(/^["'“”]+|["'“”]+$/g, '').trim();
   if (say.length > 160) { const cut = say.slice(0, 160); const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? ')); say = end > 40 ? cut.slice(0, end + 1) : cut.trim() + '…'; }
-  return { place: place ? place.key : null, pose, poseRaw: p || '', moves, computer: parseComputer(line('COMPUTER')), hands: parseHands(line('HANDS'), [myName, otherName]), board: parseBoard(line('BOARD')), project: parseProject(line('PROJECT')), music: parseMusic(line('MUSIC')), say: say || 'Hmm.' };
+  return { place: place ? place.key : null, pose, poseRaw: p || '', moves, computer: parseComputer(line('COMPUTER')), hands: parseHands(line('HANDS'), [myName, otherName]), board: parseBoard(line('BOARD')), project: parseProject(line('PROJECT')), music: parseMusic(line('MUSIC')), study: parseStudy(line('STUDY')), say: say || 'Hmm.' };
 }
 /*PURE-END*/
 
@@ -2619,7 +2693,7 @@ const SEEN = [
   { name: 'lamp', p: [-3.45, 1.8, -4.45], r: .4, d: () => 'the floor lamp, glowing warm' },
   { name: 'window', p: [2.5, 2.2, -4.98], r: 1.1, d: () => 'the window: a night sky with a full moon over city lights' },
   { name: 'painting', p: [-1.2, 2.45, -4.95], r: .7, d: () => 'a painting of an orange sunset' },
-  { name: 'radio', p: [4.3, 1.0, -0.6], r: .6, d: () => 'the old radio, its red light blinking' },
+  { name: 'radio', p: [4.3, 1.0, -0.6], r: .6, d: () => radio.on ? `the radio, softly playing station ${radio.st + 1}, ${RADIO_STATIONS[radio.st]}` : 'the old radio, switched off' },
   { name: 'armchair', p: [3.6, .5, 1.6], r: .8, d: () => 'the green armchair' },
   { name: 'rug', p: [1.5, .03, 1], r: 1.8, d: () => 'the round red and yellow rug' },
   { name: 'door', p: [-4.93, 1.2, 3], r: .7, d: () => 'the closed door' },
@@ -2633,7 +2707,7 @@ const POSE_WORDS = { sit: 'sitting', floorsit: 'sitting on the floor', crouch: '
 const ray = new THREE.Raycaster();
 for (const c of chars) { c.meshes = []; c.g.traverse(o => { if (o.isMesh) { c.meshes.push(o); o.userData.robot = c.name; } }); }
 const occStatic = [];
-{ const bb = new THREE.Box3(); scene.traverse(o => { if (o.isMesh && !o.userData.robot) { bb.setFromObject(o); if (bb.max.y > 0.06) occStatic.push(o); } }); }
+{ const bb = new THREE.Box3(); scene.traverse(o => { if (o.isMesh && !o.userData.robot && !(o.material && o.material.visible === false) && !o.userData.noOcc) { bb.setFromObject(o); if (bb.max.y > 0.06) occStatic.push(o); } }); }
 const _q = new THREE.Quaternion(), _qi = new THREE.Quaternion(), _e = new THREE.Vector3(), _p = new THREE.Vector3(), _d = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3();
 const metres = d => d < 1 ? "within arm's reach" : `${String(Math.round(d * 2) / 2).replace(/\.0$/, '')} m away`;
 function dirWord(l) {
@@ -3351,14 +3425,16 @@ HANDS: <grab THING | put THING on SURFACE | give THING to NAME | toss THING to N
 BOARD: <draw IDEAS | sketch TITLE: freehand points | write "TEXT" | erase mine or all | none, optionally with: in COLOUR, at top/bottom left/middle/right>
 COMPUTER: <computer command, or none>
 PROJECT: <write NUMBER | review NUMBER | start a KIND about TOPIC | none>
-MUSIC: <play CHORDS, optionally in STYLE and on DISC | none>${opt.plan ? '' : '\nSAY: <sentence>'}
+MUSIC: <play CHORDS, with options | radio on NUMBER | radio off | none>
+STUDY: <book NUMBER | none>${opt.plan ? '' : '\nSAY: <sentence>'}
 Places: ${PLACES.map(p => p.key).join(', ')}, stay.
 Poses: ${POSE_NAMES.join(', ')}${skillList(c)}, none.
 Things you can pick up: mug, ball, blue book, box (needs both hands), eraser, and dry-erase markers: black, red, blue, green, purple, orange. Surfaces: table, floor, shelf, desk, couch, armchair, windowsill, tray (the whiteboard's marker tray).
 There is a whiteboard on the wall. Use it to show ${o.name} or the visitor something, to share an idea, or just to be creative. You fetch a marker yourself. "draw" makes a quick doodle of any of: ${DOODLE_NAMES.join(', ')} (combine up to three). "sketch" is true freehand: you choose every line. Give points as (x,y) from 0 to 100 on your patch of board, (0,0) is top left; join points with - for a straight line or ~ for a smooth curve, and use / to lift the pen. Example: sketch a smiling face: (20,20)~(50,5)~(80,20)~(95,50)~(80,80)~(50,95)~(20,80)~(5,50)~(20,20) / (35,40)-(36,41) / (65,40)-(66,41) / (30,60)~(50,75)~(70,60)
 There is a computer in the room with real internet. Computer commands: search <topic> (Wikipedia), weather <city>, books <topic>, archive <topic> (Internet Archive), onthisday. Use it when you are curious about something real; you will walk over and use it. Otherwise write none.
 There is a typewriter on a little writing desk, and a project board on the wall listing the things you, ${o.name} and the visitor are making: stories, poems, songs, letters, plays and even novels. PROJECT: write N means walk to the typewriter and type the next page of project N; review N means read its latest page and pin up a helpful note; start a KIND about TOPIC begins something new of your own (KIND is ${KIND_LIST.join(', ')}). Otherwise write none.
-There is also the Melody Console by the window: an Optigan organ with an Omnichord strum plate, seven chord buttons, rhythm backings and a spinning sound disc. MUSIC: play CHORDS means walk over and play them, strumming the plate. Write chords as Roman numerals of its key (I II III IV V VI VII), for example: play I IV V I in bossa on vibes. Styles: ${MUSIC_STYLES.slice(1).join(', ')}. Discs: ${MUSIC_DISCS.join(', ')}. Otherwise write none.
+There is also the Melody Console by the window: an Optigan organ with an Omnichord strum plate, seven chord buttons, rhythm backings and a spinning sound disc. MUSIC: play CHORDS means walk over and play them, strumming the plate. Write chords as Roman numerals of its key (I II III IV V VI VII), for example: play I IV V I in bossa on vibes. Styles: ${MUSIC_STYLES.slice(1).join(', ')}. Discs (the keyboard's sound): ${MUSIC_DISCS.join(', ')}. You can also add: leslie stop/slow/fast (the spinning speaker), voice plain/wavy/blend and sustain short/medium/long (the strum plate), and melody followed by scale steps 1 to 8 to play a tune on the keys, e.g. play I vi IV V in ballad on e.piano leslie slow melody 3 5 6 5 3 2 1. The radio has five stations of soft background music: ${RADIO_STATIONS.map((n, i) => `${i + 1} ${n}`).join(', ')}${radio.on ? ` (now playing ${radio.st + 1}, ${RADIO_STATIONS[radio.st]})` : ' (now off)'}; MUSIC: radio on NUMBER or radio off. Otherwise write none.
+On the bookshelf there is a study shelf of research books. STUDY: book N means take book N down and read its next chapter; what you read goes into your knowledge library. Otherwise write none.
 Joint commands are JOINT verb degrees. Put L_ or R_ before arm, leg, hand and finger joints for left or right. ${JOINT_HELP}.
 Example:
 GO: window
@@ -3368,14 +3444,15 @@ HANDS: none
 BOARD: none
 COMPUTER: none
 PROJECT: none
-MUSIC: none${opt.plan ? '' : `\nSAY: Look, ${o.name}, a shooting star over the rooftops!`}`;
+MUSIC: none
+STUDY: none${opt.plan ? '' : `\nSAY: Look, ${o.name}, a shooting star over the rooftops!`}`;
   const last = transcript.slice(-6).map(l => `${l.who}: ${l.text}`).join('\n') || '(nobody has spoken yet)';
   const ev = events.filter(e => e.left > 0).map(e => { e.left--; return e.text; }).join(' ');
   for (let i = events.length - 1; i >= 0; i--) if (events[i].left <= 0) events.splice(i, 1);
   const user = `${memoryBlock(c, o, (c.lastSeen || '') + ' ' + transcript.slice(-4).map(l => l.text).join(' ') + ' ' + events.map(e => e.text).join(' '))}${c.lastSeen || perceive(c, o)}
-${projectLines(c)}${exampleBlock(c, (c.lastSeen || '') + ' ' + transcript.slice(-3).map(l => l.text).join(' '), opt.plan)}Recent conversation:
+${projectLines(c)}${shelfLines(c)}${exampleBlock(c, (c.lastSeen || '') + ' ' + transcript.slice(-3).map(l => l.text).join(' '), opt.plan)}Recent conversation:
 ${last}
-${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER, PROJECT, MUSIC${opt.plan ? ' lines. You will say something next.' : ' and SAY lines.'}`;
+${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER, PROJECT, MUSIC, STUDY${opt.plan ? ' lines. You will say something next.' : ' and SAY lines.'}`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
 }
 function buildMsgsLite(c, o) {
@@ -3383,7 +3460,7 @@ function buildMsgsLite(c, o) {
 GO: <place or stay>
 POSE: <pose or none>
 SAY: <one short sentence to ${o.name} or the visitor>
-You may add one extra line: BOARD: draw <thing> or write "<words>" | HANDS: grab <thing>, give <thing> to ${o.name}, toss <thing> to ${o.name} or put <thing> on <place> | COMPUTER: search <topic> or weather <city> | MUSIC: play I IV V I
+You may add one extra line: BOARD: draw <thing> or write "<words>" | HANDS: grab <thing>, give <thing> to ${o.name}, toss <thing> to ${o.name} or put <thing> on <place> | COMPUTER: search <topic> or weather <city> | MUSIC: play I IV V I or radio on 2
 Places: ${PLACES.map(p => p.key).join(', ')}.
 Poses: wave, dance, sit, point, think, cheer, bow, shrug, clap, nod, jump${skillList(c)}.
 Things: mug, ball, blue book, box, eraser, markers.
@@ -3512,6 +3589,7 @@ function withIntent(c, o, p) {
   if (first && it.board && (!p.board || p.board.verb !== it.board.verb)) p.board = it.board;
   if (first && it.handsText && !p.hands) p.hands = parseHands(it.handsText, [c.name, o.name]);
   if (first && it.music && !p.music) { p.music = it.music; p.project = null; }
+  if (first && it.study && !p.study) { p.study = it.study; }
   if (it.project) { const pr = projects.find(x => x.fromMsg === m.t); p.board = p.board && p.board.verb === 'write' ? null : p.board; if (pr && pr.writers[0] === c.name && !pr.pages.length) { p.project = { verb: 'write', id: pr.id }; p.computer = null; } }
   return p;
 }
@@ -3543,7 +3621,7 @@ function scriptDecide(c, o) {
   return { hands, board, place: computer ? 'computer' : place, pose: sk ? null : pose, skill: sk, moves: sk ? [] : moves, computer, say: computer ? 'Let me check the computer.' : line, scripted: true };
 }
 function apply(c, res) {
-  if (res.hands || res.board || res.project || res.music) { res.place = null; res.computer = null; }
+  if (res.hands || res.board || res.project || res.music || res.study) { res.place = null; res.computer = null; }
   if (res.computer) res.place = 'computer';
   if (res.skill) { const sk = c.mind.skills.find(s => s.name === res.skill); if (sk) { res.pose = res.pose || sk.pose; res.moves = [...sk.moves, ...(res.moves || [])]; } else res.skill = null; }
   const p = res.place ? byKey(res.place) : null;
@@ -3647,6 +3725,8 @@ const TOOLS = {
     return { lines: ['ON THIS DAY', '', ...ev], text: `On this day in history: ${ev.join(' Also, ')}`, link: `https://en.wikipedia.org/wiki/${n.toLocaleString('en', { month: 'long' })}_${n.getDate()}` };
   }
 };
+let browse = [];
+async function loadBrowse() { const b = await DB.get('browse'); browse = Array.isArray(b) ? b.slice(-300) : []; }
 async function useComputer(c, q) {
   const now = Date.now(); netUses = netUses.filter(t => now - t < 3600e3);
   const label = `> ${q.cmd}${q.arg ? ' ' + q.arg : ''}`;
@@ -3666,6 +3746,7 @@ async function useComputer(c, q) {
   transcript.push({ who: 'Computer', text: `${c.name} looked up ${q.cmd === 'onthisday' ? 'this day in history' : `"${q.arg}" (${q.cmd})`}. Screen shows: ${out.text}` });
   if (transcript.length > 30) transcript.shift();
   { const what = q.cmd === 'onthisday' ? 'this day in history' : `"${q.arg}"`, failed = /couldn't|^ERROR/.test(out.text); remember(c, 'computer', `I looked up ${what} on the computer: ${out.text}`); remember(chars[1 - c.i], 'computer', `${c.name} looked up ${what} on the computer: ${out.text}`); experience(c, 'computer:-', !failed, failed ? out.text : ''); if (!failed && !/^(NOTHING|NO )/.test(out.lines[0] || '')) learnKnow(c, out.text, `computer: ${q.cmd}${q.arg ? ' ' + q.arg : ''}`, 5); }
+  browse.push({ t: Date.now(), who: c.name, cmd: q.cmd, arg: q.arg || '', text: trimTxt(out.text, 300), link: out.link || '' }); if (browse.length > 300) browse.shift(); DB.set('browse', browse);
   const d = document.createElement('div'); d.className = 'entry'; d.style.setProperty('--c', '#6cff8a');
   const b = document.createElement('b'); b.textContent = `${c.name} at the computer `; const cmd = document.createElement('span'); cmd.className = 'm'; cmd.textContent = label;
   const p = document.createElement('div'); p.textContent = out.text; d.append(b, cmd, p);
@@ -3710,6 +3791,10 @@ async function loop() {
     }
     if (res && res.project && mode !== 'ai') res.project = null;
     if (res && res.music && res.project) res.project = null;
+    if (res && res.study && (res.music || res.project)) res.study = null;
+    if (mode === 'ai' && res && !res.scripted && !res.project && !res.music && !res.study && !res.hands && !res.board && !res.computer && !pendingFor(c).length && library.length) {
+      const sp = store.get('studyPace', 'some'); if (sp !== 'free' && Math.random() < (sp === 'often' ? .3 : .1)) res.study = {};
+    }
     if (res && !res.scripted) { try { checkPlan(c, o, res); } catch (e) { console.warn(e); } }
     c.lastWorked = !!(res && res.project);
     for (const m of pendingFor(c)) m.done[c.name] = true;
@@ -3727,6 +3812,7 @@ async function loop() {
     if (res && res.hands) { try { const m = await doHands(c, o, res.hands); report(m); noteResult(c, o, `${res.hands.verb}:${res.hands.thing || '-'}`, m); } catch (e) { console.error(e); report(`${c.name} fumbled (${e.message}).`); } }
     if (res && res.board) { try { const m = await doBoard(c, o, res.board); report(m); noteResult(c, o, `${res.board.verb}:-`, m); } catch (e) { console.error(e); report(`${c.name} couldn't use the whiteboard (${e.message}).`); } }
     if (res && res.computer && running) { await useComputer(c, res.computer); await sleep(1500); }
+    if (res && res.study && running) { try { const m = await doStudy(c, o, res.study); report(m); } catch (e) { console.error(e); report(`${c.name} couldn't study (${e.message}).`); } }
     if (res && res.music && running) { try { const m = await doMusic(c, o, res.music); report(m); } catch (e) { console.error(e); report(`${c.name} couldn't play the console (${e.message}).`); } }
     if (res && res.project && running) { try { const m = await doProject(c, o, res.project); report(m); } catch (e) { console.error(e); report(`${c.name} couldn't work on the project (${e.message}).`); } }
     if (c.mind.impSince >= 45 && running && mindsReady) await reflect(c, o);
@@ -3919,6 +4005,7 @@ async function tweenArm(c, S, from, to, ms) {
 }
 // a robot walks to the console, picks a sound and a backing, and plays its chords: left hand on the chord buttons, right hand strumming the plate
 async function doMusic(c, o, mu) {
+  if (mu.radio) return doRadio(c, o, mu);
   if (!CONSOLE) return null;
   if (consoleBusy && consoleBusy !== c) return `${c.name} wanted to play the Melody Console, but ${consoleBusy.name} is playing it.`;
   consoleBusy = c;
@@ -3937,10 +4024,39 @@ async function doMusic(c, o, mu) {
     const plateA = solve('R', CONSOLE.plateAt(0)), plateB = solve('R', CONSOLE.plateAt(CONSOLE.SP_N - 1), plateA.d);
     const chordSol = {}; for (const d of new Set(degs)) chordSol[d] = solve('L', CONSOLE.chordAt(d));
     if (plateA.err > .12 || plateB.err > .12) window.__addDiag && window.__addDiag(`${c.name} is stretching to reach the strum plate (${Math.round(Math.max(plateA.err, plateB.err) * 100)} cm short)`);
-    if (discI >= 0) CONSOLE.setDisc(discI);
-    if (styleI > 0) { const st = solve('L', CONSOLE.styleAt(styleI)); await tweenArm(c, 'L', rest, st.d, 400); CONSOLE.setStyle(styleI); await sleep(250); }
+    // set up the console, pressing each control it uses
+    const press = async (S, at, fn) => { const k = solve(S, at); await tweenArm(c, S, c.armDof[S] || rest, k.d, 380); fn(); await sleep(220); };
+    if (discI >= 0 && discI !== CONSOLE.mel.disc) await press('R', CONSOLE.discAt(), () => CONSOLE.setDisc(discI));
+    if (mu.leslie != null) await press('R', CONSOLE.lesAt(mu.leslie), () => CONSOLE.setLeslie(mu.leslie));
+    if (mu.voice != null) await press('L', CONSOLE.voiceAt(mu.voice), () => CONSOLE.setVoice(mu.voice));
+    if (mu.sustain != null) await press('R', CONSOLE.susAt(mu.sustain), () => CONSOLE.setSus(mu.sustain));
+    if (styleI > 0) await press('L', CONSOLE.styleAt(styleI), () => CONSOLE.setStyle(styleI));
     const beat = CONSOLE.beat(), bars = degs.length <= 4 ? 2 : 1;
     let lPrev = c.armDof.L || rest;
+    // a melody on the Optigan keys: the right hand plays it while the left hand changes chords
+    if (mu.melody && mu.melody.length) {
+      const notes = mu.melody, per = Math.max(1, Math.ceil(notes.length / degs.length)), keySol = {}, bars = 1;
+      for (const n of new Set(notes.filter(Boolean))) { const m = CONSOLE.degreeMidi(n), at = CONSOLE.keyAt(m); if (at) keySol[n] = { m, k: solve('R', at) }; }
+      let rPrev = c.armDof.R || rest, ni = 0;
+      for (let rep = 0; rep < bars; rep++) for (const d of degs) {
+        await tweenArm(c, 'L', lPrev, chordSol[d].d, 200); lPrev = chordSol[d].d; CONSOLE.chordDown(d, 'robot' + c.i);
+        for (let k = 0; k < per; k++) {
+          const n = notes[ni++ % notes.length], ks = keySol[n], len = beat * 1000 * (styleI > 0 ? 4 : 2) / per;
+          if (ks) { await tweenArm(c, 'R', rPrev, ks.k.d, Math.min(160, len * .4)); rPrev = ks.k.d; if (sound) CONSOLE.noteOn('robot' + c.i, 1, ks.m); }
+          await sleep(Math.max(60, len - 170)); if (sound) CONSOLE.noteOff('robot' + c.i);
+        }
+        if (!styleI) CONSOLE.chordUp('robot' + c.i);
+      }
+      if (styleI > 0) { await sleep(beat * 1000); CONSOLE.setStyle(0); }
+      CONSOLE.chordUp();
+      await Promise.all([tweenArm(c, 'L', lPrev, rest, 300), tweenArm(c, 'R', rPrev, rest, 300)]);
+      c.armDof.L = c.armDof.R = null;
+      const names = degs.map(d => CONSOLE.chordLabel(d)).join(' ');
+      const what = `${names} with a melody (${notes.join(' ')}) on the ${MUSIC_DISCS[CONSOLE.mel.disc]} disc${styleI > 0 ? ' over a ' + MUSIC_STYLES[styleI] + ' backing' : ''}`;
+      remember(c, 'did', `I played ${what} on the Melody Console.`, { imp: 5 }); remember(o, 'heard', `${c.name} played ${what} on the Melody Console.`);
+      chatAdd('ev', '', `🎹 ${c.name} played a melody over ${names} on the Melody Console`);
+      return `${c.name} played ${what}.`;
+    }
     c.armDof.R = plateA.d;
     for (let rep = 0; rep < bars; rep++) for (const d of degs) {
       await tweenArm(c, 'L', lPrev, chordSol[d].d, 220); lPrev = chordSol[d].d;
@@ -3972,6 +4088,262 @@ function consoleTouched() {
   const t = `${firstCap(visitorRef())} is playing the Melody Console.`;
   events.push({ text: t, left: 2 }); transcript.push({ who: 'Event', text: t }); if (transcript.length > 30) transcript.shift();
   noteVisitor(t, '');
+}
+/* ---------- The radio: five stations of gentle generative music (made live in the browser, never the same twice) */
+const RADIO_STATIONS = ['Tiki Lounge', 'Moonlit Window', "Expo '67 Futurama", 'Rainy Typewriter Jazz', 'Carnival Dark Ride'];
+const radio = { on: false, st: 0, vol: Math.max(0, Math.min(1, +store.get('radioVol', 0.5))), out: null, bus: null, timer: null, t: 0, step: 0, seed: 1, prevLead: null, bed: null };
+function radioRng(n) { let s = (n * 2654435761) >>> 0 || 1; return () => ((s = (s ^ (s << 13)) >>> 0, s = (s ^ (s >>> 17)) >>> 0, s = (s ^ (s << 5)) >>> 0) / 4294967296); }
+const QUAL = { M: [0, 4, 7], m: [0, 3, 7], M7: [0, 4, 7, 11], m7: [0, 3, 7, 10], d7: [0, 4, 7, 10], m9: [0, 3, 7, 10, 14], M9: [0, 4, 7, 11, 14] };
+const SCALE = { maj: [0, 2, 4, 5, 7, 9, 11], dor: [0, 2, 3, 5, 7, 9, 10], min: [0, 2, 3, 5, 7, 8, 10], hmin: [0, 2, 3, 5, 7, 8, 11] };
+// each station: tempo, beats per bar, key, scale, an 8-bar chord loop, and how its band plays each sixteenth
+const STATIONS = [
+  { bpm: 96, beats: 4, key: 53, scale: 'maj', swing: .18, prog: [[0, 'M7'], [9, 'm7'], [2, 'm7'], [7, 'd7'], [0, 'M7'], [5, 'M7'], [2, 'm7'], [7, 'd7']], lead: 'vib', pad: .5, bass: 'pluck', drums: 'bongo', fx: 'birds' },
+  { bpm: 58, beats: 4, key: 50, scale: 'dor', swing: 0, prog: [[0, 'm9'], [0, 'm9'], [10, 'M7'], [10, 'M7'], [8, 'M7'], [8, 'M7'], [10, 'M'], [7, 'm7']], lead: 'bell', pad: 1, bass: 'drone', drums: null, fx: 'wind' },
+  { bpm: 126, beats: 4, key: 58, scale: 'maj', swing: .33, prog: [[0, 'M7'], [9, 'm7'], [2, 'm7'], [7, 'd7'], [4, 'm7'], [9, 'd7'], [2, 'm7'], [7, 'd7']], lead: 'theremin', pad: .25, bass: 'walk', drums: 'brush', fx: null },
+  { bpm: 76, beats: 4, key: 51, scale: 'maj', swing: .22, prog: [[2, 'm9'], [7, 'd7'], [0, 'M9'], [9, 'm7'], [2, 'm9'], [7, 'd7'], [0, 'M9'], [0, 'M9']], lead: 'rhodes', pad: 0, comp: 'rhodes', bass: 'lofi', drums: 'lofi', fx: 'rain' },
+  { bpm: 150, beats: 3, key: 57, scale: 'hmin', swing: 0, prog: [[0, 'm'], [0, 'm'], [5, 'm'], [7, 'M'], [0, 'm'], [8, 'M'], [5, 'm'], [7, 'M']], lead: 'calliope', pad: 0, comp: 'oompah', bass: 'oompah', drums: null, fx: 'wobble' }
+];
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function radioBus() {
+  const a = audio(); if (!a) return null;
+  if (!radio.out) {
+    radio.out = a.createGain(); radio.out.gain.value = 0;
+    const hp = a.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 110;
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200;
+    const pk = a.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 1400; pk.gain.value = 3; pk.Q.value = .7;
+    radio.bus = a.createGain(); radio.bus.connect(hp); hp.connect(pk); pk.connect(lp); lp.connect(radio.out); radio.out.connect(a.destination);
+  }
+  return a;
+}
+function env(a, g, t, atk, peak, dec) { g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + atk); g.gain.setTargetAtTime(0.0001, t + atk, dec); }
+function voiceOsc(a, type, f, t, d, peak, atk = .01, dec = .3, dest = radio.bus, detune = 0) {
+  const o = a.createOscillator(), g = a.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); o.detune.value = detune;
+  env(a, g, t, atk, peak, dec); o.connect(g); g.connect(dest); o.start(t); o.stop(t + d + dec * 5); return o;
+}
+let noiseBuf = null;
+function noiseSrc(a) { if (!noiseBuf) { noiseBuf = a.createBuffer(1, a.sampleRate * 2, a.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; } const s = a.createBufferSource(); s.buffer = noiseBuf; return s; }
+function hit(a, t, type, f, dec, peak, q = 1) {
+  const s = noiseSrc(a), fl = a.createBiquadFilter(), g = a.createGain(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
+  env(a, g, t, .002, peak, dec); s.connect(fl); fl.connect(g); g.connect(radio.bus); s.start(t, Math.random() * 1.5); s.stop(t + dec * 6);
+}
+const INSTR = {
+  vib(a, t, m, d, v) { const g = a.createGain(), trem = a.createOscillator(), tg = a.createGain(); trem.frequency.value = 5.5; tg.gain.value = .35; trem.connect(tg); tg.connect(g.gain);
+    env(a, g, t, .005, .16 * v, .55); for (const [r, p] of [[1, 1], [4, .18], [10, .05]]) { const o = a.createOscillator(); o.frequency.value = mtof(m) * r; const og = a.createGain(); og.gain.value = p; o.connect(og); og.connect(g); o.start(t); o.stop(t + d + 3); }
+    g.connect(radio.bus); trem.start(t); trem.stop(t + d + 3); },
+  bell(a, t, m, d, v) { voiceOsc(a, 'sine', mtof(m), t, d, .09 * v, .004, 1.4); voiceOsc(a, 'sine', mtof(m) * 2.76, t, d, .025 * v, .002, .5); },
+  rhodes(a, t, m, d, v) { voiceOsc(a, 'sine', mtof(m), t, d, .1 * v, .006, .9); voiceOsc(a, 'triangle', mtof(m) * 2, t, d, .02 * v, .002, .25); },
+  theremin(a, t, m, d, v) {
+    const o = a.createOscillator(), g = a.createGain(), vib = a.createOscillator(), vg = a.createGain(); vib.frequency.value = 6; vg.gain.value = 9; vib.connect(vg); vg.connect(o.detune);
+    const from = radio.prevLead ? mtof(radio.prevLead) : mtof(m); o.frequency.setValueAtTime(from, t); o.frequency.exponentialRampToValueAtTime(mtof(m), t + .12); radio.prevLead = m;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(.09 * v, t + .08); g.gain.setTargetAtTime(0.0001, t + d * .9, .15);
+    o.connect(g); g.connect(radio.bus); o.start(t); vib.start(t); o.stop(t + d + 1); vib.stop(t + d + 1); },
+  calliope(a, t, m, d, v) { for (const dt of [-7, 7]) voiceOsc(a, 'square', mtof(m), t, d, .03 * v, .01, d * .6, radio.bus, dt + (Math.random() - .5) * 10); voiceOsc(a, 'sine', mtof(m + 12), t, d, .03 * v, .01, d * .5); },
+  pad(a, t, ms, d, v) { const fl = a.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 900; fl.connect(radio.bus);
+    for (const m of ms) for (const dt of [-8, 8]) { const o = a.createOscillator(), g = a.createGain(); o.type = 'sawtooth'; o.frequency.value = mtof(m); o.detune.value = dt;
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(.012 * v, t + d * .3); g.gain.setTargetAtTime(0.0001, t + d * .85, .4); o.connect(g); g.connect(fl); o.start(t); o.stop(t + d + 2); } },
+  bass(a, t, m, d, v, soft) { voiceOsc(a, 'sine', mtof(m), t, d, (soft ? .12 : .17) * v, .008, soft ? d * .8 : .28); voiceOsc(a, 'triangle', mtof(m), t, d, .05 * v, .008, .15); }
+};
+const DRUM = {
+  kick(a, t, v) { const o = a.createOscillator(), g = a.createGain(); o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(42, t + .12); env(a, g, t, .002, .3 * v, .12); o.connect(g); g.connect(radio.bus); o.start(t); o.stop(t + .6); },
+  snare(a, t, v) { hit(a, t, 'bandpass', 1800, .09, .12 * v, .8); },
+  brush(a, t, v) { hit(a, t, 'bandpass', 3000, .16, .06 * v, .5); },
+  hat(a, t, v) { hit(a, t, 'highpass', 7000, .03, .05 * v); },
+  ride(a, t, v) { hit(a, t, 'highpass', 5500, .18, .035 * v); voiceOsc(a, 'sine', 3900, t, .05, .006 * v, .001, .2); },
+  bongo(a, t, v, hi) { const o = a.createOscillator(), g = a.createGain(); const f = hi ? 420 : 300; o.frequency.setValueAtTime(f * 1.4, t); o.frequency.exponentialRampToValueAtTime(f, t + .03); env(a, g, t, .002, .14 * v, .09); o.connect(g); g.connect(radio.bus); o.start(t); o.stop(t + .5); },
+  shaker(a, t, v) { hit(a, t, 'highpass', 6000, .04, .025 * v); }
+};
+function chordNotes(S, bar) { const [r, q] = S.prog[bar % S.prog.length]; return QUAL[q].map(x => S.key + r + x); }
+function scaleNote(S, deg) { const sc = SCALE[S.scale], o = Math.floor(deg / 7), k = ((deg % 7) + 7) % 7; return S.key + 12 + sc[k] + 12 * o; }
+function nearestChordDeg(S, deg, cn) { for (let d = 0; d < 4; d++) for (const s of [deg + d, deg - d]) { const m = scaleNote(S, s); if (cn.some(c => (m - c) % 12 === 0)) return s; } return deg; }
+function radioStep(a, t) {
+  const S = STATIONS[radio.st], spb = 60 / S.bpm, per = S.beats * 4, i = radio.step, bar = Math.floor(i / per), pos = i % per, beat = pos / 4;
+  const loop = Math.floor(bar / S.prog.length), R = radioRng(radio.seed * 1000 + loop * 17 + (bar % 2)), Rn = radioRng(radio.seed * 77 + i);
+  const cn = chordNotes(S, bar), swingT = (pos % 2 === 1) ? S.swing * spb / 2 : 0, T = t + swingT, sixteenth = spb / 4;
+  if (pos === 0) {   // start of a bar: harmony
+    if (S.pad) INSTR.pad(a, T, cn.slice(0, 4), spb * S.beats, S.pad);
+    if (S.comp === 'rhodes') { cn.forEach(m => INSTR.rhodes(a, T, m, spb, .45)); }
+  }
+  if (S.comp === 'rhodes' && pos === 6) cn.slice(1).forEach(m => INSTR.rhodes(a, T, m, spb, .3));
+  if (S.comp === 'oompah' && pos % 4 === 0 && pos > 0) cn.forEach(m => INSTR.calliope(a, T, m + 12, spb * .4, .35));
+  // bass
+  const root = cn[0] - 12;
+  if (S.bass === 'pluck' && (pos === 0 || pos === 8)) INSTR.bass(a, T, pos ? root + 7 : root, spb, .9);
+  if (S.bass === 'drone' && pos === 0 && bar % 2 === 0) INSTR.bass(a, T, root - 12 + 12, spb * S.beats * 2, .7, true);
+  if (S.bass === 'walk' && pos % 4 === 0) { const k = pos / 4, nxt = chordNotes(S, bar + 1)[0] - 12, walk = [root, root + QUAL[S.prog[bar % S.prog.length][1]][1], root + 7, nxt + (Rn() < .5 ? 1 : -1)]; INSTR.bass(a, T, walk[k], spb, .8); }
+  if (S.bass === 'lofi' && (pos === 0 || pos === 10)) INSTR.bass(a, T, pos ? root + 7 : root, spb * 1.5, .8, true);
+  if (S.bass === 'oompah' && pos === 0) INSTR.bass(a, T, bar % 2 ? root + 7 : root, spb, .9);
+  // drums
+  if (S.drums === 'bongo') { if ([0, 3, 6, 10, 12, 14].includes(pos) && (R() < .85)) DRUM.bongo(a, T, .8, pos % 3 === 0); if (pos % 2 === 0) DRUM.shaker(a, T, pos % 4 ? .6 : 1); }
+  if (S.drums === 'brush') { if (pos === 4 || pos === 12) DRUM.brush(a, T, 1); if (pos % 2 === 0) DRUM.ride(a, T, pos % 4 ? .6 : 1); }
+  if (S.drums === 'lofi') { if (pos === 0 || pos === 7 || pos === 10) DRUM.kick(a, T, .8); if (pos === 4 || pos === 12) DRUM.snare(a, T, .8); if (pos % 2 === 0) DRUM.hat(a, T, pos % 4 ? .5 : .9); }
+  // melody: a phrase that repeats with small changes each time round the loop
+  const lead = INSTR[S.lead], dens = { vib: .45, bell: .3, theremin: .3, rhodes: .28, calliope: .7 }[S.lead];
+  const grid = S.lead === 'calliope' ? 2 : S.lead === 'theremin' || S.lead === 'bell' ? 4 : 2;
+  if (pos % grid === 0) {
+    const Rm = radioRng(radio.seed * 31 + (bar % 4) * 7 + pos + (bar >= 4 && Rn() < .25 ? loop * 5 : 0));
+    if (Rm() < dens || pos === 0) {
+      radio.deg = radio.deg == null ? 2 : radio.deg + Math.round((Rm() - .5) * 4);
+      radio.deg = Math.max(-2, Math.min(9, radio.deg));
+      if (pos % 4 === 0) radio.deg = nearestChordDeg(S, radio.deg, cn);
+      const len = sixteenth * grid * (1 + Math.floor(Rm() * 2));
+      lead(a, T, scaleNote(S, radio.deg), len, .8 + Rm() * .3);
+    }
+  }
+  // atmosphere
+  if (S.fx === 'birds' && pos === 0 && R() < .08) { const o = a.createOscillator(), g = a.createGain(); o.frequency.setValueAtTime(2200, T); o.frequency.exponentialRampToValueAtTime(3400, T + .12); o.frequency.exponentialRampToValueAtTime(2600, T + .25); env(a, g, T, .01, .02, .12); o.connect(g); g.connect(radio.bus); o.start(T); o.stop(T + .6); }
+  if (S.fx === 'wobble' && pos === 0 && R() < .15) INSTR.bell(a, T, cn[0] + 24, spb, .5);
+  radio.step++;
+}
+function radioBed(a, S) {   // continuous texture: rain and crackle, or wind
+  if (radio.bed) { try { radio.bed.stop(); } catch {} radio.bed = null; }
+  if (S.fx !== 'rain' && S.fx !== 'wind') return;
+  const s = noiseSrc(a), fl = a.createBiquadFilter(), g = a.createGain(); s.loop = true;
+  fl.type = S.fx === 'rain' ? 'highpass' : 'lowpass'; fl.frequency.value = S.fx === 'rain' ? 3500 : 500; g.gain.value = S.fx === 'rain' ? .018 : .03;
+  s.connect(fl); fl.connect(g); g.connect(radio.bus); s.start(); radio.bed = s;
+}
+function radioTick() {
+  const a = audio(); if (!a || !radio.on) return;
+  const S = STATIONS[radio.st], sixteenth = 60 / S.bpm / 4;
+  const duck = (CONSOLE && CONSOLE.playing() ? .3 : 1) * (chars.some(c => c.speaking || c.tts) ? .55 : 1);
+  radio.out.gain.setTargetAtTime(radio.vol * .55 * duck, a.currentTime, .25);
+  if (radio.t < a.currentTime) radio.t = a.currentTime + .05;
+  while (radio.t < a.currentTime + .35) { radioStep(a, radio.t); radio.t += sixteenth; }
+}
+function setRadio(on, st, who) {
+  if (st != null) radio.st = ((st % 5) + 5) % 5;
+  radio.on = !!on;
+  const a = radio.on ? radioBus() : audio();
+  if (radio.on && a) {
+    radio.step = 0; radio.t = a.currentTime + .1; radio.seed = (Math.random() * 1e6) | 0; radio.deg = null; radio.prevLead = null;
+    radioBed(a, STATIONS[radio.st]);
+    if (!radio.timer) radio.timer = setInterval(radioTick, 60);
+  } else {
+    if (radio.timer) { clearInterval(radio.timer); radio.timer = null; }
+    if (radio.out && a) radio.out.gain.setTargetAtTime(0, a.currentTime, .15);
+    if (radio.bed) { try { radio.bed.stop(); } catch {} radio.bed = null; }
+  }
+  store.set('radioOn', radio.on); store.set('radioSt', radio.st);
+  drawRadioDial(); syncRadioUI();
+  if (who) { const t = radio.on ? `${who} turned the radio to station ${radio.st + 1}, ${RADIO_STATIONS[radio.st]}.` : `${who} switched the radio off.`; events.push({ text: t, left: 1 }); transcript.push({ who: 'Event', text: t }); if (transcript.length > 30) transcript.shift(); }
+}
+function syncRadioUI() {
+  const b = document.getElementById('rpower'), s = document.getElementById('rstation'); if (!b) return;
+  b.textContent = radio.on ? 'Turn the radio off' : 'Turn the radio on'; s.value = radio.st;
+}
+// a robot walks over and works the radio
+async function doRadio(c, o, r) {
+  await walkTo(c, 4.1, 0.35, 4.3, -0.6, 'radio');
+  if (!c.hold.R) {
+    try { const k = solveIK(c, 'R', new THREE.Vector3(4.45, 1.0, -0.42), { end: 'tip', torso: true }); await tweenArm(c, 'R', { raise: 20, spread: 8, twist: 10, elbow: 60, wrist: 0, torso: null, crouch: null }, k.d, 450); } catch {}
+  }
+  const was = radio.on, st = r.radio === 'next' ? radio.st + 1 : r.station != null ? r.station - 1 : radio.st;
+  if (r.radio === 'off') setRadio(false, null, c.name); else setRadio(true, st, c.name);
+  for (let k = 0; k < 6; k++) { clack(); await sleep(60); }
+  await sleep(500); c.armDof.R = null;
+  const msg = r.radio === 'off' ? (was ? `${c.name} switched the radio off.` : `${c.name} went to switch the radio off, but it was already off.`) : `${c.name} tuned the radio to station ${radio.st + 1}: ${RADIO_STATIONS[radio.st]}.`;
+  remember(c, 'did', msg.replace(c.name, 'I')); remember(o, 'saw', msg);
+  chatAdd('ev', '', '📻 ' + msg);
+  return msg;
+}
+/* ---------- The study shelf: research books (Wikipedia reading lists, Wikibooks textbooks, or your own text) */
+const PRESET_BOOKS = [
+  { title: 'Music Theory', src: 'wikibooks', book: 'Music Theory', pages: ['Music theory', 'Scale (music)', 'Interval (music)', 'Chord (music)', 'Rhythm', 'Tempo', 'Melody', 'Harmony'], color: '#3f7fbf' },
+  { title: 'Chords & Progressions', src: 'wiki', pages: ['Chord progression', 'Circle of fifths', 'I–V–vi–IV progression', "'50s progression", 'Twelve-bar blues', 'Ii–V–I progression', 'Andalusian cadence', 'Cadence'], color: '#b8475a' },
+  { title: 'Instruments of the Lounge', src: 'wiki', pages: ['Optigan', 'Omnichord', 'Hammond organ', 'Leslie speaker', 'Vibraphone', 'Theremin', 'Exotica', 'Space age pop'], color: '#e8a33d' },
+  { title: 'Ottawa', src: 'wiki', pages: ['Ottawa', 'History of Ottawa', 'Rideau Canal', 'Parliament Hill', 'ByWard Market', 'Dominion Observatory'], color: '#4f8f4a' },
+  { title: "Expo 67", src: 'wiki', pages: ['Expo 67', 'Habitat 67', 'Montreal Biosphere', "World's fair", 'Canadian Centennial'], color: '#8c5ab8' },
+  { title: 'The Writing Craft', src: 'wiki', pages: ['Poetry', 'Haiku', 'Sonnet', 'Short story', 'Plot (narrative)', 'Characterization'], color: '#d96c3b' },
+  { title: 'Drawing & Colour', src: 'wiki', pages: ['Drawing', 'Color theory', 'Perspective (graphical)', 'Contour drawing', 'Doodle'], color: '#5cc8b4' },
+  { title: 'Robots & Minds', src: 'wiki', pages: ['Robot', 'Humanoid robot', 'Artificial intelligence', 'Machine learning', 'Language model'], color: '#6a6f7a' }
+];
+let library = [], libSaveT = null;
+function cleanLibrary(a) {
+  return (Array.isArray(a) ? a : []).filter(b => b && b.title).slice(0, 40).map((b, i) => ({ id: +b.id || i + 1, title: String(b.title).slice(0, 60), src: ['wiki', 'wikibooks', 'text'].includes(b.src) ? b.src : 'wiki', book: String(b.book || '').slice(0, 80),
+    pages: (Array.isArray(b.pages) ? b.pages : []).map(x => String(x).slice(0, 120)).slice(0, 80), chapters: Array.isArray(b.chapters) ? b.chapters.map(x => String(x).slice(0, 140)).slice(0, 120) : null,
+    color: /^#[0-9a-f]{6}$/i.test(b.color) ? b.color : '#3f7fbf', read: { Pip: Math.max(0, +(b.read && b.read.Pip) || 0), Moss: Math.max(0, +(b.read && b.read.Moss) || 0) }, by: String(b.by || 'preset').slice(0, 20) }));
+}
+async function loadLibrary() {
+  const got = await DB.get('library');
+  library = Array.isArray(got) && got.length ? cleanLibrary(got) : cleanLibrary(PRESET_BOOKS.map((b, i) => ({ ...b, id: i + 1 })));
+  buildShelfBooks(); renderLibrary();
+}
+function saveLibrary() { clearTimeout(libSaveT); buildShelfBooks(); renderLibrary(); libSaveT = setTimeout(() => DB.set('library', library), 400); }
+const chaptersOf = b => b.chapters || b.pages;
+async function bookChapters(b) {
+  if (b.src === 'wikibooks' && !b.chapters) {
+    try {
+      const d = await getJSON(`https://en.wikibooks.org/w/api.php?action=query&list=allpages&apprefix=${encodeURIComponent(b.book + '/')}&apnamespace=0&aplimit=80&format=json&origin=*`);
+      const list = (d.query && d.query.allpages || []).map(p => p.title).filter(t => !/\/(print version|contents|table of contents|authors|license|about|index|resources|glossary)$/i.test(t));
+      if (list.length >= 3) { b.chapters = list.slice(0, 80); saveLibrary(); }
+    } catch (e) { console.warn(e); }
+    if (!b.chapters) b.src = 'wiki';   // the textbook couldn't be opened, so read its Wikipedia reading list instead
+  }
+  if (b.src === 'text' && !b.chapters) { const tx = await DB.get('booktext_' + b.id); b.chapters = Array.isArray(tx) ? tx.map((_, i) => `Part ${i + 1}`) : []; }
+  return chaptersOf(b);
+}
+async function chapterText(b, i) {
+  const ch = chaptersOf(b)[i];
+  if (b.src === 'text') { const tx = (await DB.get('booktext_' + b.id)) || []; return { title: ch, text: tx[i] || '', link: '' }; }
+  const host = b.src === 'wikibooks' ? 'en.wikibooks.org' : 'en.wikipedia.org';
+  const d = await getJSON(`https://${host}/w/api.php?action=query&prop=extracts&explaintext=1&exsectionformat=plain&redirects=1&titles=${encodeURIComponent(ch)}&format=json&origin=*`, 15000);
+  const pg = Object.values(d.query && d.query.pages || {})[0] || {};
+  return { title: (pg.title || ch).replace(/^.*\//, b.src === 'wikibooks' ? '' : '$&'), text: String(pg.extract || '').replace(/\n{2,}/g, '\n\n').slice(0, 9000), link: `https://${host}/wiki/${encodeURIComponent(String(pg.title || ch).replace(/ /g, '_'))}` };
+}
+function shelfLines(c) {
+  if (!library.length) return '';
+  return 'Your study shelf: ' + library.slice(0, 10).map(b => { const n = chaptersOf(b).length, r = Math.min(b.read[c.name] || 0, n); return `book ${b.id} "${b.title}" (${r >= n ? 'you have read it all' : `you've read ${r} of ${n} chapters`})`; }).join('; ') + '.\n';
+}
+function pickBook(c, st) {
+  if (st && st.id) return library.find(b => b.id === st.id) || null;
+  if (st && st.q) { const q = st.q.toLowerCase(); const hit = library.find(b => b.title.toLowerCase().includes(q) || q.includes(b.title.toLowerCase())) || library.find(b => q.split(/\s+/).some(w => w.length > 3 && b.title.toLowerCase().includes(w))); if (hit) return hit; }
+  const open = library.filter(b => (b.read[c.name] || 0) < chaptersOf(b).length);
+  return open.sort((a, b) => (b.read[c.name] || 0) / chaptersOf(b).length - (a.read[c.name] || 0) / chaptersOf(a).length)[0] || null;   // carry on with the book they're furthest into
+}
+let studyLast = 0;
+async function doStudy(c, o, st) {
+  const b = pickBook(c, st);
+  if (!b) return `${c.name} looked along the study shelf, but has read every book on it.`;
+  if (Date.now() - studyLast < 8000) await sleep(8000 - (Date.now() - studyLast));
+  studyLast = Date.now();
+  await walkTo(c, -3.9, -0.5 + (c.i ? .35 : -.35), -5, -0.5, 'bookshelf');
+  buildPose(c, { pose: POSES.think ? 'think' : null });
+  const chs = await bookChapters(b), i = b.read[c.name] || 0;
+  if (i >= chs.length) return `${c.name} has already finished ${b.title}.`;
+  let ch;
+  try { ch = await chapterText(b, i); } catch (e) { return `${c.name} opened ${b.title}, but the pages wouldn't load (${e.message}).`; }
+  if (!ch.text || ch.text.length < 80) { b.read[c.name] = i + 1; saveLibrary(); return `${c.name} turned to "${ch.title}" in ${b.title}, but it was blank, so moved on.`; }
+  const parts = chunkText(ch.text, 420).slice(0, 14);
+  for (const x of parts) learnKnow(c, x, `book: ${b.title} · ${ch.title}`, 6);
+  let take = (ch.text.replace(/\s+/g, ' ').match(/^[^.!?]{20,220}[.!?]/) || [ch.text.slice(0, 160)])[0];
+  if (!(c.backend === 'cpu' && !cloudReady())) {
+    const r = await compose(c, `You are ${c.name}, ${c.persona}. You have just been studying.`, `You read "${ch.title}" in the book ${b.title}:\n${trimTxt(ch.text, 2200)}\n\nIn ONE sentence (under 30 words), what is the most interesting or useful thing you learned? Reply with just the sentence.`, 70);
+    if (r && r.text && r.text.trim().length > 15) take = trimTxt(r.text.replace(/\s+/g, ' ').replace(/^["“]|["”]$/g, '').trim(), 240);
+  }
+  b.read[c.name] = i + 1; saveLibrary();
+  remember(c, 'did', `I studied "${ch.title}" in the book ${b.title} (chapter ${i + 1} of ${chs.length}). What I learned: ${take}`, { imp: 6 });
+  remember(o, 'saw', `${c.name} studied "${ch.title}" in ${b.title}.`);
+  chatAdd('ev', '', `📖 ${c.name} studied “${ch.title}” in ${b.title} (${i + 1}/${chs.length})`);
+  const d = document.createElement('div'); d.className = 'entry'; d.style.setProperty('--c', c.color);
+  const hb = document.createElement('b'); hb.textContent = `${c.name} studied `; const m = document.createElement('span'); m.className = 'm'; m.textContent = `${ch.title} · ${b.title}`;
+  const p = document.createElement('div'); p.textContent = take; d.append(hb, m, p);
+  if (ch.link) { const a = document.createElement('a'); a.href = ch.link; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Read it yourself'; a.className = 'src'; d.append(a); }
+  logEl.prepend(d);
+  return `${c.name} studied "${ch.title}" in ${b.title} and learned: ${take}`;
+}
+// the research books on the shelf, with their titles on the spines
+const shelfGroup = new THREE.Group(); scene.add(shelfGroup);
+function buildShelfBooks() {
+  for (const m of [...shelfGroup.children]) { shelfGroup.remove(m); if (m.material.map) m.material.map.dispose(); m.material.dispose(); }
+  library.slice(0, 11).forEach((b, k) => {
+    const w = 0.15, h = 0.5, z = -1.45 + k * (w + 0.025);
+    const cv = document.createElement('canvas'); cv.width = 64; cv.height = 256; const g = cv.getContext('2d');
+    g.fillStyle = b.color; g.fillRect(0, 0, 64, 256); g.fillStyle = '#f3d27a'; g.fillRect(0, 14, 64, 6); g.fillRect(0, 236, 64, 6);
+    g.save(); g.translate(40, 128); g.rotate(-Math.PI / 2); g.fillStyle = '#fff8e6'; g.font = 'bold 22px Georgia, serif'; g.textAlign = 'center'; g.fillText(trimTxt(b.title, 17), 0, 0); g.restore();
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const mats = [new THREE.MeshStandardMaterial({ map: tex }), new THREE.MeshStandardMaterial({ color: b.color })];
+    const bk = new THREE.Mesh(new THREE.BoxGeometry(0.36, h, w), [mats[0], mats[1], mats[1], mats[1], mats[1], mats[1]]);
+    bk.position.set(-4.76, 1.3 + 0.05 + h / 2, z); bk.castShadow = true; bk.userData.noOcc = true; bk.userData.book = b.id; shelfGroup.add(bk);
+  });
 }
 /* ---------- Smart mode: optional free cloud minds on the visitor's own Cloudflare Worker ---------- */
 let cloudDownUntil = 0, cloudNote = '';
@@ -4407,6 +4779,19 @@ $('#kclear').onclick = () => {
   delete b.dataset.sure; b.textContent = 'Clear library';
   c.mind.know = []; c.knowDirty = true; saveMinds(); renderMem(); toast(`${c.name}'s library is empty`);
 };
+/* ---------- Saving files: a normal download in the browser; the phone's Downloads folder in the Android app */
+const FILES = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() ? (window.Capacitor.Plugins && window.Capacitor.Plugins.Files) || (window.Capacitor.registerPlugin && window.Capacitor.registerPlugin('Files')) : null;
+async function saveFile(name, blob) {
+  if (FILES) {
+    try {
+      const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(blob); });
+      const r = await FILES.save({ name, mime: blob.type || 'application/octet-stream', data: b64 });
+      toast('Saved to ' + (r && r.path || 'Downloads'), 4000); return true;
+    } catch (e) { toast("Couldn't save: " + (e.message || e), 4000); return false; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); return true;
+}
 /* ---------- Project board panel ---------- */
 function projectText(p) {
   const ks = PJ_KIND_WORD[p.kind] || p.kind;
@@ -4471,6 +4856,131 @@ function openProject(id, quiet) {
   bp.oninput = () => { store.set('consoleBpm', +bp.value); if (CONSOLE) CONSOLE.setBpm(+bp.value); };
   bp.onchange = () => toast(`Tempo ${bp.value} beats a minute`);
 }
+$('#rpower').onclick = () => { setRadio(!radio.on, +$('#rstation').value, firstCap(visitorRef())); toast(radio.on ? `📻 ${RADIO_STATIONS[radio.st]}` : 'Radio off'); };
+$('#rstation').onchange = e => { setRadio(true, +e.target.value, firstCap(visitorRef())); toast(`📻 ${RADIO_STATIONS[radio.st]}`); };
+$('#rvol').value = radio.vol; $('#rvol').oninput = e => { radio.vol = +e.target.value; store.set('radioVol', radio.vol); };
+/* ---------- Tap things in the room: the typewriter and project board, the computer, the study shelf, the radio */
+const sheet = $('#sheet');
+function openSheet(title, build) { $('#sheetTitle').textContent = title; const b = $('#sheetBody'); b.innerHTML = ''; build(b); sheet.hidden = false; }
+$('#sheetClose').onclick = () => { sheet.hidden = true; };
+sheet.addEventListener('click', e => { if (e.target === sheet) sheet.hidden = true; });
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const ago = t => { const s = (Date.now() - t) / 1000; return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' days ago'; };
+function showTypewriter() {
+  openSheet('At the typewriter', b => {
+    if (!projects.length) { b.append(el('p', 'hint', 'Nothing has been written yet. Ask in the chat, for example "Pip, write a poem about the first snow", or pin a project in the Project board panel.')); return; }
+    for (const p of projects.slice().reverse()) {
+      const it = el('div', 'sheetItem'), last = p.pages[p.pages.length - 1];
+      it.append(el('div', '', `#${p.id} ${p.title}`), el('div', 'meta', `${p.kind} · ${p.pages.length} page${p.pages.length === 1 ? '' : 's'} · ${p.writers.join(' & ')}${p.editor ? ', edited by ' + p.editor : ''} · ${p.status === 'done' ? 'finished ✓' : p.status}${last ? ' · last page ' + ago(last.t) : ''}`));
+      const bt = el('div', 'mbtns'), rd = el('button', '', p.pages.length ? 'Read it' : 'Open'); rd.type = 'button';
+      rd.onclick = () => showProjectPages(p.id); bt.append(rd); it.append(bt); b.append(it);
+    }
+  });
+}
+function showProjectPages(id) {
+  const p = projects.find(x => x.id === id); if (!p) return;
+  openSheet(`#${p.id} ${p.title}`, b => {
+    b.append(el('p', 'hint', `A ${PJ_KIND_WORD[p.kind] || p.kind} by ${p.writers.join(' and ')}${p.editor ? `, edited by ${p.editor}` : ''}.${p.brief ? ' About: ' + p.brief + '.' : ''}`));
+    const bt = el('div', 'btns'), back = el('button', '', '← All projects'), sv = el('button', '', 'Save as a file'), more = el('button', '', 'Notes and settings'); back.type = sv.type = more.type = 'button';
+    back.onclick = showTypewriter;
+    sv.onclick = () => saveFile((p.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'project') + '.md', new Blob([projectText(p)], { type: 'text/markdown' })).then(ok => { if (ok && !FILES) toast('Saved'); });
+    more.onclick = () => { sheet.hidden = true; const box = $('#projBox'); box.open = true; openProject(p.id); };
+    bt.append(back, sv, more); b.append(bt);
+    if (!p.pages.length) b.append(el('p', 'hint', 'Nothing typed yet. The writer starts on their next work turn.'));
+    p.pages.forEach((x, i) => { b.append(el('div', 'meta', `${isShort(p) ? 'Version' : 'Page'} ${i + 1} · ${x.by} · ${ago(x.t)}`), el('div', 'page', x.text)); for (const n of p.notes.filter(z => z.page === i + 1)) b.append(el('p', 'pjnote', `📝 ${n.by === 'visitor' ? 'You' : n.by}: ${n.text}`)); });
+  });
+}
+function showComputer() {
+  openSheet('The computer: what they looked up', b => {
+    if (!browse.length) { b.append(el('p', 'hint', "They haven't used the internet yet. Try asking: \"Moss, look up the Rideau Canal\".")); return; }
+    for (const x of browse.slice().reverse()) {
+      const it = el('div', 'sheetItem');
+      it.append(el('div', 'meta', `${x.who} · ${ago(x.t)} · ${x.cmd}${x.arg ? ' “' + x.arg + '”' : ''}`), el('div', '', x.text));
+      if (x.link) { const a = el('a', '', x.link); a.href = x.link; a.target = '_blank'; a.rel = 'noopener'; it.append(a); }
+      b.append(it);
+    }
+  });
+}
+function showShelf(bookId) {
+  const b0 = bookId && library.find(x => x.id === bookId);
+  if (b0) return showBook(b0);
+  openSheet('The study shelf', b => {
+    b.append(el('p', 'hint', 'Research books the robots read chapter by chapter. What they read goes into their knowledge library, so it comes back to mind when it helps. Add your own books in the Study shelf panel.'));
+    for (const x of library) {
+      const n = chaptersOf(x).length, it = el('div', 'sheetItem');
+      it.append(el('div', '', x.title), el('div', 'meta', `${x.src === 'wikibooks' ? 'Wikibooks textbook' : x.src === 'text' ? 'your text' : 'Wikipedia reading list'} · Pip ${Math.min(x.read.Pip, n)}/${n} · Moss ${Math.min(x.read.Moss, n)}/${n}`));
+      const bt = el('div', 'mbtns'), op = el('button', '', 'Chapters'); op.type = 'button'; op.onclick = () => showBook(x); bt.append(op); it.append(bt); b.append(it);
+    }
+  });
+}
+async function showBook(x) {
+  const chs = await bookChapters(x).catch(() => chaptersOf(x));
+  openSheet(x.title, b => {
+    const back = el('button', '', '← The shelf'); back.type = 'button'; back.onclick = () => showShelf(); b.append(back);
+    chs.forEach((ch, i) => {
+      const it = el('div', 'sheetItem'), who = ['Pip', 'Moss'].filter(n => (x.read[n] || 0) > i);
+      it.append(el('div', '', `${i + 1}. ${ch.replace(/^.*\//, '')}`), el('div', 'meta', who.length ? `read by ${who.join(' and ')} ✓` : 'not read yet'));
+      if (x.src !== 'text') { const a = el('a', '', 'Read it yourself'); a.href = `https://${x.src === 'wikibooks' ? 'en.wikibooks.org' : 'en.wikipedia.org'}/wiki/${encodeURIComponent(ch.replace(/ /g, '_'))}`; a.target = '_blank'; a.rel = 'noopener'; it.append(a); }
+      b.append(it);
+    });
+  });
+}
+{
+  const hits = [];
+  const hb = (w, h, d, x, y, z, act) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ visible: false })); m.position.set(x, y, z); m.userData = { act, noOcc: true }; scene.add(m); hits.push(m); };
+  hb(0.75, 0.7, 1.15, TW.x, 0.75, TW.z, () => showTypewriter());
+  hb(0.12, 0.9, 1.22, -4.93, 1.55, 4.35, () => showTypewriter());
+  hb(0.9, 1.2, 1.2, -4.5, 0.75, 1.45, () => showComputer());
+  hb(0.6, 2.6, 2.25, -4.75, 1.3, -0.5, () => showShelf());
+  hb(1.3, 1.35, 0.7, 4.3, 0.63, -0.6, () => { if (!radio.on) setRadio(true, radio.st, firstCap(visitorRef())); else if (radio.st < 4) setRadio(true, radio.st + 1, firstCap(visitorRef())); else setRadio(false, null, firstCap(visitorRef())); toast(radio.on ? `📻 ${radio.st + 1} · ${RADIO_STATIONS[radio.st]}` : '📻 Radio off'); });
+  const rc = new THREE.Raycaster(), nd = new THREE.Vector2(); let down = null;
+  renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId }; });
+  renderer.domElement.addEventListener('pointerup', e => {
+    if (!down || down.id !== e.pointerId) return; const d0 = down; down = null;
+    if (Math.hypot(e.clientX - d0.x, e.clientY - d0.y) > 10 || performance.now() - d0.t > 600) return;
+    const r = renderer.domElement.getBoundingClientRect(); nd.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    rc.setFromCamera(nd, camera);
+    const shelfHit = rc.intersectObjects(shelfGroup.children, false)[0];
+    if (shelfHit) { showShelf(shelfHit.object.userData.book); return; }
+    const h = rc.intersectObjects(hits, false)[0]; if (h) h.object.userData.act();
+  });
+}
+/* ---------- Study shelf panel */
+function renderLibrary() {
+  const ul = $('#libList'); if (!ul) return; ul.innerHTML = '';
+  for (const x of library) {
+    const n = chaptersOf(x).length, li = el('li');
+    li.append(el('div', '', x.title), el('div', 'meta', `${x.src === 'wikibooks' ? 'Wikibooks' : x.src === 'text' ? 'your text' : 'Wikipedia'} · Pip ${Math.min(x.read.Pip, n)}/${n} · Moss ${Math.min(x.read.Moss, n)}/${n}`));
+    const bt = el('div', 'mbtns'), op = el('button', '', 'Chapters'), rm = el('button', '', 'Remove'); op.type = rm.type = 'button';
+    op.onclick = () => showBook(x);
+    rm.onclick = () => { if (!rm.dataset.sure) { rm.dataset.sure = 1; rm.textContent = 'Tap again'; setTimeout(() => { delete rm.dataset.sure; rm.textContent = 'Remove'; }, 3000); return; } library = library.filter(y => y !== x); saveLibrary(); toast('Book removed from the shelf'); };
+    bt.append(op, rm); li.append(bt); ul.append(li);
+  }
+}
+$('#libAdd').onclick = async () => {
+  const title = $('#libTitle').value.trim(), raw = $('#libPages').value.trim();
+  if (!title || !raw) { toast('Give the book a title and say what is in it'); return; }
+  if (library.length >= 40) { toast('The shelf is full'); return; }
+  const id = library.reduce((m, b) => Math.max(m, b.id), 0) + 1, cols = ['#3f7fbf', '#b8475a', '#e8a33d', '#4f8f4a', '#8c5ab8', '#d96c3b', '#5cc8b4'];
+  const wb = raw.match(/^wikibooks?\s*:\s*(.+)$/i);
+  const b = wb ? { id, title, src: 'wikibooks', book: wb[1].trim(), pages: [], color: cols[id % cols.length], read: {}, by: 'visitor' } : { id, title, src: 'wiki', pages: raw.split(/\n|;/).map(x => x.trim()).filter(Boolean).slice(0, 40), color: cols[id % cols.length], read: {}, by: 'visitor' };
+  library.push(cleanLibrary([b])[0]); saveLibrary(); $('#libTitle').value = ''; $('#libPages').value = '';
+  toast(`“${title}” is on the shelf`);
+};
+$('#libFileBtn').onclick = () => $('#libFile').click();
+$('#libFile').onchange = async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+  if (f.size > 4e6) { toast('That file is too big (4 MB at most)'); return; }
+  let t = await f.text(); if (/\.html?$/i.test(f.name)) t = new DOMParser().parseFromString(t, 'text/html').body.textContent || '';
+  const parts = []; const sents = chunkText(t, 2800); for (const x of sents) parts.push(x);
+  if (!parts.length) { toast("Couldn't find any text in that file"); return; }
+  const id = library.reduce((m, b) => Math.max(m, b.id), 0) + 1, title = ($('#libTitle').value.trim() || f.name.replace(/\.[a-z0-9]+$/i, '')).slice(0, 60);
+  await DB.set('booktext_' + id, parts.slice(0, 120));
+  library.push(cleanLibrary([{ id, title, src: 'text', pages: parts.slice(0, 120).map((_, i) => `Part ${i + 1}`), color: '#c0392b', read: {}, by: 'visitor' }])[0]); saveLibrary();
+  $('#libTitle').value = ''; toast(`“${title}” is on the shelf (${Math.min(120, parts.length)} parts)`);
+};
+$('#libPace').value = store.get('studyPace', 'some');
+$('#libPace').onchange = e => { store.set('studyPace', e.target.value); toast('Got it'); };
 $('#pjPolish').value = store.get('pjPolish', true) ? '1' : '0';
 $('#pjPolish').onchange = e => { store.set('pjPolish', e.target.value === '1'); toast(e.target.value === '1' ? 'They will critique and fix each draft first' : 'They will type their first drafts'); };
 $('#pjPace').value = store.get('pjPace', 'alt');
@@ -4504,21 +5014,17 @@ $('#pjvNoteAdd').onclick = () => {
 $('#pjvCopy').onclick = async () => { const p = projects.find(x => x.id === pjOpen); if (!p) return; try { await navigator.clipboard.writeText(projectText(p)); toast('Copied'); } catch { toast('Copy was blocked. Try Save as a file'); } };
 $('#pjvExport').onclick = () => {
   const p = projects.find(x => x.id === pjOpen); if (!p) return;
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([projectText(p)], { type: 'text/markdown' }));
-  a.download = (p.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'project') + '.md';
-  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('Saved');
+  saveFile((p.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'project') + '.md', new Blob([projectText(p)], { type: 'text/markdown' })).then(ok => { if (ok && !FILES) toast('Saved'); });
 };
 $('#mexport').onclick = () => {
   const data = JSON.stringify({ app: 'two-minds-one-room', saved: new Date().toISOString(), visitorName, minds: Object.fromEntries(chars.map(c => [c.name, stripTok(c.mind)])), projects }, null, 1);
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = `pip-and-moss-memories-${today()}.json`;
-  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('Memories exported');
+  saveFile(`pip-and-moss-memories-${today()}.json`, new Blob([data], { type: 'application/json' })).then(ok => { if (ok && !FILES) toast('Memories exported'); });
 };
 $('#mtrain').onclick = async () => {
   const all = (await DB.get('train')) || [];
   if (!all.length) { toast('No training examples yet. Give their turns and pages a 👍'); return; }
   const jsonl = all.map(e => JSON.stringify({ messages: e.messages })).join('\n') + '\n';
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([jsonl], { type: 'application/jsonl' })); a.download = `pip-and-moss-training-${today()}.jsonl`;
-  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast(`${all.length} training examples saved`);
+  await saveFile(`pip-and-moss-training-${today()}.jsonl`, new Blob([jsonl], { type: 'application/jsonl' })); if (!FILES) toast(`${all.length} training examples saved`);
 };
 $('#mimportBtn').onclick = () => $('#mimport').click();
 $('#mimport').onchange = async e => {
@@ -4590,8 +5096,7 @@ $('#bwipe').onclick = () => {
 $('#bsave').onclick = () => {
   bcanvas.toBlob(bl => {
     if (!bl) { toast("Couldn't save the picture"); return; }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = 'two-minds-whiteboard.png'; document.body.append(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('Whiteboard picture saved');
+    saveFile('pip-and-moss-whiteboard.png', bl).then(ok => { if (ok && !FILES) toast('Whiteboard picture saved'); });
   }, 'image/png');
 };
 $('#bview').onclick = () => {
@@ -4623,8 +5128,10 @@ async function runLabAction(c, act) {
     if (msg) { logNote(msg); transcript.push({ who: 'Room', text: msg }); toast(msg, 4500); }
   } catch (e) { console.error(e); toast('That action failed: ' + e.message, 5000); }
 }
-renderMem(); loadMinds(); loadProjects();
-if (/[?&]debug\b/.test(location.search)) window.__pm = { THREE, camera, controls, scene, chars, renderer, doMusic, parseMusic, get CONSOLE() { return CONSOLE; } };   // for testing only
+renderMem(); loadMinds(); loadProjects(); loadLibrary(); loadBrowse();
+radio.st = Math.max(0, Math.min(4, +store.get('radioSt', 0) || 0)); drawRadioDial();
+if (store.get('radioOn', false)) { const resume = () => { window.removeEventListener('pointerdown', resume); if (!radio.on) setRadio(true, radio.st); }; window.addEventListener('pointerdown', resume); }
+if (/[?&]debug\b/.test(location.search)) window.__pm = { THREE, camera, controls, scene, chars, renderer, doMusic, parseMusic, setRadio, radio, doStudy, showTypewriter, showComputer, showShelf, get library() { return library; }, get CONSOLE() { return CONSOLE; } };   // for testing only
 const engSel = $('#engine'); if (!LLAMA) engSel.querySelector('option[value=native]').remove(); engSel.value = aiBackend;
 engSel.onchange = async () => {
   aiBackend = engSel.value; store.set('engine', aiBackend); running = false; await unloadAll(); loadedKey = '';
