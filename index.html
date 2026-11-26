@@ -74,7 +74,7 @@ form.nudge{display:flex;gap:8px}form.nudge input{flex:1}
   <div id="stage">
     <div id="bubbles"></div>
     <div class="eyelab" style="left:8px;--c:var(--pip)"><span>Pip's eyes</span></div><div class="eyelab" style="right:8px;--c:var(--moss)"><span>Moss's eyes</span></div>
-    <div id="crash" hidden><p><b>The 3D view stopped.</b> The phone ran out of graphics memory, which can happen when both AI models are loaded. Lite graphics are now switched on to use less memory. The models are saved on your phone, so reloading is quick.</p><button class="primary" id="reload">Reload</button></div>
+    <div id="crash" hidden><p id="crashmsg"><b>The 3D view stopped.</b> Chrome's graphics memory ran out, so it restarted its graphics process. I've switched on the memory-saving settings (Lite graphics, one AI mind loaded at a time). Tap Reload. If the room stays empty after reloading, close Chrome completely (swipe it away in recent apps) and open the page again. The robots' memories are safe.</p><button class="primary" id="reload">Reload</button></div>
     <div id="title">Two Minds, One Room<small>Two free AI models share a cozy little room</small></div>
   </div>
   <aside id="panel">
@@ -95,6 +95,9 @@ form.nudge{display:flex;gap:8px}form.nudge input{flex:1}
     </form>
     <label class="pick">Pace
       <select id="spd"><option value="6000">Calm</option><option value="3000" selected>Normal</option><option value="1000">Quick</option></select>
+    </label>
+    <label class="pick">AI memory use
+      <select id="aimode"><option value="saver">Memory saver: one mind in graphics memory at a time (best for phones)</option><option value="fast">Fast: both minds loaded at once (needs a strong device)</option></select>
     </label>
     <label class="pick">Model storage
       <select id="cachemode"><option value="cache">Standard cache (default)</option><option value="indexeddb">IndexedDB (try if loading stalls)</option></select>
@@ -170,14 +173,23 @@ const bar = p => { progEl.style.display = 'block'; progEl.firstElementChild.styl
 
 /* ---------- Scene ---------- */
 const stage = $('#stage');
-const LITE = store.get('gfx', 'full') === 'lite';
-const renderer = new THREE.WebGLRenderer({ antialias: !LITE });
-renderer.setPixelRatio(Math.min(devicePixelRatio, LITE ? 1 : 1.5));
+const PHONE = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || (navigator.deviceMemory && navigator.deviceMemory <= 8);
+const LITE = store.get('gfx', PHONE ? 'lite' : 'full') === 'lite';
+let renderer, NO3D = false;
+try { renderer = new THREE.WebGLRenderer({ antialias: !LITE, powerPreference: 'default' }); }
+catch (e) {
+  // Chrome refuses new 3D contexts for a while after its graphics process has crashed. Keep the rest of the app alive.
+  console.error(e); NO3D = true;
+  const cv = document.createElement('canvas');
+  renderer = { domElement: cv, shadowMap: {}, setPixelRatio() {}, setSize() {}, render() {}, setViewport() {}, setScissor() {}, setScissorTest() {}, setAnimationLoop(fn) { const step = () => { fn(); requestAnimationFrame(step); }; requestAnimationFrame(step); } };
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, LITE ? 1 : PHONE ? 1.25 : 1.5));
 renderer.shadowMap.enabled = !LITE; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 stage.prepend(renderer.domElement);
-renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); store.set('gfx', 'lite'); $('#crash').hidden = false; toast('3D view stopped: out of graphics memory', 5000); });
+renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); store.set('gfx', 'lite'); store.set('aimode', 'saver'); store.set('eyes', false); $('#crash').hidden = false; toast('3D view stopped: out of graphics memory', 5000); });
+if (NO3D) { $('#crashmsg').innerHTML = "<b>Chrome has paused 3D graphics for this page.</b> It does this for a while after its graphics process crashes. To reset it, close Chrome completely (swipe it away in your recent apps), then open this page again. The robots' memories are safe."; $('#crash').hidden = false; }
 renderer.domElement.addEventListener('webglcontextrestored', () => { $('#crash').hidden = true; toast('3D view recovered'); });
 $('#reload').onclick = () => location.reload();
 const scene = new THREE.Scene(); scene.background = new THREE.Color(0x140d19);
@@ -196,8 +208,9 @@ scene.add(key);
 
 const mats = {};
 function mat(c, o = {}) { const k = c + JSON.stringify(o); return mats[k] || (mats[k] = new THREE.MeshStandardMaterial({ color: c, roughness: .8, ...o })); }
+const GEO = {}; const geo = (k, make) => GEO[k] || (GEO[k] = make());
 function box(w, h, d, c, x, y, z, shadow = true) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c)); m.position.set(x, y + h / 2, z);
+  const m = new THREE.Mesh(geo(`b${w.toFixed(3)}_${h.toFixed(3)}_${d.toFixed(3)}`, () => new THREE.BoxGeometry(w, h, d)), mat(c)); m.position.set(x, y + h / 2, z);
   m.castShadow = shadow; m.receiveShadow = true; scene.add(m); return m;
 }
 function cyl(rt, rb, h, c, x, y, z, seg = 20, o) {
@@ -248,7 +261,7 @@ box(0.5, 2.6, 0.06, 0x5a3524, -4.75, 0, -1.57); box(0.5, 2.6, 0.06, 0x5a3524, -4
 const bookCols = [0xb8475a, 0xe8a33d, 0x3f7fbf, 0x5cc8b4, 0x8c5ab8, 0xf3e3c8, 0x4f8f4a, 0xd96c3b];
 [0, 0.65, 1.3, 1.95].forEach((h, s) => {
   box(0.5, 0.05, 2.2, 0x5a3524, -4.75, h, -0.5);
-  let z = -1.5; while (z < 0.45) { const w = 0.07 + Math.random() * 0.07, bh = 0.32 + Math.random() * 0.22; if (Math.random() > .12) box(0.34, bh, w, bookCols[(Math.random() * 8) | 0], -4.78, h + 0.05, z + w / 2); z += w + 0.01; }
+  let z = -1.5; while (z < 0.45) { const w = Math.round((0.07 + Math.random() * 0.07) * 50) / 50, bh = Math.round((0.32 + Math.random() * 0.22) * 20) / 20; if (Math.random() > .12) box(0.34, bh, w, bookCols[(Math.random() * 8) | 0], -4.78, h + 0.05, z + w / 2); z += w + 0.01; }
 });
 box(0.5, 0.05, 2.2, 0x5a3524, -4.75, 2.55, -0.5);
 // plant
@@ -699,8 +712,8 @@ function buildRobot(c) {
   const g = new THREE.Group(); scene.add(g); c.g = g;
   const mesh = (geo, m, par, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; par.add(o); return o; };
   const J = (par, name, x, y, z, rest = { x: 0, y: 0, z: 0 }) => { const o = new THREE.Group(); o.position.set(x, y, z); par.add(o); c.j[name] = { o, cur: { x: 0, y: 0, z: 0 }, rest }; return o; };
-  const limb = (par, len, r, m) => mesh(new THREE.CapsuleGeometry(r, Math.max(.001, len - 2 * r), 4, 10), m, par, 0, -len / 2, 0);
-  const ball = (par, r) => mesh(new THREE.SphereGeometry(r, 14, 10), trim, par);
+  const limb = (par, len, r, m) => mesh(geo(`c${r}_${len}`, () => new THREE.CapsuleGeometry(r, Math.max(.001, len - 2 * r), 3, 8)), m, par, 0, -len / 2, 0);
+  const ball = (par, r) => mesh(geo(`s${r}`, () => new THREE.SphereGeometry(r, 12, 8)), trim, par);
   const mark = (par, x, y, z, butt) => { const o = new THREE.Object3D(); o.position.set(x, y, z); o.userData.butt = !!butt; par.add(o); c.contacts.push(o); return o; };
   // pelvis + torso
   mesh(new THREE.BoxGeometry(.3, .14, .19), body, g); mark(g, 0, -.09, -.06, true);
@@ -856,7 +869,7 @@ function memoryBlock(c, o, query) {
   if (likes.length) parts.push(`${firstCap(visitorRef())} seems to enjoy: ${likes.join(', ')}.`);
   if (dislikes.length) parts.push(`They seem less keen on: ${dislikes.join(', ')}.`);
   if (md.skills.length) parts.push('Moves you have learned (write the name as your POSE): ' + md.skills.map(s => s.name).join(', ') + '.');
-  let out = parts.join('\n'); if (out.length > 1800) out = out.slice(0, 1800) + '…';
+  let out = parts.join('\n'); if (out.length > 1300) out = out.slice(0, 1300) + '…';
   return out + '\n\n';
 }
 const skillList = c => c.mind.skills.length ? ', ' + c.mind.skills.map(s => s.name).join(', ') : '';
@@ -866,7 +879,7 @@ function findSkill(c, raw) {
 }
 async function askRaw(c, sys, user, max = 60) {
   if (mode !== 'ai' || !c.engine) return null;
-  try { const r = await c.engine.chat.completions.create({ model: c.modelId, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], max_tokens: max, temperature: 0.7 }); return r.choices?.[0]?.message?.content || null; }
+  try { const r = await withMind(c, () => c.engine.chat.completions.create({ model: c.modelId, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], max_tokens: max, temperature: 0.7 })); return r.choices?.[0]?.message?.content || null; }
   catch (e) { console.warn(e); return null; }
 }
 async function ask(c, sys, user, max = 60) {
@@ -1063,10 +1076,10 @@ function thinking(c, on) {
   else c.bub.classList.remove('thinking');
 }
 
-let camTw = null, boardView = false;
+let camTw = null, boardView = false, lastDraw = 0, aiBusy = 0;
 const eyeCams = chars.map(() => new THREE.PerspectiveCamera(80, 4 / 3, 0.05, 30));
 const FLIP = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
-let eyesOn = !!store.get('eyes', !LITE);
+let eyesOn = !!store.get('eyes', !LITE && !PHONE);
 renderer.shadowMap.autoUpdate = false;
 const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
@@ -1078,6 +1091,9 @@ renderer.setAnimationLoop(() => {
   lampLight.intensity = 4 + Math.sin(t * 13) * 0.08;
   if (camTw) { camTw.t = Math.min(1, camTw.t + dt / .9); const e = camTw.t * camTw.t * (3 - 2 * camTw.t); camera.position.lerpVectors(camTw.fp, camTw.tp, e); controls.target.lerpVectors(camTw.ft, camTw.tt, e); if (camTw.t >= 1) camTw = null; }
   controls.update();
+  const nowMs = performance.now();
+  if (nowMs - lastDraw < (aiBusy ? 125 : 33)) { placeLabels(); return; }
+  lastDraw = nowMs;
   const w = stage.clientWidth, h = stage.clientHeight;
   renderer.shadowMap.needsUpdate = true;
   renderer.setScissorTest(false); renderer.setViewport(0, 0, w, h); renderer.render(scene, camera);
@@ -1856,7 +1872,8 @@ ${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}Your turn, ${c.n
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
 }
 async function aiDecide(c, o) {
-  const r = await c.engine.chat.completions.create({ model: c.modelId, messages: buildMsgs(c, o), max_tokens: 220, temperature: 0.85, top_p: 0.9 });
+  const msgs = buildMsgs(c, o);
+  const r = await withMind(c, () => c.engine.chat.completions.create({ model: c.modelId, messages: msgs, max_tokens: 200, temperature: 0.85, top_p: 0.9 }));
   const txt = r.choices?.[0]?.message?.content || '';
   const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; if (!p.pose) p.skill = findSkill(c, p.poseRaw); return p;
 }
@@ -2095,6 +2112,18 @@ async function initAI() {
   goBtn.disabled = false;
   status(`${list.length} free models available. The first start downloads both (sizes shown) and caches them on this device, so later visits load fast and work offline.`);
 }
+const CHAT_OPTS = { context_window_size: 2048, prefill_chunk_size: 256 };
+let aiMode = store.get('aimode', PHONE ? 'saver' : 'fast'), curModel = null, gpuQueue = Promise.resolve();
+async function useMind(c) {
+  if (aiMode !== 'saver' || curModel === c.modelId) return;
+  const t0 = performance.now(); status(`Waking up ${c.name}'s mind…`);
+  await c.engine.reload(c.modelId, CHAT_OPTS); curModel = c.modelId;
+  status(`${c.name}'s mind is awake (${((performance.now() - t0) / 1000).toFixed(1)} s to switch).`);
+}
+function withMind(c, fn) {
+  const run = gpuQueue.then(async () => { aiBusy++; try { await useMind(c); return await fn(); } finally { aiBusy--; } });
+  gpuQueue = run.catch(() => {}); return run;
+}
 async function unloadAll() {
   const seen = new Set();
   for (const c of chars) if (c.engine && !seen.has(c.engine)) { seen.add(c.engine); try { await c.engine.unload(); } catch {} }
@@ -2121,7 +2150,7 @@ goBtn.onclick = async () => {
   if (!webllm || !a || !b) { toast("AI models aren't available here. Try the scripted demo."); return; }
   if (a === b) { toast('Pick two different models so each robot has its own mind'); return; }
   store.set('mA', a); store.set('mB', b);
-  if (loadedKey !== a + '|' + b) {
+  if (loadedKey !== a + '|' + b + '|' + aiMode) {
     running = false; goBtn.disabled = selA.disabled = selB.disabled = true; bar(0);
     await unloadAll();
     status('Checking the model server…');
@@ -2146,24 +2175,29 @@ goBtn.onclick = async () => {
       }
     }, 1000);
     try {
+      curModel = null;
       for (let i = 0; i < 2; i++) {
         label = `Loading ${chars[i].name}'s mind (${i + 1} of 2)`; lastP = -1; lastT = performance.now(); txt = 'starting'; tick();
+        if (aiMode === 'saver' && i === 1) {   // one engine: download Moss's model too, then keep only one in memory at a time
+          chars[0].engine.setInitProgressCallback && chars[0].engine.setInitProgressCallback(r => { if (r.progress !== lastP) { lastP = r.progress; lastT = performance.now(); warned = false; } txt = String(r.text || '').replace(/\s+/g, ' ').slice(0, 90); bar((1 + (r.progress || 0)) / 2); tick(); });
+          await chars[0].engine.reload(b, CHAT_OPTS); chars[1].engine = chars[0].engine; curModel = b; break;
+        }
         chars[i].engine = await webllm.CreateMLCEngine([a, b][i], {
           appConfig,
           initProgressCallback: r => {
             if (r.progress !== lastP) { lastP = r.progress; lastT = performance.now(); warned = false; }
             txt = String(r.text || '').replace(/\s+/g, ' ').slice(0, 90); bar((i + (r.progress || 0)) / 2); tick();
           }
-        }, { context_window_size: 3072, prefill_chunk_size: 512 });
+        }, CHAT_OPTS);
       }
     } catch (e) {
       clearInterval(watch); console.error(e); await unloadAll();
       loadFail('Model load failed: ' + (e && e.message ? e.message : e) + '. Try smaller models, or switch Model storage.');
       return;
     }
-    clearInterval(watch); chars[0].modelId = a; chars[1].modelId = b; loadedKey = a + '|' + b;
+    clearInterval(watch); chars[0].modelId = a; chars[1].modelId = b; loadedKey = a + '|' + b + '|' + aiMode; if (aiMode !== 'saver') curModel = null;
     goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none';
-    status('Both minds loaded and saved on this phone. Drag the scene to look around.'); toast('Both minds loaded!');
+    status(aiMode === 'saver' ? 'Both minds downloaded. Memory saver is on, so each mind wakes up for its turn (a few seconds each).' : 'Both minds loaded. Drag the scene to look around.'); toast('Both minds ready!');
   }
   toast('Two minds, one room. Here we go!'); begin('ai');
 };
@@ -2314,6 +2348,8 @@ async function runLabAction(c, act) {
   } catch (e) { console.error(e); toast('That action failed: ' + e.message, 5000); }
 }
 renderMem(); loadMinds();
+const aiSel = $('#aimode'); aiSel.value = aiMode;
+aiSel.onchange = () => { aiMode = aiSel.value; store.set('aimode', aiMode); toast(aiMode === 'saver' ? 'Memory saver on. Tap Start with AI to apply' : 'Fast mode on. Tap Start with AI to apply'); };
 const gfxSel = $('#gfx'); gfxSel.value = LITE ? 'lite' : 'full';
 gfxSel.onchange = () => { store.set('gfx', gfxSel.value); toast('Reloading to apply the graphics setting…'); setTimeout(() => location.reload(), 900); };
 const eyesSel = $('#eyes'); eyesSel.value = eyesOn ? '1' : '0'; stage.classList.toggle('eyes-off', !eyesOn);
