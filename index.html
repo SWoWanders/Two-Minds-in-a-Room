@@ -43,6 +43,7 @@ button:disabled{opacity:.45;cursor:default}
 .memcard{background:var(--panel);border-left:4px solid var(--c);border-radius:10px;padding:8px 10px;margin-top:8px}
 .memcard b{color:var(--c)}.memcard ul{margin:2px 0 8px;padding-left:18px;font-size:13px}.memcard li.empty{color:var(--dim);list-style:none;margin-left:-18px}
 #memin{min-height:52px}
+.entry a.src{display:inline-block;margin-top:4px;color:#6cff8a;font-size:13px;min-height:24px}
 .entry .joints{font:12px/1.4 ui-monospace,Menlo,monospace;color:#e9d8b4;margin-top:3px;overflow-wrap:anywhere}
 form.lab{display:flex;flex-direction:column;gap:8px;margin-top:8px}form.lab input{width:100%}
 .entry{background:#1d1424;border-radius:10px;padding:8px 10px;border-left:4px solid var(--c,var(--accent))}
@@ -242,6 +243,36 @@ box(1.1, 0.65, 0.22, 0x24604f, 3.6, 0, 1.0); box(1.1, 0.65, 0.22, 0x24604f, 3.6,
 // door
 box(0.1, 2.4, 1.3, 0xf3e3c8, -4.97, 0, 3, false); box(0.08, 2.25, 1.1, 0x8a4b2a, -4.93, 0, 3, false);
 const knob = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), mat(0xe8c060, { metalness: .8, roughness: .3 })); knob.position.set(-4.86, 1.05, 3.4); scene.add(knob);
+// computer desk (real internet terminal)
+box(0.7, 0.06, 1.3, 0x8a5a36, -4.62, 0.72, 1.45);
+for (const [dx, dz] of [[-.28, -.58], [.28, -.58], [-.28, .58], [.28, .58]]) box(0.05, 0.72, 0.05, 0x5a3524, -4.62 + dx, 0, 1.45 + dz);
+box(0.5, 0.42, 0.52, 0xd9cfb4, -4.72, 0.78, 1.45);
+box(0.08, 0.06, 0.3, 0xc9bfa4, -4.42, 0.78, 1.45);
+box(0.22, 0.025, 0.5, 0xd9cfb4, -4.3, 0.78, 1.45);
+const scrCanvas = document.createElement('canvas'); scrCanvas.width = 512; scrCanvas.height = 384;
+const scrTex = new THREE.CanvasTexture(scrCanvas); scrTex.colorSpace = THREE.SRGBColorSpace;
+const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.315), new THREE.MeshBasicMaterial({ map: scrTex }));
+scr.position.set(-4.465, 0.99, 1.45); scr.rotation.y = Math.PI / 2; scene.add(scr);
+const scrLight = new THREE.PointLight(0x6cff8a, 0.8, 2.2, 1.5); scrLight.position.set(-4.2, 1.0, 1.45); scene.add(scrLight);
+function wrapText(str, n) {
+  const out = []; for (const para of String(str).split('\n')) {
+    let ln = ''; for (const w of para.split(/\s+/)) { if ((ln + ' ' + w).trim().length > n) { if (ln) out.push(ln); ln = w.slice(0, n); } else ln = (ln + ' ' + w).trim(); }
+    out.push(ln);
+  } return out;
+}
+function screen(lines, img) {
+  const g = scrCanvas.getContext('2d'), W = 512, H = 384;
+  g.fillStyle = '#061006'; g.fillRect(0, 0, W, H);
+  const cols = img ? 24 : 38, all = [];
+  for (const l of lines) all.push(...wrapText(l, cols));
+  g.font = '20px ui-monospace, Menlo, Consolas, monospace'; g.fillStyle = '#6cff8a'; g.shadowColor = '#6cff8a'; g.shadowBlur = 6;
+  all.slice(0, 15).forEach((l, i) => g.fillText(l, 14, 30 + i * 23));
+  g.shadowBlur = 0;
+  if (img) { try { const s = 190, r = Math.min(s / img.width, s / img.height); g.drawImage(img, W - 14 - img.width * r, 40, img.width * r, img.height * r); } catch {} }
+  g.fillStyle = 'rgba(0,0,0,.25)'; for (let y = 0; y < H; y += 3) g.fillRect(0, y, W, 1);
+  scrTex.needsUpdate = true;
+}
+screen(['SWOW-NET TERMINAL', '', 'REAL INTERNET (READ-ONLY)', '', 'search  weather  books', 'archive  onthisday', '', 'READY. >_']);
 
 
 /* ---------- Places ---------- */
@@ -255,7 +286,8 @@ const PLACES = [
   { key: 'radio', label: 'radio', alias: ['music', 'song'], pos: [4.0, -3.4], look: [4.2, -4.5], side: [1, 0] },
   { key: 'armchair', label: 'armchair', alias: ['chair'], pos: [3.55, 1.6], look: [0, 1.6], side: [0, 1], spread: 0.22, sit: 0.45 },
   { key: 'rug', label: 'rug', alias: ['middle', 'centre', 'center', 'floor'], pos: [1.5, 1.0], look: [8, 9], side: [1, 0], spread: 0.75 },
-  { key: 'door', label: 'door', alias: ['exit'], pos: [-4.0, 3.0], look: [-5, 3], side: [0, 1] }
+  { key: 'door', label: 'door', alias: ['exit'], pos: [-4.0, 3.0], look: [-5, 3], side: [0, 1] },
+  { key: 'computer', label: 'computer', alias: ['terminal', 'desk', 'screen', 'internet'], pos: [-3.85, 1.45], look: [-5, 1.45], side: [0, 1], spread: 0.32 }
 ];
 const byKey = k => PLACES.find(p => p.key === k);
 function findPlace(str) {
@@ -407,6 +439,7 @@ const ANIMS = {
   clap: (m, t) => { const c = 0.5 + 0.5 * Math.sin(t * 12); A(m, `SHOULDER raise 80, SHOULDER spread ${fx(-22 + 28 * c)}, ELBOW bend 25, HAND open`); },
   nod: (m, t) => { A(m, `HEAD nod ${fx(12 + 14 * Math.sin(t * 8))}`); },
   shake: (m, t) => { A(m, `HEAD turn ${fx(35 * Math.sin(t * 7))}`); },
+  type: (m, t) => { const k = i => fx(25 + 35 * Math.max(0, Math.sin(t * 14 + i))); A(m, `SHOULDER raise 48, SHOULDER spread -6, ELBOW bend 80, WRIST flex -12, HEAD nod 18, L_INDEX curl ${k(0)}, R_INDEX curl ${k(1.6)}, L_MIDDLE curl ${k(3.1)}, R_MIDDLE curl ${k(4.4)}, HAND open`); },
   jump: (m, t) => { const s = Math.sin(t * 5), k = s < 0 ? -s * 75 : 8; A(m, `HIP raise ${fx(k * .75)}, KNEE bend ${fx(k)}, ANKLE flex ${fx(s < 0 ? -s * 15 : -25)}, SHOULDER spread ${s > 0 ? 150 : 25}, ELBOW bend 20`); return s > 0 ? s * 0.35 : 0; }
 };
 const POSE_NAMES = [...Object.keys(POSES), ...Object.keys(ANIMS)];
@@ -418,7 +451,23 @@ function findPose(str) {
   const s = (str || '').toLowerCase().replace(/[\s_-]/g, '');
   return [...POSE_NAMES].sort((a, b) => b.length - a.length).find(n => s.includes(n)) || null;
 }
-/* Parse a model reply: GO / POSE / MOVE / SAY lines */
+const COMMANDS = ['search', 'weather', 'books', 'archive', 'onthisday'];
+const CSYN = { look: 'search', lookup: 'search', wiki: 'search', wikipedia: 'search', google: 'search', find: 'search', research: 'search', book: 'books', library: 'books', forecast: 'weather', history: 'onthisday', today: 'onthisday', internetarchive: 'archive' };
+function parseComputer(s) {
+  if (!s) return null;
+  s = String(s).replace(/[*"`<>]/g, '').replace(/\s+/g, ' ').trim();
+  if (!s || /^(none|no|nothing|n\/a|-)\b/i.test(s)) return null;
+  if (/^on\s*this\s*day/i.test(s)) return { cmd: 'onthisday', arg: '' };
+  const m = s.match(/^([A-Za-z]+)\s*(.*)$/); if (!m) return null;
+  let cmd = m[1].toLowerCase(), arg = (m[2] || '').trim();
+  cmd = CSYN[cmd] || cmd;
+  if (!COMMANDS.includes(cmd)) { arg = s; cmd = 'search'; }
+  arg = arg.replace(/^(up|for|about)\s+/i, '').replace(/[.?!]+$/, '').slice(0, 60).trim();
+  if (cmd === 'onthisday') arg = '';
+  if (!arg && cmd !== 'onthisday' && cmd !== 'weather') return null;
+  return { cmd, arg };
+}
+/* Parse a model reply: GO / POSE / MOVE / COMPUTER / SAY lines */
 function parseReply(txt, myName, otherName, placeFinder) {
   const line = k => { const m = txt.match(new RegExp('^\\s*\\**' + k + '\\**\\s*[:\\-]\\s*(.*)$', 'im')); return m ? m[1].replace(/^\*+\s*/, '').trim() : undefined; };
   const g = line('GO'), p = line('POSE'), mv = line('MOVES?');
@@ -426,10 +475,10 @@ function parseReply(txt, myName, otherName, placeFinder) {
   const place = g !== undefined ? placeFinder(g) : null;
   const pose = p !== undefined ? findPose(p) : null;
   const moves = (mv || '').split(/[,;]|\band\b/i).map(x => x.trim()).filter(x => x && !/^none$/i.test(x)).slice(0, 14);
-  if (say === undefined) say = (txt.split('\n').map(x => x.trim()).find(x => x && !/^\**(go|pose|moves?)\**\s*[:\-]/i.test(x)) || '');
+  if (say === undefined) say = (txt.split('\n').map(x => x.trim()).find(x => x && !/^\**(go|pose|moves?|computer)\**\s*[:\-]/i.test(x)) || '');
   say = say.replace(new RegExp('^(' + myName + '|' + otherName + ')\\s*:\\s*', 'i'), '').replace(/[*_#`]/g, '').replace(/^["'“”]+|["'“”]+$/g, '').trim();
   if (say.length > 160) { const cut = say.slice(0, 160); const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? ')); say = end > 40 ? cut.slice(0, end + 1) : cut.trim() + '…'; }
-  return { place: place ? place.key : null, pose, poseRaw: p || '', moves, say: say || 'Hmm.' };
+  return { place: place ? place.key : null, pose, poseRaw: p || '', moves, computer: parseComputer(line('COMPUTER')), say: say || 'Hmm.' };
 }
 /*PURE-END*/
 
@@ -680,14 +729,17 @@ Reply in exactly this format and nothing else:
 GO: <place or stay>
 POSE: <pose or none>
 MOVE: <joint commands separated by commas, or none>
+COMPUTER: <computer command, or none>
 SAY: <sentence>
 Places: ${PLACES.map(p => p.key).join(', ')}, stay.
 Poses: ${POSE_NAMES.join(', ')}${skillList(c)}, none.
+There is a computer in the room with real internet. Computer commands: search <topic> (Wikipedia), weather <city>, books <topic>, archive <topic> (Internet Archive), onthisday. Use it when you are curious about something real; you will walk over and use it. Otherwise write none.
 Joint commands are JOINT verb degrees. Put L_ or R_ before arm, leg, hand and finger joints for left or right. ${JOINT_HELP}.
 Example:
 GO: window
 POSE: none
 MOVE: R_SHOULDER raise 120, R_ELBOW bend 20, R_HAND point, HEAD nod -20, L_HAND fist
+COMPUTER: none
 SAY: Look, ${o.name}, a shooting star over the rooftops!`;
   const last = transcript.slice(-6).map(l => `${l.who}: ${l.text}`).join('\n') || '(nobody has spoken yet)';
   const ev = events.filter(e => e.left > 0).map(e => { e.left--; return e.text; }).join(' ');
@@ -695,11 +747,11 @@ SAY: Look, ${o.name}, a shooting star over the rooftops!`;
   const user = `${memoryBlock(c)}You are at the ${c.place.label}${c.seatH ? ' (sitting)' : ''}. ${o.name} is at the ${o.place.label}.
 Recent conversation:
 ${last}
-${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}Your turn, ${c.name}. Answer with the GO, POSE, MOVE and SAY lines.`;
+${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, COMPUTER and SAY lines.`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
 }
 async function aiDecide(c, o) {
-  const r = await c.engine.chat.completions.create({ model: c.modelId, messages: buildMsgs(c, o), max_tokens: 130, temperature: 0.85, top_p: 0.9 });
+  const r = await c.engine.chat.completions.create({ model: c.modelId, messages: buildMsgs(c, o), max_tokens: 150, temperature: 0.85, top_p: 0.9 });
   const txt = r.choices?.[0]?.message?.content || '';
   const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; if (!p.pose) p.skill = findSkill(c, p.poseRaw); return p;
 }
@@ -716,9 +768,12 @@ function scriptDecide(c, o) {
   const moves = []; for (let n = (Math.random() * 3) | 0; n > 0; n--) moves.push(EXTRA[(Math.random() * EXTRA.length) | 0]);
   const line = ev ? `Did you see that, ${o.name}? ${ev.text.replace(/\.$/, '')}!` : LINES[c.i][(Math.random() * LINES[c.i].length) | 0];
   const sk = c.mem.skills.length && Math.random() < 0.35 ? c.mem.skills[(Math.random() * c.mem.skills.length) | 0].name : null;
-  return { place, pose: sk ? null : pose, skill: sk, moves: sk ? [] : moves, say: line, scripted: true };
+  const NET = [['search theremin', 'onthisday', 'weather Ottawa', 'archive robot cartoons', 'search tiki bar'], ['search ferns', 'books gardening', 'weather Ottawa', 'search green tea', 'onthisday']];
+  const computer = !ev && Math.random() < 0.2 ? parseComputer(NET[c.i][(Math.random() * NET[c.i].length) | 0]) : null;
+  return { place: computer ? 'computer' : place, pose: sk ? null : pose, skill: sk, moves: sk ? [] : moves, computer, say: computer ? 'Let me check the computer.' : line, scripted: true };
 }
 function apply(c, res) {
+  if (res.computer) res.place = 'computer';
   if (res.skill) { const sk = c.mem.skills.find(s => s.name === res.skill); if (sk) { res.pose = res.pose || sk.pose; res.moves = [...sk.moves, ...(res.moves || [])]; } else res.skill = null; }
   const p = res.place ? byKey(res.place) : null;
   res.moved = !!(p && p !== c.place);
@@ -752,6 +807,95 @@ function logNote(text) {
   const s = document.createElement('span'); s.textContent = text; d.append(b, s); logEl.prepend(d);
 }
 
+/* ---------- The computer: real, read-only internet lookups ---------- */
+const netCache = new Map(); let netLast = 0, netUses = [];
+async function getJSON(url, ms = 10000) {
+  const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), ms);
+  try { const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw new Error('server said ' + r.status); return await r.json(); }
+  catch (e) { throw new Error(e.name === 'AbortError' ? 'timed out' : e.message || 'no connection'); }
+  finally { clearTimeout(tm); }
+}
+function loadImg(url) {
+  return new Promise(res => {
+    if (!url) return res(null);
+    const im = new Image(); im.crossOrigin = 'anonymous'; const tm = setTimeout(() => res(null), 8000);
+    im.onload = () => { clearTimeout(tm); res(im); }; im.onerror = () => { clearTimeout(tm); res(null); }; im.src = url;
+  });
+}
+const enc = encodeURIComponent;
+function wmo(c) {
+  if (c === 0) return 'clear sky'; if (c <= 2) return 'partly cloudy'; if (c === 3) return 'overcast'; if (c <= 48) return 'fog';
+  if (c <= 57) return 'drizzle'; if (c <= 67) return 'rain'; if (c <= 77) return 'snow'; if (c <= 82) return 'rain showers';
+  if (c <= 86) return 'snow showers'; return 'thunderstorms';
+}
+const TOOLS = {
+  async search(q) {
+    const s = await getJSON(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${enc(q)}&srlimit=1&format=json&origin=*`);
+    const hit = s && s.query && s.query.search && s.query.search[0];
+    if (!hit) return { lines: ['NO RESULTS FOR', q], text: `Wikipedia had nothing on "${q}".` };
+    const sum = await getJSON(`https://en.wikipedia.org/api/rest_v1/page/summary/${enc(hit.title.replace(/ /g, '_'))}`);
+    const ex = trimTxt(sum.extract || '', 330);
+    return { lines: ['WIKIPEDIA: ' + (sum.title || hit.title).toUpperCase(), '', ex], text: `Wikipedia, "${sum.title || hit.title}": ${ex}`,
+      img: sum.thumbnail && sum.thumbnail.source, link: sum.content_urls && sum.content_urls.desktop && sum.content_urls.desktop.page };
+  },
+  async weather(q) {
+    const city = q || 'Ottawa';
+    const geo = await getJSON(`https://geocoding-api.open-meteo.com/v1/search?name=${enc(city)}&count=1&language=en&format=json`);
+    const p = geo && geo.results && geo.results[0];
+    if (!p) return { lines: ['UNKNOWN PLACE:', city], text: `The computer couldn't find a place called ${city}.` };
+    const w = await getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${p.latitude}&longitude=${p.longitude}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`);
+    const c = w.current || {};
+    const t = `${p.name}${p.country ? ', ' + p.country : ''}: ${Math.round(c.temperature_2m)}°C (feels like ${Math.round(c.apparent_temperature)}°C), ${wmo(c.weather_code)}, wind ${Math.round(c.wind_speed_10m)} km/h.`;
+    return { lines: ['WEATHER NOW (OPEN-METEO)', '', t], text: 'Live weather for ' + t, link: 'https://open-meteo.com/' };
+  },
+  async books(q) {
+    const d = await getJSON(`https://openlibrary.org/search.json?q=${enc(q)}&limit=3&fields=title,author_name,first_publish_year,key`);
+    const docs = (d && d.docs) || [];
+    if (!docs.length) return { lines: ['NO BOOKS FOUND:', q], text: `Open Library had no books about "${q}".` };
+    const items = docs.map(b => `${b.title}${b.author_name ? ' by ' + b.author_name[0] : ''}${b.first_publish_year ? ' (' + b.first_publish_year + ')' : ''}`);
+    return { lines: ['OPEN LIBRARY: ' + q.toUpperCase(), '', ...items.map(x => '* ' + x)], text: `Books about "${q}": ${items.join('; ')}.`, link: `https://openlibrary.org/search?q=${enc(q)}` };
+  },
+  async archive(q) {
+    const d = await getJSON(`https://archive.org/advancedsearch.php?q=${enc(q)}&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=year&fl%5B%5D=mediatype&rows=3&output=json`);
+    const docs = (d && d.response && d.response.docs) || [];
+    if (!docs.length) return { lines: ['NOTHING IN THE ARCHIVE:', q], text: `The Internet Archive had nothing for "${q}".` };
+    const items = docs.map(x => `${trimTxt(x.title || x.identifier, 70)}${x.year ? ' (' + x.year + ')' : ''}${x.mediatype ? ' [' + x.mediatype + ']' : ''}`);
+    return { lines: ['INTERNET ARCHIVE: ' + q.toUpperCase(), '', ...items.map(x => '* ' + x)], text: `Internet Archive items for "${q}": ${items.join('; ')}.`,
+      img: `https://archive.org/services/img/${enc(docs[0].identifier)}`, link: `https://archive.org/details/${enc(docs[0].identifier)}` };
+  },
+  async onthisday() {
+    const n = new Date(), mm = String(n.getMonth() + 1).padStart(2, '0'), dd = String(n.getDate()).padStart(2, '0');
+    const d = await getJSON(`https://en.wikipedia.org/api/rest_v1/feed/onthisday/selected/${mm}/${dd}`);
+    const ev = ((d && d.selected) || []).sort(() => Math.random() - .5).slice(0, 2).map(e => `${e.year}: ${trimTxt(e.text, 120)}`);
+    if (!ev.length) return { lines: ['NO EVENTS FOUND'], text: 'The computer found no events for today.' };
+    return { lines: ['ON THIS DAY', '', ...ev], text: `On this day in history: ${ev.join(' Also, ')}`, link: `https://en.wikipedia.org/wiki/${n.toLocaleString('en', { month: 'long' })}_${n.getDate()}` };
+  }
+};
+async function useComputer(c, q) {
+  const now = Date.now(); netUses = netUses.filter(t => now - t < 3600e3);
+  const label = `> ${q.cmd}${q.arg ? ' ' + q.arg : ''}`;
+  if (now - netLast < 15000 || netUses.length >= 40) {
+    screen([label, '', 'BUSY. TRY AGAIN SOON.']); logNote(`${c.name} tried the computer, but it's resting for a moment (rate limit).`); return;
+  }
+  netLast = now; netUses.push(now);
+  c.anim = 'type'; c.animT = 30;
+  screen([label, '', 'CONNECTING…']);
+  const key = q.cmd + '|' + q.arg.toLowerCase();
+  let out;
+  try { out = netCache.get(key) || await TOOLS[q.cmd](q.arg); netCache.set(key, out); }
+  catch (e) { out = { lines: [label, '', 'ERROR: ' + e.message], text: `The computer couldn't get that (${e.message}).` }; }
+  const img = out.img ? await loadImg(out.img) : null;
+  c.animT = 1.5;
+  screen(out.lines[0] === label ? out.lines : [label, ...out.lines], img);
+  transcript.push({ who: 'Computer', text: `${c.name} looked up ${q.cmd === 'onthisday' ? 'this day in history' : `"${q.arg}" (${q.cmd})`}. Screen shows: ${out.text}` });
+  if (transcript.length > 30) transcript.shift();
+  const d = document.createElement('div'); d.className = 'entry'; d.style.setProperty('--c', '#6cff8a');
+  const b = document.createElement('b'); b.textContent = `${c.name} at the computer `; const cmd = document.createElement('span'); cmd.className = 'm'; cmd.textContent = label;
+  const p = document.createElement('div'); p.textContent = out.text; d.append(b, cmd, p);
+  if (out.link) { const a = document.createElement('a'); a.href = out.link; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Open source'; a.className = 'src'; d.append(a); }
+  logEl.prepend(d);
+}
+
 /* ---------- Loop ---------- */
 let aiFails = 0, running = false, busy = false, turn = 0, mode = null, loadedKey = '';
 const pauseBtn = $('#pause');
@@ -779,6 +923,7 @@ async function loop() {
     apply(c, res); turn++;
     const t0 = performance.now(); while (c.target && performance.now() - t0 < 9000) await sleep(100);
     await sleep(+$('#spd').value + (c.anim ? 1500 : 0));
+    if (res && res.computer && running) { await useComputer(c, res.computer); await sleep(1500); }
     if (++c.turns % 6 === 0 && running) await writeDiary(c, o);
   }
   busy = false;
