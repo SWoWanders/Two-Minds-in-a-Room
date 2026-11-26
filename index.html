@@ -21,6 +21,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
 .bubble.thinking{font-size:18px;letter-spacing:3px;padding:2px 14px;animation:pulse 1s infinite alternate}
 @keyframes pulse{from{opacity:.55}to{opacity:1}}
 .tag{position:absolute;transform:translate(-50%,0);font:600 12px Fredoka,sans-serif;padding:1px 8px;border-radius:9px;color:#1d1424;white-space:nowrap;opacity:.92}
+#crash{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:24px;background:#1d1424f2;z-index:3;text-align:center}#crash[hidden]{display:none}#crash p{margin:0 auto;max-width:420px}#crash button{align-self:center;padding:10px 28px}
 #title{position:absolute;left:12px;top:10px;font:600 20px Fredoka,sans-serif;text-shadow:0 2px 8px #000a;pointer-events:none}
 #title small{display:block;font:600 12px Nunito,sans-serif;color:var(--dim)}
 #panel{background:var(--panel);border-top:1px solid var(--line);overflow-y:auto;padding:14px 14px 70px;display:flex;flex-direction:column;gap:12px}
@@ -64,6 +65,7 @@ form.nudge{display:flex;gap:8px}form.nudge input{flex:1}
 <div id="app">
   <div id="stage">
     <div id="bubbles"></div>
+    <div id="crash" hidden><p><b>The 3D view stopped.</b> The phone ran out of graphics memory, which can happen when both AI models are loaded. Lite graphics are now switched on to use less memory. The models are saved on your phone, so reloading is quick.</p><button class="primary" id="reload">Reload</button></div>
     <div id="title">Two Minds, One Room<small>Two free AI models share a cozy little room</small></div>
   </div>
   <aside id="panel">
@@ -87,6 +89,9 @@ form.nudge{display:flex;gap:8px}form.nudge input{flex:1}
     </label>
     <label class="pick">Model storage
       <select id="cachemode"><option value="cache">Standard cache (default)</option><option value="indexeddb">IndexedDB (try if loading stalls)</option></select>
+    </label>
+    <label class="pick">Graphics
+      <select id="gfx"><option value="full">Full (shadows, smoother edges)</option><option value="lite">Lite (uses less memory)</option></select>
     </label>
     <details>
       <summary>Personalities</summary>
@@ -136,12 +141,16 @@ const bar = p => { progEl.style.display = 'block'; progEl.firstElementChild.styl
 
 /* ---------- Scene ---------- */
 const stage = $('#stage');
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const LITE = store.get('gfx', 'full') === 'lite';
+const renderer = new THREE.WebGLRenderer({ antialias: !LITE });
+renderer.setPixelRatio(Math.min(devicePixelRatio, LITE ? 1 : 1.5));
+renderer.shadowMap.enabled = !LITE; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 stage.prepend(renderer.domElement);
+renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); store.set('gfx', 'lite'); $('#crash').hidden = false; toast('3D view stopped: out of graphics memory', 5000); });
+renderer.domElement.addEventListener('webglcontextrestored', () => { $('#crash').hidden = true; toast('3D view recovered'); });
+$('#reload').onclick = () => location.reload();
 const scene = new THREE.Scene(); scene.background = new THREE.Color(0x140d19);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100); camera.position.set(7.5, 6.5, 9);
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -153,7 +162,7 @@ const ro = new ResizeObserver(resize); ro.observe(stage);
 
 scene.add(new THREE.HemisphereLight(0xffe2c4, 0x2a1838, 1.1));
 const key = new THREE.DirectionalLight(0xffd9b0, 1.4); key.position.set(5, 9, 4); key.castShadow = true;
-key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7 }); key.shadow.bias = -0.0005;
+key.shadow.mapSize.set(768, 768); Object.assign(key.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7 }); key.shadow.bias = -0.0005;
 scene.add(key);
 
 const mats = {};
@@ -468,7 +477,7 @@ function buildRobot(c) {
       let par = F === 'THUMB' ? J(wr, `${S}_THUMB1`, 0, -.03, .04, { x: -.55, y: 0, z: -.25 * sx }) : J(wr, `${S}_${F}1`, 0, -.092, fz[F]);
       for (let k = 0; k < 3; k++) {
         if (k > 0) par = J(par, `${S}_${F}${k + 1}`, 0, -fl[F][k - 1], 0);
-        limb(par, fl[F][k], .0095, body);
+        limb(par, fl[F][k], .0095, body).castShadow = false;
       }
     }
     const hp = J(g, S + '_HIP', .1 * sx, -.05, 0); ball(hp, .065); limb(hp, .4, .065, body);
@@ -744,7 +753,7 @@ function logNote(text) {
 }
 
 /* ---------- Loop ---------- */
-let running = false, busy = false, turn = 0, mode = null, loadedKey = '';
+let aiFails = 0, running = false, busy = false, turn = 0, mode = null, loadedKey = '';
 const pauseBtn = $('#pause');
 async function loop() {
   if (busy) return; busy = true;
@@ -754,7 +763,17 @@ async function loop() {
     let res;
     if (mode === 'ai' && c.engine) {
       try { res = await aiDecide(c, o); }
-      catch (e) { console.error(e); toast(`${c.name}'s model hiccupped, so this turn is scripted`); res = scriptDecide(c, o); }
+      catch (e) {
+        console.error(e); aiFails++;
+        logNote(`${c.name}'s model failed: ${trimTxt(e && e.message ? e.message : e, 140)}`);
+        if (aiFails >= 2) {
+          running = false; pauseBtn.textContent = 'Resume'; thinking(c, false);
+          const msg = 'The AI models stopped responding, probably because the phone ran out of graphics memory. Switch Graphics to Lite, then reload. The models are saved, so reloading is quick.';
+          status(msg); toast('AI stopped. See the message under the buttons', 6000); break;
+        }
+        toast(`${c.name}'s model hiccupped, so this turn is scripted`); res = scriptDecide(c, o);
+      }
+      if (res && !res.scripted) aiFails = 0;
     } else { await sleep(500); res = scriptDecide(c, o); }
     thinking(c, false);
     apply(c, res); turn++;
@@ -864,7 +883,7 @@ goBtn.onclick = async () => {
             if (r.progress !== lastP) { lastP = r.progress; lastT = performance.now(); warned = false; }
             txt = String(r.text || '').replace(/\s+/g, ' ').slice(0, 90); bar((i + (r.progress || 0)) / 2); tick();
           }
-        });
+        }, { context_window_size: 2048, prefill_chunk_size: 512 });
       }
     } catch (e) {
       clearInterval(watch); console.error(e); await unloadAll();
@@ -916,6 +935,8 @@ $('#memload').onclick = () => {
   toast(n ? 'Memories loaded' : 'No robot memories found in that text');
 };
 renderMem();
+const gfxSel = $('#gfx'); gfxSel.value = LITE ? 'lite' : 'full';
+gfxSel.onchange = () => { store.set('gfx', gfxSel.value); toast('Reloading to apply the graphics setting…'); setTimeout(() => location.reload(), 900); };
 initAI();
 </script>
 </body>
