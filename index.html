@@ -104,6 +104,10 @@ window.__diag = { errors: [], t0: Date.now() };
       <input id="ev" placeholder="Make something happen… (a cat walks in)" maxlength="120" autocomplete="off" aria-label="Event">
       <button>Send</button>
     </form>
+    <label class="pick">Voices
+      <select id="voice"><option value="sam">Retro robot voices (mouth follows the real sound)</option><option value="tts">Phone voices (more natural, mouth follows the words)</option><option value="off">Off</option></select>
+    </label>
+    <label class="pick">Voice volume<input type="range" id="vvol" min="0" max="1" step="0.05" style="padding:10px 0"></label>
     <label class="pick">Pace
       <select id="spd"><option value="6000">Calm</option><option value="3000" selected>Normal</option><option value="1000">Quick</option></select>
     </label>
@@ -756,6 +760,8 @@ function buildRobot(c) {
   mesh(new THREE.BoxGeometry(.24, .22, .22), body, head, 0, .12, 0);
   mesh(new THREE.PlaneGeometry(.19, .08), new THREE.MeshStandardMaterial({ color: 0x101018, roughness: .2, metalness: .3 }), head, 0, .13, .111);
   for (const s of [-1, 1]) mesh(new THREE.CircleGeometry(.022, 14), glow, head, .045 * s, .13, .112);
+  mesh(new THREE.BoxGeometry(.11, .036, .006), new THREE.MeshStandardMaterial({ color: 0x0b0b10, roughness: .4 }), head, 0, .048, .111);
+  c.mouthGlow = mesh(new THREE.BoxGeometry(.09, .006, .004), glow, head, 0, .048, .115); c.mouthGlow.castShadow = false;
   for (const s of [-1, 1]) mesh(new THREE.CylinderGeometry(.03, .03, .03, 12), trim, head, .13 * s, .12, 0).rotation.z = Math.PI / 2;
   if (c.kind === 'antenna') {
     mesh(new THREE.CylinderGeometry(.008, .008, .16), trim, head, 0, .31, 0);
@@ -1087,6 +1093,10 @@ function updateChar(c, dt, t) {
   for (const ct of c.contacts) { ct.getWorldPosition(v3); mn = Math.min(mn, v3.y - (ct.userData.butt ? c.seatH : 0)); }
   if (isFinite(mn)) c.groundY -= mn * Math.min(1, dt * 12);
   cur.y = c.groundY + off;
+  if (c.mouthGlow) {
+    const tl = mouthTarget(c); c.mouthLvl = (c.mouthLvl || 0) + (tl - (c.mouthLvl || 0)) * Math.min(1, dt * 28);
+    c.mouthGlow.scale.set(1 - c.mouthLvl * .25, 1 + c.mouthLvl * 4.6, 1);
+  }
 }
 const v3 = new THREE.Vector3();
 function placeLabels() {
@@ -1097,6 +1107,88 @@ function placeLabels() {
     v3.set(c.g.position.x, -0.02, c.g.position.z); v3.project(camera);
     c.tag.style.left = (v3.x * .5 + .5) * w + 'px'; c.tag.style.top = (-v3.y * .5 + .5) * h + 'px';
   }
+}
+/* ---------- Voices: audible speech, with a mouth that follows it ---------- */
+let voiceMode = ['sam', 'tts', 'off'].includes(store.get('voice', 'sam')) ? store.get('voice', 'sam') : 'sam';
+let voiceVol = Math.max(0, Math.min(1, +store.get('voiceVol', .8) || 0));
+let actx = null, SamJs = null, samLoad = null, ttsVoices = [];
+const VOICE = [
+  { sam: { pitch: 52, speed: 70, mouth: 150, throat: 110 }, tts: { pitch: 1.5, rate: 1.08 }, chirp: [880, 1320] },
+  { sam: { pitch: 86, speed: 86, mouth: 128, throat: 165 }, tts: { pitch: .7, rate: .9 }, chirp: [330, 247] }
+];
+function audio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } }
+  if (actx.state === 'suspended') actx.resume().catch(() => {});
+  for (const c of chars) if (!c.vchain) {
+    const g = actx.createGain(), an = actx.createAnalyser(); an.fftSize = 512; an.smoothingTimeConstant = .2;
+    g.connect(an); an.connect(actx.destination); c.vchain = { g, an, buf: new Float32Array(512) };
+  }
+  for (const c of chars) c.vchain.g.gain.value = voiceVol;
+  return actx;
+}
+['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, () => { if (voiceMode === 'sam') audio(); }, { passive: true }));
+function loadSam() {
+  if (SamJs) return Promise.resolve(SamJs);
+  return samLoad || (samLoad = import('https://cdn.jsdelivr.net/npm/sam-js@0.3.1/+esm').then(m => (SamJs = m.default || m.SamJs || m)).catch(e => { samLoad = null; throw e; }));
+}
+const cleanSpeech = t => String(t || '').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/…/g, '...').replace(/[^\x20-\x7E]/g, ' ').replace(/[*_#`~<>{}\[\]|\\^@]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
+async function speakLine(c, text) {
+  if (voiceMode === 'off' || !text || text === '(puppet lab)') return;
+  text = cleanSpeech(text); if (!text) return;
+  if (voiceMode === 'tts') return speakTTS(c, text);
+  const ctx = audio(); if (!ctx) return;
+  try {
+    const S = await loadSam(), sam = new S(VOICE[c.i].sam);
+    chirp(c); await sleep(120);
+    for (const part of text.match(/[^.!?]+[.!?]*/g) || [text]) {      // SAM works best a sentence at a time
+      const p = part.trim(); if (!p) continue;
+      const b8 = sam.buf8(p); if (b8 && b8.length) await playBuf(c, b8);
+    }
+  } catch (e) { console.warn(e); window.__addDiag && window.__addDiag('Voice (SAM): ' + (e.message || e)); }
+}
+function playBuf(c, b8) {
+  return new Promise(res => {
+    const ab = actx.createBuffer(1, b8.length, 22050), d = ab.getChannelData(0);
+    for (let i = 0; i < b8.length; i++) d[i] = (b8[i] - 128) / 128;
+    const src = actx.createBufferSource(); src.buffer = ab; src.connect(c.vchain.g);
+    let done = false; const fin = () => { if (!done) { done = true; res(); } };
+    src.onended = fin; setTimeout(fin, ab.duration * 1000 + 600); src.start();
+  });
+}
+function chirp(c) {
+  if (!actx || !c.vchain) return;
+  const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime, [f1, f2] = VOICE[c.i].chirp;
+  o.type = 'square'; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + .08);
+  g.gain.setValueAtTime(.06, t); g.gain.exponentialRampToValueAtTime(.001, t + .1);
+  o.connect(g); g.connect(c.vchain.g); o.start(t); o.stop(t + .12);
+}
+function loadVoices() { try { ttsVoices = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); } catch {} }
+if ('speechSynthesis' in window) { loadVoices(); try { speechSynthesis.onvoiceschanged = loadVoices; } catch {} }
+function speakTTS(c, text) {
+  return new Promise(res => {
+    if (!('speechSynthesis' in window)) { toast("This browser can't use the phone's voices"); return res(); }
+    const u = new SpeechSynthesisUtterance(text), vo = VOICE[c.i].tts;
+    if (ttsVoices.length) u.voice = c.i === 0 ? ttsVoices[0] : ttsVoices[ttsVoices.length - 1];
+    u.pitch = vo.pitch; u.rate = vo.rate; u.volume = voiceVol;
+    const L = c.tts = { text, t0: performance.now(), base: 0, cps: 14 * vo.rate };
+    let done = false; const fin = () => { if (done) return; done = true; if (c.tts === L) c.tts = null; res(); };
+    u.onstart = () => { L.t0 = performance.now(); };
+    u.onboundary = e => { L.base = e.charIndex || 0; L.t0 = performance.now(); };
+    u.onend = fin; u.onerror = fin; setTimeout(fin, text.length * 110 + 5000);
+    speechSynthesis.speak(u);
+  });
+}
+// how open the mouth should be right now: measured from the real sound, or estimated from the words being spoken
+function mouthTarget(c) {
+  if (c.vchain && actx && actx.state === 'running') {
+    const b = c.vchain.buf; c.vchain.an.getFloatTimeDomainData(b);
+    let s = 0; for (let i = 0; i < b.length; i++) s += b[i] * b[i];
+    const rms = Math.sqrt(s / b.length); if (rms > .008) return Math.min(1, rms * 4.5);
+  }
+  const L = c.tts; if (!L) return 0;
+  const ch = (L.text[L.base + Math.floor((performance.now() - L.t0) / 1000 * L.cps)] || '').toLowerCase();
+  if (!ch) return 0;
+  return 'aeiouy'.includes(ch) ? .7 + Math.random() * .3 : /[a-z]/.test(ch) ? .2 + Math.random() * .25 : .05;
 }
 function say(c, text) {
   clearTimeout(c.bubT); c.bub.classList.remove('thinking'); c.bub.textContent = text; c.bub.classList.add('on');
@@ -1944,6 +2036,7 @@ function apply(c, res) {
   if (res.moved) { c.place = p; c.target = spot(c, p); c.seatH = 0; c.poseName = null; c.lastApplied = []; c.pose = neutral(); c.anim = null; c.pending = { pose: res.pose, moves: res.moves }; }
   else { const b = buildPose(c, { pose: res.pose, moves: res.moves }); res.pose = b.name; }
   say(c, res.say);
+  c.speaking = speakLine(c, res.say);
   noteSpeech(c, chars[1 - c.i], res.say);
   transcript.push({ who: c.name, text: res.say }); if (transcript.length > 30) transcript.shift();
   logEntry(c, res);
@@ -2093,6 +2186,7 @@ async function loop() {
     if (res && c.lastRecall && !res.scripted) res.recalled = c.lastRecall;
     apply(c, res); turn++;
     const t0 = performance.now(); while (c.target && performance.now() - t0 < 9000) await sleep(100);
+    if (c.speaking) { await Promise.race([c.speaking, sleep(30000)]); c.speaking = null; }
     await sleep(+$('#spd').value + (c.anim ? 1500 : 0));
     const report = msg => { if (!msg) return; transcript.push({ who: 'Room', text: msg }); if (transcript.length > 30) transcript.shift(); logNote(msg); };
     if (res && res.hands) { try { const m = await doHands(c, o, res.hands); report(m); noteResult(c, o, `${res.hands.verb}:${res.hands.thing || '-'}`, m); } catch (e) { console.error(e); report(`${c.name} fumbled (${e.message}).`); } }
@@ -2496,6 +2590,15 @@ $('#diagClear').onclick = () => { store.set('crashes', []); toast('Crash log cle
 if (crashes.length) $('#diagBox').open = true;
 function refreshTextures() { scene.traverse(o => { const m = o.material; if (m && m.map && m.map.isCanvasTexture) m.map.needsUpdate = true; }); }
 setInterval(() => { if (!aiBusy) refreshTextures(); }, 15000);
+const voiceSel = $('#voice'); voiceSel.value = voiceMode;
+voiceSel.onchange = () => {
+  voiceMode = voiceSel.value; store.set('voice', voiceMode);
+  if (voiceMode === 'sam') { audio(); loadSam().then(() => speakLine(chars[0], 'Beep. Pip here.')).catch(() => toast("Couldn't download the robot voice. Check your connection")); }
+  else if (voiceMode === 'tts') speakLine(chars[1], 'Moss here. Testing my voice.');
+  toast(voiceMode === 'off' ? 'Voices off' : 'Voices on');
+};
+const vvol = $('#vvol'); vvol.value = voiceVol;
+vvol.oninput = () => { voiceVol = +vvol.value; store.set('voiceVol', voiceVol); if (actx) for (const c of chars) if (c.vchain) c.vchain.g.gain.value = voiceVol; };
 initAI();
 </script>
 </body>
