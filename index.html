@@ -320,11 +320,14 @@ const bar = p => { progEl.style.display = 'block'; progEl.firstElementChild.styl
 const stage = $('#stage');
 const PHONE = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) || (matchMedia('(pointer:coarse)').matches && !matchMedia('(any-pointer:fine)').matches);
 const LOWMEM = !!(navigator.deviceMemory && navigator.deviceMemory <= 4);   // a small computer: go easy on graphics and memory
+// which graphics chip this is: built-in chips (Intel UHD/Iris, phone GPUs) share the computer's memory, so the AI and the 3D room compete for it
+const GPU_NAME = (() => { try { const gl = document.createElement('canvas').getContext('webgl'), ext = gl && gl.getExtension('WEBGL_debug_renderer_info'), n = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ''; const lc = gl && gl.getExtension('WEBGL_lose_context'); if (lc) lc.loseContext(); return String(n || ''); } catch { return ''; } })();
+const IGPU = /Intel|UHD|Iris|HD Graphics|Mali|Adreno|PowerVR|SwiftShader|llvmpipe|Basic Render|Radeon\(TM\) Graphics|Radeon Vega/i.test(GPU_NAME) && !/Apple/i.test(GPU_NAME);
 const DEV = PHONE ? 'phone' : 'computer';
 const crashes = (store.get('crashes', []) || []).filter(c => Date.now() - c.t < 6 * 3600e3);
 const SAFE = crashes.some(c => Date.now() - c.t < 20 * 60e3);
 const GFX_OFF = store.get('gfx', '') === 'off';
-const LITE = SAFE || GFX_OFF || store.get('gfx', PHONE || LOWMEM ? 'lite' : 'full') === 'lite';
+const LITE = SAFE || GFX_OFF || store.get('gfx', PHONE || LOWMEM || IGPU ? 'lite' : 'full') === 'lite';
 window.__appStarted = true;
 let renderer, NO3D = false;
 try { if (GFX_OFF) throw new Error('3D switched off for an AI test'); renderer = new THREE.WebGLRenderer({ antialias: !LITE, powerPreference: 'default' }); }
@@ -4188,6 +4191,24 @@ async function useComputer(c, q) {
   logEl.prepend(d);
 }
 
+/* ---------- When the minds keep failing: change to a steadier setup by itself and carry on, saying what happened */
+async function recoverAI(e) {
+  const why = trimTxt(String((e && (e.message || e)) || 'no error message'), 160);
+  window.__addDiag && window.__addDiag(`Recovery after repeated failures on ${aiBackend}${aiBackend === 'gpu' ? ' (' + aiMode + ' mode)' : ''}: ${why}`);
+  if (aiBackend === 'gpu' && aiMode === 'fast') {
+    status(`The graphics chip couldn't hold both minds at once (${why}). Switching to memory saver, one mind at a time, and carrying on…`);
+    aiMode = 'saver'; store.set('aimode', 'saver'); $('#aimode').value = 'saver'; await unloadAll(); loadedKey = '';
+    toast('Switched to memory saver and restarting the minds', 5000); goBtn.onclick(); return;
+  }
+  if (aiBackend === 'gpu') {
+    status(`The graphics chip ran out of memory for the AI (${why}). Switching to the ${DEV}'s processor: slower, but it doesn't run out. Loading…`);
+    await unloadAll(); loadedKey = ''; aiBackend = 'cpu'; store.set('engine', 'cpu'); $('#engine').value = 'cpu';
+    toast(`Switched the minds to the ${DEV}'s processor`, 5000);
+    await initAI(); goBtn.onclick(); return;
+  }
+  status(`The minds stopped working twice in a row: ${why}. Tap Resume to try again. If it keeps happening, pick smaller models above, or use the scripted demo.`);
+  toast('AI stopped. The reason is under the buttons', 6000);
+}
 /* ---------- Loop ---------- */
 let aiFails = 0, running = false, busy = false, turn = 0, mode = null, loadedKey = '';
 const pauseBtn = $('#pause');
@@ -4208,9 +4229,8 @@ async function loop() {
         console.error(e); aiFails++; window.__addDiag && window.__addDiag(`${c.name}'s AI (${short(c.modelId)}): ${(e && (e.message || e)) || 'unknown error'}`);
         logNote(`${c.name}'s model failed: ${trimTxt(e && e.message ? e.message : e, 140)}`);
         if (aiFails >= 2) {
-          running = false; pauseBtn.textContent = 'Resume'; thinking(c, false);
-          const msg = 'The AI models stopped responding, probably because the device ran out of graphics memory. Switch Graphics to Lite, then reload. The models are saved, so reloading is quick.';
-          status(msg); toast('AI stopped. See the message under the buttons', 6000); break;
+          running = false; pauseBtn.textContent = 'Resume'; thinking(c, false); aiFails = 0;
+          recoverAI(e); break;
         }
         toast(`${c.name}'s model hiccupped, so this turn is scripted`); res = scriptDecide(c, o);
       }
@@ -5470,7 +5490,7 @@ async function startCPU(a, b) {
   return true;
 }
 const CHAT_OPTS = { context_window_size: 2048, prefill_chunk_size: 128 };
-let aiMode = store.get('aimode', PHONE || LOWMEM ? 'saver' : 'fast'), curModel = null, gpuQueue = Promise.resolve();
+let aiMode = store.get('aimode', PHONE || LOWMEM || IGPU ? 'saver' : 'fast'), curModel = null, gpuQueue = Promise.resolve();
 async function useMind(c) {
   if (c.backend || aiMode !== 'saver' || curModel === c.modelId) return;
   const t0 = performance.now(); status(`Waking up ${c.name}'s mind…`);
@@ -6076,7 +6096,7 @@ async function runLabAction(c, act) {
 renderMem(); loadMinds(); loadProjects(); loadLibrary(); loadBrowse(); loadMakes();
 radio.st = Math.max(0, Math.min(4, +store.get('radioSt', 0) || 0)); drawRadioDial();
 if (store.get('radioOn', false)) { const resume = () => { window.removeEventListener('pointerdown', resume); if (!radio.on) setRadio(true, radio.st); }; window.addEventListener('pointerdown', resume); }
-if (/[?&]debug\b/.test(location.search)) window.__pm = { THREE, camera, controls, scene, chars, renderer, doMusic, parseMusic, setRadio, radio, doStudy, showTypewriter, showComputer, showShelf, visitorPrint, doMake, toggleMake, makeSTL, glueMakes, pressMake, showCircuit, learnKnow, circuitSkills, showWorkshop, makeTime, get glue() { return glue; }, get makes() { return makes; }, get library() { return library; }, get CONSOLE() { return CONSOLE; } };   // for testing only
+if (/[?&]debug\b/.test(location.search)) window.__pm = { THREE, camera, controls, scene, chars, renderer, doMusic, parseMusic, setRadio, radio, doStudy, showTypewriter, showComputer, showShelf, visitorPrint, doMake, toggleMake, makeSTL, glueMakes, pressMake, showCircuit, learnKnow, circuitSkills, showWorkshop, makeTime, recoverAI, setBackend: (b, m) => { aiBackend = b; if (m) aiMode = m; }, get aiState() { return { aiBackend, aiMode, LITE, IGPU, GPU_NAME }; }, get glue() { return glue; }, get makes() { return makes; }, get library() { return library; }, get CONSOLE() { return CONSOLE; } };   // for testing only
 const engSel = $('#engine'); if (!LLAMA) engSel.querySelector('option[value=native]').remove(); engSel.value = aiBackend;
 engSel.onchange = async () => {
   aiBackend = engSel.value; store.set('engine', aiBackend); running = false; await unloadAll(); loadedKey = '';
@@ -6099,7 +6119,7 @@ function diagText() {
     `GPU: ${gl}`,
     `Canvas: ${cv.width}×${cv.height}px (pixel ratio ${renderer.getPixelRatio ? renderer.getPixelRatio() : '?'}) · draw calls ${rd.calls ?? '?'} · triangles ${rd.triangles ?? '?'}`,
     `GPU buffers: ${mem.geometries ?? '?'} shapes, ${mem.textures ?? '?'} textures`,
-    `Device: ${navigator.deviceMemory ? navigator.deviceMemory + ' GB RAM (reported)' : 'RAM not reported'} · ${PHONE ? 'phone' : 'computer'} · WebGPU ${navigator.gpu ? 'yes' : 'no'}`,
+    `Device: ${navigator.deviceMemory ? navigator.deviceMemory + ' GB RAM (reported)' : 'RAM not reported'} · ${PHONE ? 'phone' : 'computer'} · graphics chip: ${GPU_NAME ? trimTxt(GPU_NAME.replace(/^ANGLE \(|\)$/g, ''), 70) : 'unknown'}${IGPU ? ' (built-in, shares memory)' : ''} · WebGPU ${navigator.gpu ? 'yes' : 'no'}`,
     `AI: ${aiBackend === 'native' ? 'native llama.cpp (app)' : aiBackend === 'cpu' ? 'phone processor (llama.cpp in the browser)' : 'graphics chip (WebGPU), ' + aiMode + ' mode'} · ${loadedKey ? 'models ' + short(chars[0].modelId) + ' + ' + short(chars[1].modelId) : 'not loaded'}${curModel ? ' · awake: ' + short(curModel) : ''} · ${running ? 'running' : 'stopped'}${aiBusy ? ' · thinking' : ''}`,
     `Voices: ${voiceMode} · sound ${actx ? actx.state : 'not started yet (tap the screen)'} · retro voice ${SamJs ? 'loaded' : samLoad ? 'loading' : 'not loaded'}${VOX ? ' · app voices ' + (voxInfo ? (voxInfo.ready ? (voxInfo.voices || []).length + ' English' : 'unavailable') : 'starting') : ''}`,
     `Smart mode: ${store.get('cloudOn', 'off') === 'on' ? (cloudUrl() ? (cloudReady() ? 'on' : 'paused' + (cloudNote ? ' (' + cloudNote + ')' : '')) : 'on, but no Worker address') : 'off'} · library: Pip ${chars[0].mind.know.length}, Moss ${chars[1].mind.know.length} pieces`,
