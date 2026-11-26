@@ -127,6 +127,15 @@ window.__diag = { errors: [], t0: Date.now() };
         <button>Send</button>
       </form>
     </section>
+    <details id="consoleBox">
+      <summary>Melody Console · Optigan / Omnichord</summary>
+      <p class="hint">The SWoW Sound Gallery's Melody Console, now by the robots' window. Walk up to it and play: strum the metal plate, press the chord buttons, play the Optigan keys, pick a backing rhythm, tap the disc to change its voice, and set the Leslie spinning. Ask Pip or Moss to play too ("Moss, play I IV V I as a bossa").</p>
+      <div class="btns"><button type="button" class="primary" id="cview">Walk up to the console</button></div>
+      <div class="row">
+        <label class="pick">Key<select id="ckey"></select></label>
+        <label class="pick">Tempo<input type="range" id="cbpm" min="60" max="160" step="2" style="padding:10px 0"></label>
+      </div>
+    </details>
     <details id="projBox">
       <summary>Project board · typewriter</summary>
       <p class="hint">Pip and Moss write things for you at their typewriter: stories, poems, songs, letters, plays, even a novel, page by page. Ask in the chat ("write a poem about the first snow", "let's write a novel about a haunted fairground") or add one here. One writes while the other edits, or they take turns. They also start projects of their own.</p>
@@ -369,14 +378,14 @@ cyl(0.35, 0.26, 0.6, 0xc0623a, -4.3, 0, -4.3);
 const leafM = mat(0x3f8f4a, { roughness: .6 });
 for (let i = 0; i < 9; i++) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), leafM); const a = i * 0.7; l.position.set(-4.3 + Math.cos(a) * 0.3, 0.8 + i * 0.12, -4.3 + Math.sin(a) * 0.3); l.scale.set(1, 0.6, 1); l.castShadow = true; scene.add(l); }
 // floor lamp
-cyl(0.25, 0.3, 0.06, 0x2a1d2e, 0.9, 0, -4.4); cyl(0.025, 0.025, 1.6, 0x2a1d2e, 0.9, 0.06, -4.4);
+cyl(0.25, 0.3, 0.06, 0x2a1d2e, -3.45, 0, -4.45); cyl(0.025, 0.025, 1.6, 0x2a1d2e, -3.45, 0.06, -4.45);
 const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.38, 0.45, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0xffd08a, emissive: 0xffa040, emissiveIntensity: 1.2, side: THREE.DoubleSide }));
-shade.position.set(0.9, 1.85, -4.4); scene.add(shade);
-const lampLight = new THREE.PointLight(0xffa850, 4, 8, 1); lampLight.position.set(0.9, 1.75, -4.3); scene.add(lampLight);
-// radio
-box(1.2, 0.8, 0.6, 0x6a3f25, 4.2, 0, -4.5); box(0.8, 0.45, 0.3, 0xd9a35b, 4.2, 0.8, -4.5);
-const grille = new THREE.Mesh(new THREE.CircleGeometry(0.14, 20), mat(0x3a2a1c)); grille.position.set(4.0, 1.02, -4.34); scene.add(grille);
-const radioLed = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), new THREE.MeshStandardMaterial({ color: 0xff4040, emissive: 0xff2020, emissiveIntensity: 2 })); radioLed.position.set(4.45, 1.1, -4.34); scene.add(radioLed);
+shade.position.set(-3.45, 1.85, -4.45); scene.add(shade);
+const lampLight = new THREE.PointLight(0xffa850, 4, 8, 1); lampLight.position.set(-3.45, 1.75, -4.35); scene.add(lampLight);
+// radio (moved to the right-hand side to make room for the Melody Console)
+box(1.2, 0.8, 0.6, 0x6a3f25, 4.3, 0, -0.6); box(0.8, 0.45, 0.3, 0xd9a35b, 4.3, 0.8, -0.6);
+const grille = new THREE.Mesh(new THREE.CircleGeometry(0.14, 20), mat(0x3a2a1c)); grille.position.set(4.1, 1.02, -0.44); scene.add(grille);
+const radioLed = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), new THREE.MeshStandardMaterial({ color: 0xff4040, emissive: 0xff2020, emissiveIntensity: 2 })); radioLed.position.set(4.55, 1.1, -0.44); scene.add(radioLed);
 // armchair
 box(1.1, 0.45, 1.1, 0x2f7a6b, 3.6, 0, 1.6); box(0.3, 1.0, 1.1, 0x24604f, 4.15, 0, 1.6);
 box(1.1, 0.65, 0.22, 0x24604f, 3.6, 0, 1.0); box(1.1, 0.65, 0.22, 0x24604f, 3.6, 0, 2.2);
@@ -468,6 +477,941 @@ function drawCork() {
 }
 drawCork();
 
+/* ---------- The Melody Console: the Optigan / Omnichord hybrid from the SWoW Sound Gallery, moved into the apartment.
+   The code inside this block is the gallery's own instrument (geometry, synthesis, backing rhythms, Leslie,
+   stained-glass light panel), with only its connections to the gallery swapped for the apartment's.
+   Scaled to 0.75 for the robots: the strum plate at desk height, the Optigan keys a hand's width higher,
+   and the chord buttons within reach when they lean in, as an organist does. */
+let CONSOLE = null;
+const consoleRoot = new THREE.Group(); consoleRoot.position.set(2.5, 0, -4.12); consoleRoot.scale.setScalar(0.75); scene.add(consoleRoot);
+{
+  // --- the gallery's helpers and settings, as the console expects them
+  const isTouch = PHONE || matchMedia('(pointer:coarse)').matches;
+  const FONT = 'Futura, "Century Gothic", "Avenir Next", "Trebuchet MS", Arial, sans-serif';
+  const LOOKAHEAD = isTouch ? 0.4 : 0.15;
+  const ALCOVE_COL = [null, '#ff6a00', '#ff1f8f', '#ffd000', '#66e000', '#00d0b0', '#8a4bff', '#1f6bff', '#ff3030', '#00b7ff', '#c400ff', '#ff9a5a'];
+  const NOTE_SEMI = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];      // the gallery's keys, round the circle of fifths
+  const org = { root: 0, mood: 0 };                               // C, Bright
+  const rhy = { run: false, bpm: 92, next: 0, nextT: 0 };
+  const audioGov = { level: 0 };
+  const playing = false, curM = null, MEL_M = 1;
+  const canvas = renderer.domElement, ndc = new THREE.Vector2(), ray = new THREE.Raycaster();
+  function rng(seed) { let s = seed; return () => ((s = (s * 16807) % 2147483647) / 2147483647); }
+  const mDark = new THREE.MeshStandardMaterial({ color: '#2a2724', roughness: 0.5 });
+  const mChrome = new THREE.MeshStandardMaterial({ color: '#e2e2e2', metalness: 1, roughness: 0.22 });
+  const box = (w, h, d, mat, x, y, z, parent) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };   // the gallery's box (centred), not the room's
+  function canvasTex(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1); return { c, g: c.getContext('2d'), t }; }
+  function flatLabel(w, h, cw, ch, parent, x, y, z) {
+    const ct = canvasTex(cw, ch);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: ct.t, transparent: true, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
+    m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); parent.add(m);
+    return { ...ct, m };
+  }
+  function printText(L, lines, opt = {}) {
+    const { g, c, t } = L;
+    g.clearRect(0, 0, c.width, c.height);
+    if (opt.bg) { g.fillStyle = opt.bg; g.beginPath(); if (g.roundRect) g.roundRect(4, 4, c.width - 8, c.height - 8, opt.radius || 18); else g.rect(4, 4, c.width - 8, c.height - 8); g.fill(); }
+    g.textAlign = opt.align || 'center'; g.textBaseline = 'middle';
+    lines.forEach(([txt, size, col, weight = 'bold'], k) => {
+      g.fillStyle = col || '#1d1b18'; g.font = `${weight} ${size}px ${FONT}`;
+      const y = c.height * (lines.length === 1 ? 0.5 : (k + 0.5) / lines.length);
+      g.fillText(txt, opt.align === 'left' ? 16 : c.width / 2, y);
+    });
+    t.needsUpdate = true;
+  }
+  const capMat = (col) => new THREE.MeshStandardMaterial({ color: col, roughness: 0.42, emissive: '#000000' });
+  const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+  const VOL = { strum: 0.7, optigan: 0.7 };
+  try { Object.assign(VOL, JSON.parse(localStorage.getItem('pm-console-vol') || '{}')); } catch (e) {}
+  const volNodes = {}, MUTED = { melody: false }, muteBtns = {};
+  const volGain = (v) => Math.pow(v / 0.7, 2);
+  const volGroup = () => 'melody';
+  const volLevel = (key) => (MUTED.melody ? 0 : volGain(VOL[key]));
+  function volRegister(key, node, base) { volNodes[key] = [node, base]; node.gain.value = base * volLevel(key); }
+  function setVol(key, v) {
+    VOL[key] = Math.max(0, Math.min(1, Math.round(v * 100) / 100));
+    const n = volNodes[key]; if (n && ac) n[0].gain.setTargetAtTime(n[1] * volLevel(key), ac.currentTime, 0.03);
+    try { localStorage.setItem('pm-console-vol', JSON.stringify(VOL)); } catch (e) {}
+  }
+  function makeMuteBtn(grp, parent, x, y, z, w, d) {
+    const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, d), mat);
+    b.position.set(x, y, z); parent.add(b);
+    const L = flatLabel(w * 0.96, d * 0.92, 256, Math.round(256 * d / w), b, 0, 0.0205, 0);
+    muteBtns[grp] = { mat, L, b }; drawMuteBtn(grp);
+    return b;
+  }
+  function drawMuteBtn(grp) {
+    const B = muteBtns[grp]; if (!B) return;
+    const on = MUTED[grp], { g, c, t } = B.L, h = c.height, cx = c.width / 2;
+    B.mat.color.set(on ? '#e8262b' : '#f6f2ea');
+    g.clearRect(0, 0, c.width, h);
+    const ink = on ? '#ffffff' : '#1d1b18', sz = h * 0.32, x0 = cx - sz * 1.25, y0 = h * 0.4;
+    g.fillStyle = ink; g.strokeStyle = ink; g.lineWidth = sz * 0.16; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x0 - sz * 0.5, y0 - sz * 0.28); g.lineTo(x0 - sz * 0.1, y0 - sz * 0.28); g.lineTo(x0 + sz * 0.35, y0 - sz * 0.62);
+    g.lineTo(x0 + sz * 0.35, y0 + sz * 0.62); g.lineTo(x0 - sz * 0.1, y0 + sz * 0.28); g.lineTo(x0 - sz * 0.5, y0 + sz * 0.28); g.closePath(); g.fill();
+    const ax = x0 + sz * 0.95;
+    if (on) { g.beginPath(); g.moveTo(ax - sz * 0.3, y0 - sz * 0.3); g.lineTo(ax + sz * 0.3, y0 + sz * 0.3); g.moveTo(ax + sz * 0.3, y0 - sz * 0.3); g.lineTo(ax - sz * 0.3, y0 + sz * 0.3); g.stroke(); }
+    else for (const r of [0.35, 0.65]) { g.beginPath(); g.arc(x0 + sz * 0.45, y0, sz * r + sz * 0.2, -0.8, 0.8); g.stroke(); }
+    g.font = `bold ${Math.round(h * 0.2)}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(on ? 'MUTED' : 'MUTE', cx, h * 0.8);
+    t.needsUpdate = true;
+  }
+  function machineMute(grp) {
+    MUTED[grp] = !MUTED[grp];
+    for (const key in VOL) { const n = volNodes[key]; if (n && ac) n[0].gain.setTargetAtTime(n[1] * volLevel(key), ac.currentTime, 0.015); }
+    drawMuteBtn(grp); buzz(10);
+    return MUTED[grp];
+  }
+  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+  let ac = null, consoleOut = null;
+  function blip(freq, dur = 0.09, vol = 0.07) {
+    if (!ac || !consoleOut) return; const t = ac.currentTime;
+    const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(consoleOut); o.start(t); o.stop(t + dur + 0.05);
+  }
+  const stepDur = () => 60 / rhy.bpm / 4;
+  const gridNext = (lead = 0.05) => ({ k: 0, t: ac.currentTime + lead });
+
+/* ================================================================== THE MELODY CONSOLE (alcove IV)
+   A strum plate and a keyboard in one walnut cabinet, after the Omnichord and the Optigan.
+   Front: a strum plate laid out like the Omnichord's: thirteen touch zones that play the
+     current chord's root, third and fifth, climbing four octaves. Each zone is placed in a
+     fixed pitch window, so the fifth sits below the root and the run zig-zags up, as on the
+     real instrument. Strum across it or tap single zones. The tone is a square wave with an
+     instant attack and a long exponential fade through a fixed filter; one voice has vibrato.
+   Behind: the Optigan, a chord organ with its own keys, seven chord buttons built from the
+     gallery's key, and four backing styles that keep time with the Rhythm Wheel.
+   Keys that belong to the gallery's key are lit; the home note is tinted green.
+   Everything is synthesised live, so it is always in tune with the organ. */
+const melHits = [], melCtrls = [];
+const SCALES = [[0, 2, 4, 5, 7, 9, 11], [0, 2, 3, 5, 7, 8, 10], [0, 2, 4, 5, 7, 9, 10], [0, 2, 3, 5, 7, 9, 10]];   // Bright, Dark, Floating, Ancient
+const PC_FLAT = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+const PC_SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+// spell notes the way the gallery's key is written: flats in flat keys, sharps in sharp keys
+function keyIsFlat() { const r = NOTE_SEMI[org.root], minor = org.mood === 1 || org.mood === 3; return minor ? [2, 7, 0, 5, 10, 3, 8].includes(r) : [5, 10, 3, 8, 1, 6].includes(r); }
+const PC_NAMES = new Proxy([], { get: (_, k) => (keyIsFlat() ? PC_FLAT : PC_SHARP)[k] });
+const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+const SP_VOICES = [['PLAIN', '#00b8a0'], ['WAVY', '#e8262b'], ['BLEND', '#8a4bff']];   // the Omnichord's standard voice, its vibrato voice, or both
+const SP_SUS = [['SHORT', 0.13], ['MEDIUM', 0.42], ['LONG', 1.1]];                       // decay time constant, seconds
+const SP_N = 13, SP_LO = 42, SP_HI = 101;                 // thirteen zones; their pitch windows run F♯2 to F7
+const OPT_STYLES = ['OFF', 'STRUM', 'BOSSA', 'BALLAD', 'POLKA', 'SWING', 'TANGO', 'REGGAE'];
+// the Optigan's discs: each gives the keyboard its own voice (the chord buttons and rhythm stay the same)
+const OPT_DISCS = [['ORGAN', '#e8262b'], ['HAMMOND', '#8a4bff'], ['HARPSICHORD', '#c08a2b'], ['VIBES', '#00b8a0'],
+  ['ACCORDION', '#2b8fd8'], ['E.PIANO', '#e8902b'], ['THEATRE', '#ff1f8f']];
+const KB_LO = 48, KB_HI = 72;                            // C3 to C5, two octaves
+const mel = { voice: 2, sus: 1, disc: 0, plateChord: 0, plates: Array.from({ length: SP_N }, () => ({ h: null, m: 0, t0: -9, tau: 1 })),
+  style: 0, chord: null, held: new Map(), next: 0, nextT: 0, timer: null, sig: '', disc: 0, holdChord: null,
+  leslie: 0, hornV: 0, drumV: 0, hornA: 0, drumA: 0 };   // leslie: 0 STOP, 1 SLOW, 2 FAST; V = rotor turns/s, A = rotor angle
+function galleryScale() { const root = NOTE_SEMI[org.root]; return SCALES[org.mood].map((x) => (root + x) % 12); }
+function triad(d) {                                     // the chord on scale degree d, as semitones above the home note
+  const sc = SCALES[org.mood], n = (k) => sc[(d + k) % 7] + (d + k >= 7 ? 12 : 0);
+  return [n(0), n(2), n(4)];
+}
+function chordLabel(d) {
+  const t = triad(d), pc = (NOTE_SEMI[org.root] + t[0]) % 12, third = t[1] - t[0], fifth = t[2] - t[0];
+  return PC_NAMES[pc] + (third === 3 ? (fifth === 6 ? '°' : 'm') : '');
+}
+const mf = (m) => 440 * Math.pow(2, (m - 69) / 12);
+// the strum plate's notes. Zone i plays the chord's root, third or fifth (i % 3), each in a
+// fixed one-octave window that climbs an octave every three zones; the last zone is the top root.
+// So a C chord reads C3 E3 G2 · C4 E4 G3 · C5 E5 G4 · C6 E6 G5 · C7, like the real strumplate.
+function plateMidi(i, d = mel.plateChord) {
+  const r = NOTE_SEMI[org.root], tones = triad(d).map((x) => (r + x) % 12);
+  const pc = i === SP_N - 1 ? tones[0] : tones[i % 3], lo = SP_LO + 12 * Math.floor(i / 3);
+  return lo + ((pc - (lo % 12)) + 12) % 12;
+}
+
+// mG: x = player's right, +z = toward the player, y = up
+const melG = new THREE.Group(); melG.position.set(0, 0.15, 0); consoleRoot.add(melG);
+const mWalnut = new THREE.MeshStandardMaterial({ color: '#5a3a24', roughness: 0.48, envMapIntensity: 0.6 });
+const mCream = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.5, envMapIntensity: 0.6 });
+const keyboards = [];                                   // [1] Optigan (raised, behind); the front tier is the strum plate
+const melVolK = {};
+// a volume slider: a long horizontal fader on a ledge in front of each instrument, easy to catch on a phone.
+// Put a finger anywhere on it and the handle jumps there.
+const VS = { x0: -0.22, len: 1.3 };
+function volSlider(key, y, z, label) {
+  const slot = new THREE.Mesh(new THREE.BoxGeometry(VS.len + 0.04, 0.012, 0.026), mDark); slot.position.set(VS.x0 + VS.len / 2, y + 0.006, z); melG.add(slot);
+  const fill = new THREE.Mesh(new THREE.BoxGeometry(1, 0.014, 0.018), new THREE.MeshBasicMaterial({ color: key === 'strum' ? '#e8902b' : '#2b8fd8', toneMapped: false })); melG.add(fill);
+  const mat = capMat('#2a2724');
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.085), mat); melG.add(cap);
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(VS.len + 0.14, 0.1, 0.13), hitMat); hit.position.set(VS.x0 + VS.len / 2, y + 0.03, z); melG.add(hit);
+  for (const o of [cap, hit]) { o.userData = { t: 'vol', key }; melCtrls.push(o); }
+  const lb = flatLabel(0.86, 0.06, 700, 49, melG, -0.72, y + 0.002, z);
+  melVolK[key] = { mat, cap, fill, lb, y, z, label };
+}
+function drawVolKnob(key) {
+  const K = melVolK[key], v = VOL[key], x = VS.x0 + v * VS.len;
+  K.cap.position.set(x, K.y + 0.025, K.z);
+  K.fill.scale.x = Math.max(0.001, v * VS.len); K.fill.position.set(VS.x0 + v * VS.len / 2, K.y + 0.008, K.z);
+  printText(K.lb, [[`${K.label} ${Math.round(v * 100)}%`, 34, '#3a3630']], { align: 'left' });
+}
+// where a pointer meets a horizontal plane at height y in the console's own space
+const _melPl = new THREE.Plane(), _melV = new THREE.Vector3();
+function melLocalAt(e, y) {
+  { const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); } ray.setFromCamera(ndc, camera);
+  melG.updateMatrixWorld();
+  const o = melG.localToWorld(new THREE.Vector3(0, y, 0)), n = new THREE.Vector3(0, 1, 0).transformDirection(melG.matrixWorld);
+  _melPl.setFromNormalAndCoplanarPoint(n, o);
+  if (!ray.ray.intersectPlane(_melPl, _melV)) return null;
+  return melG.worldToLocal(_melV.clone());
+}
+function melVolTo(key, e) { const p = melLocalAt(e, melVolK[key].y + 0.03); if (p) { setVol(key, (p.x - VS.x0) / VS.len); drawVolKnob(key); melValue = volText(key); drawMelDisplay(); } }
+let voiceBtns = [], susBtns = [], styleBtns = [], lesBtns = [], lesHorn, lesDrum, chordBtns = [], plateSegs = [], plateNamesL, melDispL, optDisc;
+function buildKeys(kb, parent, y, z) {
+  const g = new THREE.Group(); g.position.set(0, y, z); parent.add(g);
+  const WW = 0.086, startX = -(15 * WW) / 2 + WW / 2, WI = [0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6], LEFT = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 };
+  const keys = [];
+  for (let m = KB_LO; m <= KB_HI; m++) {
+    const semi = m % 12, oct = Math.floor((m - KB_LO) / 12), black = WI[semi] < 0;
+    const mat = new THREE.MeshStandardMaterial({ color: black ? '#1d1b18' : '#fbf8f2', roughness: black ? 0.35 : 0.3, envMapIntensity: 0.6, emissive: '#000000' });
+    let mesh;
+    if (black) { mesh = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.035, 0.15), mat); mesh.position.set(startX + (oct * 7 + LEFT[semi]) * WW + WW / 2, 0.036, -0.045); }
+    else { mesh = new THREE.Mesh(new THREE.BoxGeometry(WW - 0.006, 0.03, 0.24), mat); mesh.position.set(startX + (oct * 7 + WI[semi]) * WW, 0.015, 0); }
+    mesh.userData = { t: 'key', kb, m }; g.add(mesh); melCtrls.push(mesh);
+    keys.push({ m, mesh, mat, black, y0: mesh.position.y });
+  }
+  return { g, keys };
+}
+{
+  // lower cabinet and the strum plate's bed
+  melHits.push(box(2.4, 0.78, 0.66, mWalnut, 0, 0.39, -0.06, melG));
+  melHits.push(box(2.42, 0.04, 0.38, mCream, 0, 0.8, 0.1, melG));
+  {
+    // the strum plate: one brushed-metal strip, scored into thirteen zones, low notes on the left
+    const W = 1.27, sw = W / SP_N, x0 = -W / 2 + sw / 2;
+    box(W + 0.05, 0.012, 0.25, mDark, 0, 0.826, 0.135, melG);                       // a dark bezel round the plate
+    for (let i = 0; i < SP_N; i++) {
+      const mat = new THREE.MeshStandardMaterial({ color: '#c6c9cc', metalness: 0.85, roughness: 0.34, envMapIntensity: 0.9, emissive: '#000000' });
+      const s = new THREE.Mesh(new THREE.BoxGeometry(sw - 0.005, 0.014, 0.22), mat);
+      s.position.set(x0 + i * sw, 0.838, 0.135); s.userData = { t: 'plate', i }; melG.add(s); melCtrls.push(s);
+      plateSegs[i] = { mesh: s, mat };
+    }
+    plateNamesL = flatLabel(W, 0.05, 1664, 66, melG, 0, 0.8205, -0.02);             // each zone's note, printed behind it
+  }
+  // the Optigan's raised tier behind
+  melHits.push(box(2.4, 0.3, 0.44, mWalnut, 0, 0.97, -0.43, melG));
+  melHits.push(box(2.42, 0.04, 0.36, mCream, 0, 1.13, -0.4, melG));
+  // a volume knob at the right end of each tier: strum plate in front, Optigan behind
+  // ledges for the volume sliders: one along the front of the cabinet, one in front of the Optigan's keys
+  melHits.push(box(2.4, 0.78, 0.14, mWalnut, 0, 0.39, 0.33, melG));
+  melHits.push(box(2.42, 0.04, 0.13, mCream, 0, 0.8, 0.345, melG));
+  melHits.push(box(2.42, 0.03, 0.11, mCream, 0, 1.12, -0.165, melG));
+  volSlider('strum', 0.82, 0.345, 'STRUM PLATE VOLUME');
+  volSlider('optigan', 1.135, -0.165, 'OPTIGAN VOLUME');
+  keyboards[1] = buildKeys(1, melG, 1.15, -0.38);
+  // strum plate voice buttons on the left cheek, sustain on the right
+  SP_VOICES.forEach(([name, col], k) => {
+    const mat = capMat(col), b = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.04, 0.095), mat);
+    b.position.set(-0.84, 0.84, 0.23 - k * 0.11); melG.add(b); b.userData = { t: 'voice', i: k }; melCtrls.push(b);
+    const L = flatLabel(0.25, 0.09, 256, 92, b, 0, 0.0205, 0); voiceBtns[k] = { mat, L, col, name };
+  });
+  SP_SUS.forEach(([name], k) => {
+    const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.04, 0.095), mat);
+    b.position.set(0.84, 0.84, 0.23 - k * 0.11); melG.add(b); b.userData = { t: 'sus', i: k }; melCtrls.push(b);
+    const L = flatLabel(0.25, 0.09, 256, 92, b, 0, 0.0205, 0); susBtns[k] = { mat, L, name };
+  });
+  // Optigan backing styles: left cheek of the raised tier
+  OPT_STYLES.forEach((name, k) => {                                // two columns of four
+    const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.04, 0.075), mat);
+    b.position.set(k < 4 ? -1.06 : -0.79, 1.17, -0.27 - (k % 4) * 0.083); melG.add(b); b.userData = { t: 'style', i: k }; melCtrls.push(b);
+    const L = flatLabel(0.24, 0.07, 256, 72, b, 0, 0.0205, 0); styleBtns[k] = { mat, L, name };
+  });
+  // the Leslie: STOP / SLOW / FAST on the right cheek, and a little window where the rotors turn
+  try {
+    ['STOP', 'SLOW', 'FAST'].forEach((name, k) => {
+      const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.04, 0.075), mat);
+      b.position.set(1.09, 1.17, -0.27 - k * 0.083); melG.add(b); b.userData = { t: 'leslie', i: k }; melCtrls.push(b);
+      const L = flatLabel(0.16, 0.07, 256, 104, b, 0, 0.0205, 0); lesBtns[k] = { mat, L, name };
+    });
+    const win = new THREE.Group(); win.position.set(1.09, 1.145, -0.575); melG.add(win);
+    const well = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.012, 32), new THREE.MeshStandardMaterial({ color: '#16110d', roughness: 0.6 }));
+    well.position.y = 0.004; win.add(well); well.userData = { t: 'leslie', i: -1 }; melCtrls.push(well);
+    const brass = new THREE.MeshStandardMaterial({ color: '#c9a45a', metalness: 0.8, roughness: 0.3 });
+    lesDrum = new THREE.Group(); lesDrum.position.y = 0.012; win.add(lesDrum);                // the bass drum: a fat baffle
+    { const m = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.014, 0.03), brass); lesDrum.add(m); }
+    lesHorn = new THREE.Group(); lesHorn.position.y = 0.026; win.add(lesHorn);                // the treble horn: a slim bar with a bell
+    { const m = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.012, 0.016), mChrome); lesHorn.add(m);
+      const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.008, 0.02, 12), brass); bell.rotation.z = Math.PI / 2; bell.position.x = 0.07; lesHorn.add(bell); }
+  } catch (err) { console.warn('leslie window', err); }
+  // the Optigan's spinning disc, right cheek
+  optDisc = new THREE.Group(); optDisc.position.set(0.84, 1.16, -0.4); melG.add(optDisc);
+  { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.012, 48), new THREE.MeshStandardMaterial({ color: '#d8e4ea', roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.85 }));   // (transmission dropped: too heavy for phones)
+    optDisc.add(d); d.userData = { t: 'disc' }; melCtrls.push(d);
+    // printed like a real Optigan disc: rings of optical sound tracks, each broken into a different
+    // pattern of dashes, around a coloured label, so you can see it turn
+    { const L = canvasTex(512, 512), { g, c } = L, cx = 256; mel.discFace = L;
+      g.clearRect(0, 0, 512, 512);
+      for (let r = 0; r < 9; r++) {
+        const rad = 92 + r * 18, n = 24 + ((r * 7) % 5) * 12;
+        g.strokeStyle = r % 3 === 2 ? '#7a2a2a' : '#26343b'; g.lineWidth = 9;
+        for (let k = 0; k < n; k++) {
+          const a0 = k / n * Math.PI * 2, len = (0.35 + 0.55 * Math.abs(Math.sin(k * (r + 3) * 1.7))) / n * Math.PI * 2;
+          g.beginPath(); g.arc(cx, cx, rad, a0, a0 + len); g.stroke();
+        }
+      }
+      mel.discTracks = g.getImageData(0, 0, 512, 512);
+      const face = new THREE.Mesh(new THREE.CircleGeometry(0.148, 64), new THREE.MeshBasicMaterial({ map: L.t, transparent: true, toneMapped: false }));
+      face.rotation.x = -Math.PI / 2; face.position.y = 0.0075; optDisc.add(face); face.userData = { t: 'disc' }; melCtrls.push(face); }
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.03, 16), mChrome); optDisc.add(hub);
+     }
+  // the chord panel: a row of seven buttons, leaning back toward you
+  const chordG = new THREE.Group(); chordG.position.set(0, 1.36, -0.66); chordG.rotation.x = 0.95; melG.add(chordG);
+  melHits.push(box(2.4, 0.04, 0.3, mWalnut, 0, -0.03, 0, chordG));
+  { const b = makeMuteBtn('melody', chordG, 1.04, 0.0, 0.0, 0.24, 0.19); b.userData = { t: 'mmute' }; melCtrls.push(b); }
+  for (let d = 0; d < 7; d++) {
+    const mat = capMat('#f6f2ea'), b = new THREE.Mesh(new THREE.BoxGeometry(0.215, 0.05, 0.19), mat);
+    b.position.set(-0.75 + d * 0.25, 0.02, 0.0); chordG.add(b); b.userData = { t: 'chord', i: d }; melCtrls.push(b);
+    const L = flatLabel(0.21, 0.18, 256, 220, b, 0, 0.0255, 0); chordBtns[d] = { mat, L };
+  }
+  mel.chordG = chordG;
+  // display on a rail above
+  melDispL = canvasTex(2048, 280);                      // a slim strip under the stained glass
+  const disp = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.26), new THREE.MeshBasicMaterial({ map: melDispL.t, toneMapped: false }));
+  disp.position.set(0, 1.62, -0.95); melG.add(disp);
+  const fr = new THREE.Mesh(new THREE.BoxGeometry(2.02, 0.3, 0.04), mDark); fr.position.set(0, 1.62, -0.975); melG.add(fr);
+  // two tall speaker columns, one per instrument, that glow while they sound
+  mel.cols = [-1, 1].map((sx) => {
+    const mat = new THREE.MeshStandardMaterial({ color: '#efe6d6', roughness: 0.6, emissive: sx < 0 ? '#ffb46b' : '#8fd3ff', emissiveIntensity: 0 });
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 2.6, 40), mat); c.position.set(sx * 1.55, 1.3, -0.9); melG.add(c); melHits.push(c);
+    const grille = new THREE.Mesh(new THREE.CylinderGeometry(0.265, 0.265, 1.4, 40, 1, true), new THREE.MeshStandardMaterial({ color: '#3a3630', roughness: 0.9, side: THREE.DoubleSide }));
+    grille.position.set(sx * 1.55, 1.55, -0.9); melG.add(grille);
+    return mat;
+  });
+}
+
+
+/* ---------- sound */
+let melAudio = null;
+function initMelodyAudio() {
+  const out = ac.createGain(); out.gain.value = 0.85;
+  out.connect(consoleOut);
+  const nlen = ac.sampleRate * 2, nb = ac.createBuffer(1, nlen, ac.sampleRate), nd = nb.getChannelData(0);
+  for (let i = 0; i < nlen; i++) nd[i] = Math.random() * 2 - 1;
+  // the strum plate's circuit: every zone's tone shares one fixed filter, as in the Omnichord,
+  // so a note keeps its hollow, glassy colour all the way down its fade instead of darkening
+  // like a plucked string. One vibrato oscillator wobbles the WAVY voice for every zone at once.
+  const spIn = ac.createGain();
+  const spHP = ac.createBiquadFilter(); spHP.type = 'highpass'; spHP.frequency.value = 120; spHP.Q.value = 0.5;
+  const spLP = ac.createBiquadFilter(); spLP.type = 'lowpass'; spLP.frequency.value = 3000; spLP.Q.value = 0.55;
+  const spLP2 = ac.createBiquadFilter(); spLP2.type = 'lowpass'; spLP2.frequency.value = 7000; spLP2.Q.value = 0.5;
+  const spSat = ac.createWaveShaper(); spSat.curve = softClipCurve(); spSat.oversample = isTouch ? 'none' : '2x';
+  spIn.connect(spHP); spHP.connect(spLP); spLP.connect(spLP2); const spVol = ac.createGain(); volRegister('strum', spVol, 1);
+  spLP2.connect(spSat); spSat.connect(spVol); spVol.connect(out);
+  const spWavy = wobbleDelay(5.6, 16); spWavy.connect(spIn);       // the WAVY voice's vibrato, shared by every zone
+  const opt = ac.createGain(); volRegister('optigan', opt, 1.6);   // the Optigan sat low next to the plate
+  // the Leslie: everything the Optigan plays goes through a rotating-speaker cabinet. A crossover at
+  // 800 Hz sends the lows to a slow, heavy drum and the highs to a quick horn; each rotor swings its
+  // level and its distance (the delay, which gives the Doppler warble) in quadrature, like the real thing.
+  const les = (() => {
+    const lin = ac.createGain(), lout = ac.createGain();
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 800; lp.Q.value = 0.55;
+    const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 800; hp.Q.value = 0.55;
+    lin.connect(lp); lin.connect(hp);
+    const cosW = ac.createPeriodicWave(new Float32Array([0, 1]), new Float32Array([0, 0]));
+    const rotor = (src, ampDepth, dly) => {
+      const rate = ac.createConstantSource(); rate.offset.value = 0; rate.start();
+      const sinO = ac.createOscillator(), cosO = ac.createOscillator();
+      sinO.frequency.value = 0; cosO.frequency.value = 0; cosO.setPeriodicWave(cosW);
+      rate.connect(sinO.frequency); rate.connect(cosO.frequency);
+      const amp = ac.createGain(); amp.gain.value = 0.8;
+      const ad = ac.createGain(); ad.gain.value = 0; sinO.connect(ad); ad.connect(amp.gain);
+      const d = ac.createDelay(0.02); d.delayTime.value = 0.004;
+      const dd = ac.createGain(); dd.gain.value = 0; cosO.connect(dd); dd.connect(d.delayTime);
+      sinO.start(); cosO.start();
+      src.connect(d); d.connect(amp); amp.connect(lout);
+      return { rate, ad, dd, ampDepth, dly };
+    };
+    const horn = rotor(hp, 0.5, 0.00055), drum = rotor(lp, 0.3, 0.0007);
+    lout.connect(out);
+    return { lin, horn, drum, lout };
+  })();
+  opt.connect(les.lin);
+  // shared effects for the disc voices: the vibraphone's fan tremolo and the theatre organ's tremulant
+  const lfoBus = (rate, depth, cents) => {
+    const bus = ac.createGain(); bus.gain.value = 1;
+    const l = ac.createOscillator(); l.frequency.value = rate; const lg = ac.createGain(); lg.gain.value = depth; l.connect(lg); lg.connect(bus.gain); l.start();
+    if (cents) { const w = wobbleDelay(rate, cents); bus.connect(w); w.connect(opt); } else bus.connect(opt);
+    return [bus];
+  };
+  const leslie = ac.createGain(); leslie.connect(opt);                  // the Hammond now takes its swirl from the real Leslie above
+  const [vibBus] = lfoBus(4.8, 0.32, 0), [tremBus] = lfoBus(6.9, 0.2, 14);
+  melAudio = { out, opt, noise: nb, spIn, spWavy, leslie, vibBus, tremBus, les };
+}
+function wobbleDelay(rate, cents) {                        // vibrato for a whole bus: a gently swinging short delay
+  const d = ac.createDelay(0.05); d.delayTime.value = 0.006;
+  const l = ac.createOscillator(); l.frequency.value = rate; const lg = ac.createGain();
+  lg.gain.value = (Math.pow(2, cents / 1200) - 1) / (2 * Math.PI * rate);
+  l.connect(lg); lg.connect(d.delayTime); l.start();
+  return d;
+}
+function softClipCurve() {                                  // gentle tanh rounding, like the analogue output stage
+  const n = 1024, c = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = Math.tanh(x * 1.6) / Math.tanh(1.6); }
+  return c;
+}
+function mkOsc(type, f, det = 0) { const o = ac.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = det; return o; }
+// one strum-plate zone sounds: an instant attack, then a long exponential fade. A zone
+// struck again while still ringing restarts its fade, as touching a real zone recharges it.
+function strumZone(i, delay = 0) {
+  if (!ac || !melAudio) return;
+  const z = mel.plates[i], m = plateMidi(i), t = ac.currentTime + 0.004 + delay, f = mf(m), tau = Math.min(SP_SUS[mel.sus][1], audioGov.level >= 2 ? 0.42 : 9);
+  if (z.h) z.h.stop(t);
+  const pk = 0.07 * Math.pow(0.988, m - 60);               // high zones a touch quieter, as the ear hears them louder
+  const mix = [[0, 1], [1, 0], [0.62, 0.62]][mel.voice]; // [vibrato voice, standard voice]
+  const o = mkOsc('square', f), e = ac.createGain(), oscs = [o], envs = [e];
+  o.connect(e);
+  mix.forEach((a, k) => { if (!a) return; const s = ac.createGain(); s.gain.value = a; e.connect(s); s.connect(k === 0 ? melAudio.spWavy : melAudio.spIn); });
+  e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(pk, t + 0.0025); e.gain.setTargetAtTime(0, t + 0.0025, tau);
+  const end = t + Math.min(tau * 6.5, 6) + 0.05;
+  oscs.forEach((o) => { o.start(t); o.stop(end); });
+  let done = false;
+  const h = { stop(at) { if (done) return; done = true; const tt = Math.max(at || 0, ac.currentTime); for (const e of envs) { e.gain.cancelScheduledValues(tt); e.gain.setTargetAtTime(0, tt, 0.004); } oscs.forEach((o) => { try { o.stop(tt + 0.04); } catch (e) {} }); } };
+  Object.assign(z, { h, m, t0: t, tau });
+  melValue = `strum ${PC_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
+}
+// a run across the plate, as a keyboard or controller strum: about 18 ms between zones
+function strumRun(dir) {
+  for (let k = 0; k < SP_N; k++) strumZone(dir > 0 ? k : SP_N - 1 - k, k * 0.018);
+  buzz(12); drawMelDisplay();
+}
+function plateLevel(i, now) { const z = mel.plates[i]; return now < z.t0 ? 0 : Math.exp(-(now - z.t0) / z.tau); }
+// an Optigan note: a reedy chord-organ tone
+// the keyboard voice set by the disc; chords held on the chord buttons use it too.
+function keyNote(m, vel = 1) {
+  switch (OPT_DISCS[mel.disc][0]) {
+    case 'HAMMOND': return hammondNote(m, vel);
+    case 'HARPSICHORD': return harpsiNote(m, vel);
+    case 'VIBES': return vibesNote(m, vel);
+    case 'ACCORDION': return accordionNote(m, vel);
+    case 'E.PIANO': return epianoNote(m, vel);
+    case 'THEATRE': return theatreNote(m, vel);
+    default: return reedNote(m, vel);
+  }
+}
+const waveCache = {};
+function wave(name, amps) {                                 // a cached PeriodicWave from harmonic amplitudes
+  if (!waveCache[name]) waveCache[name] = ac.createPeriodicWave(new Float32Array(amps.length), Float32Array.from(amps), { disableNormalization: false });
+  return waveCache[name];
+}
+function waveOsc(name, amps, f) { const o = ac.createOscillator(); o.setPeriodicWave(wave(name, amps)); o.frequency.value = f; return o; }
+// a voice handle: holds while the key is down, then releases with its own time constant
+function voiceHandle(g, srcs, rel, after) {
+  let done = false;
+  return { stop(at) {
+    if (done) return; done = true; const tt = Math.max(at || 0, ac.currentTime);
+    g.gain.cancelScheduledValues(tt); g.gain.setTargetAtTime(0, tt, rel);
+    srcs.forEach((o) => { try { o.stop(tt + rel * 8 + 0.05); } catch (e) {} }); if (after) after(tt);
+  } };
+}
+function clickNoise(t, dest, freq, q, amp, len) {          // a short filtered noise burst: key click, mallet, quill
+  const n = ac.createBufferSource(); n.buffer = melAudio.noise; const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = q;
+  const ng = ac.createGain(); ng.gain.setValueAtTime(amp, t); ng.gain.setTargetAtTime(0, t + 0.001, len);
+  n.connect(bp); bp.connect(ng); ng.connect(dest); n.start(t, Math.random()); n.stop(t + len * 8);
+}
+// Hammond: drawbars 88 8400 000 (16', 5⅓', 8', 4') as one wave an octave down, a decaying third-harmonic
+// percussion, the key click, and every note through the shared Leslie (pitch and level wobble)
+function hammondNote(m, vel = 1) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(); g.connect(melAudio.leslie);
+  const o = waveOsc('ham', [0, 1, 1, 1, 0.5, 0, 0, 0, 0.12], f / 2);
+  const og = ac.createGain(); og.gain.value = 1; o.connect(og); og.connect(g);
+  const p = mkOsc('sine', f * 3), pg = ac.createGain(); p.connect(pg); pg.connect(g);
+  pg.gain.setValueAtTime(0.5, t); pg.gain.setTargetAtTime(0, t, 0.22);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.09 * vel, t + 0.005);
+  clickNoise(t, g, 2600, 0.8, 0.35, 0.003);
+  o.start(t); p.start(t);
+  return voiceHandle(g, [o, p], 0.012);
+}
+// harpsichord: a bright plucked string (the quill near the end makes a thin, nasal tone), 8' and 4' choirs,
+// a filter that closes after the pluck, and a damper that stops it when the key comes up
+function harpsiNote(m, vel = 1) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(), lp = ac.createBiquadFilter();
+  lp.type = 'lowpass'; lp.Q.value = 0.6; lp.connect(g); g.connect(melAudio.opt);
+  const amps = [0]; for (let n = 1; n < 40; n++) amps.push(Math.abs(Math.sin(Math.PI * n * 0.11)) / Math.pow(n, 0.8));
+  const o1 = waveOsc('hpsi', amps, f), o2 = waveOsc('hpsi', amps, f * 2); o2.detune.value = 3;
+  const g2 = ac.createGain(); g2.gain.value = 0.4; o1.connect(lp); o2.connect(g2); g2.connect(lp);
+  lp.frequency.setValueAtTime(Math.min(16000, f * 22), t); lp.frequency.setTargetAtTime(Math.min(9000, f * 6), t, 0.12);
+  const tau = 1.4 * Math.pow(220 / f, 0.45);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.096 * vel, t + 0.0015); g.gain.setTargetAtTime(0, t + 0.0015, tau);
+  clickNoise(t, g, 4000, 1.2, 0.5, 0.004);
+  o1.start(t); o2.start(t); o1.stop(t + tau * 8); o2.stop(t + tau * 8);
+  return voiceHandle(g, [o1, o2], 0.045, (tt) => clickNoise(tt, melAudio.opt, 900, 1.5, 0.012, 0.01));   // the damper's soft thud
+}
+// vibraphone: a sine bar with its tuned partials at 4× and 10×, a soft mallet, the rotating-fan tremolo,
+// long ring while held (pedal down) and damped on release
+function vibesNote(m, vel = 1) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(); g.connect(melAudio.vibBus);
+  const parts = [[1, 1, 3.2], [4, 0.22, 0.5], [10, 0.05, 0.12]], srcs = [];
+  for (const [r, a, tau] of parts) {
+    if (f * r > 16000) continue;
+    const o = mkOsc('sine', f * r), og = ac.createGain(); o.connect(og); og.connect(g);
+    og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(a, t + 0.002); og.gain.setTargetAtTime(0, t + 0.002, tau * Math.pow(440 / f, 0.3));
+    o.start(t); o.stop(t + 14); srcs.push(o);
+  }
+  g.gain.value = 0.068 * vel;
+  clickNoise(t, g, 1800, 1, 0.12, 0.004);
+  return voiceHandle(g, srcs, 0.12);
+}
+// accordion: two reeds per note tuned a little apart (the "wet" musette beat), a bellows swell,
+// shaped by the reed chamber
+function accordionNote(m, vel = 1) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(), bp = ac.createBiquadFilter(), lp = ac.createBiquadFilter();
+  bp.type = 'peaking'; bp.frequency.value = 1300; bp.Q.value = 1.2; bp.gain.value = 6;
+  lp.type = 'lowpass'; lp.frequency.value = 3800; lp.Q.value = 0.5; bp.connect(lp); lp.connect(g); g.connect(melAudio.opt);
+  const amps = [0]; for (let n = 1; n < 30; n++) amps.push((n % 2 ? 1 : 0.55) / n);
+  const srcs = [-9, 0, 9].map((det, k) => { const o = waveOsc('acc', amps, f); o.detune.value = det; const og = ac.createGain(); og.gain.value = k === 1 ? 0.5 : 0.35; o.connect(og); og.connect(bp); o.start(t); return o; });
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.095 * vel, t + 0.045);
+  return voiceHandle(g, srcs, 0.05);
+}
+// electric piano: an FM tine, bright and bell-like at the strike, mellowing as it rings
+function epianoNote(m, vel = 1) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(); g.connect(melAudio.opt);
+  const car = mkOsc('sine', f), mod = mkOsc('sine', f), mg = ac.createGain(); mod.connect(mg); mg.connect(car.frequency);
+  mg.gain.setValueAtTime(f * 2.2, t); mg.gain.setTargetAtTime(f * 0.25, t, 0.25);
+  const bell = mkOsc('sine', f * 14), bg = ac.createGain(), bm = ac.createGain(); bell.connect(bm); bm.connect(car.frequency);
+  bm.gain.setValueAtTime(f * 0.8, t); bm.gain.setTargetAtTime(0, t, 0.03);
+  car.connect(g); bg.gain.value = 0;
+  const tau = 1.8 * Math.pow(220 / f, 0.35);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.077 * vel, t + 0.002); g.gain.setTargetAtTime(0.014 * vel, t + 0.002, tau);
+  for (const o of [car, mod, bell]) o.start(t);
+  return voiceHandle(g, [car, mod, bell], 0.09);
+}
+// theatre organ: a tibia flute with octave couplers, deep tremulant on pitch and level
+function theatreNote(m, vel = 1) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(); g.connect(melAudio.tremBus);
+  const srcs = [[0.5, 0.45], [1, 1], [2, 0.38], [4, 0.1]].map(([r, a]) => {
+    const o = waveOsc('tibia', [0, 1, 0.12, 0.05, 0.02], f * r);
+    const og = ac.createGain(); og.gain.value = a; o.connect(og); og.connect(g); o.start(t); return o;
+  });
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.052 * vel, t + 0.035);
+  return voiceHandle(g, srcs, 0.11);
+}
+function reedNote(m, vel = 1, dur = 0) {
+  const t = ac.currentTime + 0.002, f = mf(m), g = ac.createGain(), lp = ac.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 2400; lp.Q.value = 0.7; lp.connect(g); g.connect(melAudio.opt);
+  const o1 = mkOsc('square', f), o2 = mkOsc('square', f * 2, 4), h = ac.createGain(); h.gain.value = 0.35;
+  o1.connect(lp); o2.connect(h); h.connect(lp);
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.055 * vel, t + 0.012);
+  o1.start(t); o2.start(t);
+  let done = false;
+  const stop = (at) => { if (done) return; done = true; const tt = Math.max(at || 0, ac.currentTime); g.gain.setTargetAtTime(0, tt, 0.05); o1.stop(tt + 0.4); o2.stop(tt + 0.4); };
+  if (dur) stop(t + dur);
+  return { stop };
+}
+/* ---------- the Optigan's backing: chords, bass and brushes on the Rhythm Wheel's grid */
+// backing patterns over sixteen sixteenths. bass: step → chord tone (0 root, 1 third, 2 fifth, 3 octave);
+// chord: step → length in steps; brush: steps with a brush; swing: how late the off-beat eighths fall
+const OPT_PAT = {
+  1: { bass: { 0: 0, 8: 2 }, chord: { 2: 1, 6: 1, 10: 1, 14: 1 }, brush: [4, 12] },                         // strum
+  2: { bass: { 0: 0, 6: 2, 8: 0, 14: 2 }, chord: { 3: 1.4, 6: 1.4, 10: 1.4, 13: 1.4 }, brush: [0, 3, 6, 10, 12] },   // bossa
+  3: { bass: { 0: 0, 8: 2 }, chord: { 0: 7.5, 8: 7.5 }, brush: [4, 12], bassLen: 7.5 },                      // ballad
+  4: { bass: { 0: 0, 8: 2 }, chord: { 4: 1.3, 12: 1.3 }, brush: [4, 12], bassLen: 1.4 },                    // polka: oom-pah, oom-pah
+  5: { bass: { 0: 0, 4: 1, 8: 2, 12: 1 }, chord: { 4: 1, 10: 0.6, 12: 1 }, brush: [0, 4, 6, 8, 12, 14], swing: 0.66, bassLen: 3.6 },   // swing: walking bass, stabs on 2 and 4
+  6: { bass: { 0: 0, 6: 2, 8: 0, 12: 2 }, chord: { 0: 0.7, 4: 0.7, 8: 0.7, 12: 0.7, 14: 0.5 }, brush: [6, 14], bassLen: 1.6 },   // tango: habanera bass, marcato chords
+  7: { bass: { 0: 0, 3: 0, 6: 2, 10: 3 }, chord: { 4: 0.5, 12: 0.5 }, brush: [8], bassLen: 2.6 },          // reggae: skank on the off-beats, one drop
+};
+function chordMidis(d) { const base = 57 + ((NOTE_SEMI[org.root] - 9 + 12) % 12); return triad(d).map((x) => base + x); }   // around A3–G#4
+function schedNote(kind, t, m, dur) {
+  glassEvents.push({ t, m, d: Math.max(0.15, dur), lvl: kind === 'bass' ? 0.9 : 0.75 });
+  const f = mf(m), g = ac.createGain(); g.connect(melAudio.opt);
+  if (kind === 'bass') {
+    const o = mkOsc('triangle', f), o2 = mkOsc('sine', f * 2); const h = ac.createGain(); h.gain.value = 0.2;
+    o.connect(g); o2.connect(h); h.connect(g);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.32, t + 0.01); g.gain.setTargetAtTime(0, t + dur * 0.9, 0.06);
+    o.start(t); o2.start(t); o.stop(t + dur + 0.4); o2.stop(t + dur + 0.4);
+  } else {
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2000; lp.connect(g);
+    const o = mkOsc('square', f); o.connect(lp);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.03, t + 0.008); g.gain.setTargetAtTime(0, t + dur * 0.85, 0.05);
+    o.start(t); o.stop(t + dur + 0.4);
+    if (audioGov.level < 2) { const o2 = mkOsc('square', f * 2, 5), h = ac.createGain(); h.gain.value = 0.3; o2.connect(h); h.connect(lp); o2.start(t); o2.stop(t + dur + 0.4); }
+  }
+}
+function schedBrush(t, accent) {
+  const s = ac.createBufferSource(); s.buffer = melAudio.noise; const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 5200; bp.Q.value = 0.6;
+  const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(accent ? 0.09 : 0.05, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+  s.connect(bp); bp.connect(g); g.connect(melAudio.opt); s.start(t, Math.random()); s.stop(t + 0.2);
+}
+function scheduleOptigan() {
+  if (!ac || !melAudio || !mel.style || mel.chord === null) return;
+  while (mel.nextT < ac.currentTime - 0.05) { mel.nextT += stepDur(); mel.next = (mel.next + 1) % 16; }   // fell behind (busy or hidden tab): skip, don't burst
+  const ahead = ac.currentTime + LOOKAHEAD, P = OPT_PAT[mel.style];
+  while (mel.nextT < ahead) {
+    const st = mel.next, sd = stepDur(), t = mel.nextT + (P.swing && st % 4 === 2 ? sd * P.swing : 0), cm = chordMidis(mel.chord);
+    const tone = [cm[0], cm[1], cm[2], cm[0] + 12];
+    if (st in P.bass) schedNote('bass', t, tone[P.bass[st]] - 24, sd * (P.bassLen || 1.8));
+    if (st in P.chord) cm.forEach((m, k) => schedNote('chord', t + k * 0.012, m, sd * P.chord[st]));
+    if (P.brush.includes(st)) schedBrush(t, st % 4 === 0);
+    mel.nextT += sd; mel.next = (mel.next + 1) % 16;
+  }
+}
+function optRunning() { return mel.style > 0 && mel.chord !== null; }
+function syncOptigan() {
+  const want = optRunning();
+  if (want && !mel.timer && ac) {
+    if (rhy.run) { mel.next = rhy.next; mel.nextT = rhy.nextT; } else { const g = gridNext(0.05); mel.next = g.k % 16; mel.nextT = g.t; }
+    scheduleOptigan(); mel.timer = setInterval(scheduleOptigan, 25);
+  } else if (!want && mel.timer) { clearInterval(mel.timer); mel.timer = null; }
+}
+
+/* ---------- labels and display */
+let melHelp = '', melValue = '';
+const MEL_HELP = {
+  start: 'Strum across the metal plate, or tap single zones: it plays the chord picked on the Optigan’s chord buttons. The raised keyboard is the Optigan organ. Keys: ← → choose, Enter play, ↑ ↓ strum. Controller: d-pad, Ⓐ, Ⓑ leave.',
+  voice: 'Strum plate voice: PLAIN is the steady tone, WAVY adds vibrato, BLEND mixes the two for a shimmer.',
+  mmute: 'Mute: silences the whole console, strum plate and Optigan, at once. Press again to bring it back.',
+  disc: 'The disc: tap it to change the keyboard’s voice. Organ, Hammond, harpsichord, vibes, accordion, electric piano or theatre organ. Chords you hold on the chord buttons play in it too; the rhythm backings stay the same.',
+  vol: 'Volume: slide it, or touch anywhere along it. Each instrument has its own; 70% is its normal level, and it goes about twice as loud.',
+  leslie: 'Leslie speaker: the whole Optigan plays through a rotating speaker. STOP holds it still, SLOW is a gentle chorale, FAST is the full tremolo. The rotors take a moment to speed up or slow down, the horn quicker than the heavy drum, just like the real cabinet.',
+  sus: 'Sustain: how long each zone rings. SHORT plucks like a banjo; LONG lets a strum hang in the air.',
+  plate: 'Thirteen zones, low on the left, high on the right. Each plays the root, third or fifth of the chord, climbing four octaves. Strum, or tap one zone at a time. ↑ ↓ strums the whole plate.',
+  style: 'Optigan backing: pick a style (strum, bossa nova, ballad, polka, swing, tango or reggae), then press a chord. It plays bass, chords and brushes in time with the Rhythm Wheel. OFF lets the chord buttons sound only while held.',
+  chord: 'Chord buttons: the seven chords that belong to the gallery’s key. Try I, then IV, then V, then back to I.',
+  key: 'Lit keys belong to the gallery’s key, so they always sound right. Green keys are the home note. Slide along the keys to glide.',
+};
+function drawMelDisplay() {
+  const { g, c, t } = melDispL;
+  g.fillStyle = '#fbf8f2'; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = '#66c000'; g.fillRect(0, 0, c.width, 10);
+  g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.fillStyle = '#1d1b18'; g.font = `bold 72px ${FONT}`;
+  const head = chordLabel(mel.chord ?? mel.plateChord);
+  g.fillText(head, 34, 84);
+  const hw = g.measureText(head).width;
+  g.fillStyle = '#5a554d'; g.font = `bold 38px ${FONT}`;
+  g.fillText(`STRUM: ${SP_VOICES[mel.voice][0]} \u00B7 ${SP_SUS[mel.sus][0]}   \u00B7   KEYS: ${OPT_DISCS[mel.disc][0]}   \u00B7   BACKING: ${OPT_STYLES[mel.style]}`, 70 + hw, 80);
+  if (melValue) { g.textAlign = 'right'; g.fillStyle = '#1d1b18'; g.font = `bold 46px ${FONT}`; g.fillText(melValue, c.width - 34, 82); g.textAlign = 'left'; }
+  g.fillStyle = '#3a3630'; g.font = `36px ${FONT}`;
+  const words = melHelp.split(' '); let line = '', y = 142;
+  for (const wd of words) { if (g.measureText(line + wd).width > c.width - 68) { g.fillText(line, 34, y); line = ''; y += 44; } line += wd + ' '; }
+  g.fillText(line, 34, y); t.needsUpdate = true;
+}
+function drawMelButtons() {
+  voiceBtns.forEach((b, k) => printText(b.L, [[b.name, 34, k === mel.voice ? '#ffffff' : '#1d1b18']], k === mel.voice ? { bg: '#1d1b18' } : {}));
+  drawVolKnob('strum'); drawVolKnob('optigan');
+  { const [name, col] = OPT_DISCS[mel.disc], { g, t } = mel.discFace, cx = 256;
+    g.putImageData(mel.discTracks, 0, 0);
+    g.fillStyle = col; g.beginPath(); g.arc(cx, cx, 76, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#f6f2ea'; g.beginPath(); g.moveTo(cx, cx); g.arc(cx, cx, 76, -0.45, 0.45); g.fill();
+    g.fillStyle = '#1d1b18'; g.font = `bold ${name.length > 8 ? 17 : 22}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.save(); g.translate(cx, cx); g.rotate(Math.PI / 2); g.fillStyle = '#f6f2ea'; g.fillText(name, 0, -42); g.restore();
+    t.needsUpdate = true; }
+  susBtns.forEach((b, k) => printText(b.L, [[b.name, 34, k === mel.sus ? '#ffffff' : '#1d1b18']], k === mel.sus ? { bg: '#1d1b18' } : {}));
+  // each zone's note for the current chord, printed behind the plate
+  { const { g, c, t } = plateNamesL, sw = c.width / SP_N; g.clearRect(0, 0, c.width, c.height);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `bold 34px ${FONT}`;
+    const home = NOTE_SEMI[org.root];
+    for (let i = 0; i < SP_N; i++) { const m = plateMidi(i); g.fillStyle = m % 12 === (home + triad(mel.plateChord)[0]) % 12 ? '#3d7a12' : '#5a554d'; g.fillText(`${PC_NAMES[m % 12]}${Math.floor(m / 12) - 1}`, sw * (i + 0.5), c.height / 2); }
+    t.needsUpdate = true; }
+  lesBtns.forEach((b, k) => printText(b.L, [[b.name, 40, k === mel.leslie ? '#ffffff' : '#1d1b18']], k === mel.leslie ? { bg: '#1d1b18', radius: 12 } : {}));
+  styleBtns.forEach((b, k) => printText(b.L, [[b.name, 36, k === mel.style ? '#ffffff' : '#1d1b18']], k === mel.style ? { bg: '#1d1b18', radius: 12 } : {}));
+  chordBtns.forEach((b, d) => printText(b.L, [[chordLabel(d), 76, d === mel.chord ? '#ffffff' : '#1d1b18'], [ROMANS[d], 40, d === mel.chord ? '#cfe9b8' : '#5a554d']], d === mel.chord ? { bg: '#3d7a12' } : {}));
+}
+const LESLIE_NAMES = ['STOP', 'SLOW', 'FAST'];
+const KEY_TINT = { inW: new THREE.Color('#fbf8f2'), outW: new THREE.Color('#a9a297'), homeW: new THREE.Color('#bfe39a'), inB: new THREE.Color('#6e665b'), outB: new THREE.Color('#121110'), homeB: new THREE.Color('#4d7a2a') };
+function melKeyChanged() {
+  const sc = galleryScale(), home = NOTE_SEMI[org.root];
+  for (const kb of keyboards) if (kb) for (const k of kb.keys) {
+    const pc = k.m % 12, inS = sc.includes(pc);
+    k.base = k.black ? (pc === home ? KEY_TINT.homeB : inS ? KEY_TINT.inB : KEY_TINT.outB) : (pc === home ? KEY_TINT.homeW : inS ? KEY_TINT.inW : KEY_TINT.outW);
+    k.mat.color.copy(k.base);
+  }
+  drawMelButtons(); drawMelDisplay();
+}
+
+/* ---------- touch, mouse, keys, controller */
+function keyOf(kb, m) { return keyboards[kb].keys.find((k) => k.m === m); }
+function noteOn(id, kb, m) {
+  if (!ac || !melAudio) return;
+  noteOff(id);
+  const h = keyNote(m);
+  mel.held.set(id, { kb, m, h, t: performance.now() });
+  const k = keyOf(kb, m); if (k) k.down = (k.down || 0) + 1;
+  melValue = `${OPT_DISCS[mel.disc][0].toLowerCase()} ${PC_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
+}
+function noteOff(id) {
+  const n = mel.held.get(id); if (!n) return;
+  n.h.stop(); mel.held.delete(id);
+  const k = keyOf(n.kb, n.m); if (k) k.down = Math.max(0, (k.down || 1) - 1);
+}
+function chordDown(d, id) {
+  mel.chord = d; mel.plateChord = d; melHelp = MEL_HELP.chord; melValue = `${ROMANS[d]} · ${chordLabel(d)}`;
+  if (mel.style === 0 && ac && melAudio) { chordUp(); mel.holdChord = { id, notes: chordMidis(d).map((m) => keyNote(m, 0.9)) }; }   // held chords use the disc's voice
+  syncOptigan(); drawMelButtons(); drawMelDisplay(); buzz(8);
+}
+function chordUp(id) {
+  if (!mel.holdChord || (id !== undefined && mel.holdChord.id !== id)) return;
+  mel.holdChord.notes.forEach((n) => n.stop()); mel.holdChord = null;
+  if (mel.style === 0) { mel.chord = null; drawMelButtons(); drawMelDisplay(); }
+}
+const volText = (key) => `${key === 'strum' ? 'Strum plate' : 'Optigan'} volume ${Math.round(VOL[key] * 100)}%`;
+function melVolBy(key, dv) { setVol(key, VOL[key] + dv); drawVolKnob(key); melValue = volText(key); drawMelDisplay(); }
+function setDisc(i) {
+  mel.disc = (i + OPT_DISCS.length) % OPT_DISCS.length; mel.discSwap = 1;
+  melHelp = MEL_HELP.disc; melValue = `disc: ${OPT_DISCS[mel.disc][0].toLowerCase()}`; buzz(10);
+  if (ac && melAudio) blip(520, 0.05, 0.03);
+  drawMelButtons(); drawMelDisplay();
+}
+function melButton(u, id) {
+  if (u.t === 'voice') { mel.voice = u.i; melHelp = MEL_HELP.voice; melValue = SP_VOICES[u.i][0]; buzz(8); }
+  if (u.t === 'sus') { mel.sus = u.i; melHelp = MEL_HELP.sus; melValue = 'sustain ' + SP_SUS[u.i][0].toLowerCase(); buzz(8); }
+  if (u.t === 'plate') { melHelp = MEL_HELP.plate; strumZone(u.i); buzz(6); drawMelDisplay(); return; }
+  if (u.t === 'leslie') { if (u.i >= 0) mel.leslie = u.i; else mel.leslie = (mel.leslie + 1) % 3; melHelp = MEL_HELP.leslie; melValue = 'leslie: ' + LESLIE_NAMES[mel.leslie].toLowerCase(); buzz(8); }
+  if (u.t === 'disc') { setDisc(mel.disc + 1); return; }
+  if (u.t === 'mmute') { const on = machineMute('melody'); melHelp = MEL_HELP.mmute; melValue = on ? 'console muted' : 'sound on'; drawMelDisplay(); return; }
+  if (u.t === 'vol') { melHelp = MEL_HELP.vol; melValue = volText(u.key); drawMelDisplay(); return; }
+  if (u.t === 'style') {
+    mel.style = u.i; melHelp = MEL_HELP.style; melValue = OPT_STYLES[u.i];
+    if (mel.style === 0) { mel.chord = null; } else if (mel.chord === null) mel.chord = 0;
+    if (mel.timer) { clearInterval(mel.timer); mel.timer = null; }
+    syncOptigan(); buzz(8);
+  }
+  if (u.t === 'chord') { chordDown(u.i, id); return; }
+  drawMelButtons(); drawMelDisplay();
+}
+function melRay(e) { const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); return ray.intersectObjects(melCtrls, false)[0]; }
+const melPtr = new Map();                                  // pointerId → what it's holding
+function melDown(e) {
+  const h = melRay(e); if (!h) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  mFocus = -1;
+  const u = h.object.userData;
+  melPtr.set(e.pointerId, u.t === 'plate' ? { t: 'plate', i: u.i } : u);
+  if (u.t === 'vol') melVolTo(u.key, e);
+  if (u.t === 'key') { melHelp = MEL_HELP.key; noteOn('p' + e.pointerId, u.kb, u.m); drawMelDisplay(); }
+  else melButton(u, 'p' + e.pointerId);
+}
+function melMove(e) {
+  const u = melPtr.get(e.pointerId); if (!u) return;
+  if (u.t === 'vol') { melVolTo(u.key, e); return; }
+  if (u.t === 'plate') {                                   // strumming: sound every zone the finger crosses, in order
+    const h = melRay(e), v = h && h.object.userData;
+    if (v && v.t === 'plate' && v.i !== u.i) {
+      const dir = Math.sign(v.i - u.i);
+      for (let i = u.i + dir; i !== v.i + dir; i += dir) strumZone(i);
+      u.i = v.i; drawMelDisplay();
+    }
+    return;
+  }
+  if (u.t !== 'key') return;
+  const h = melRay(e);
+  if (h && h.object.userData.t === 'key') {               // slide along the keys
+    const v = h.object.userData;
+    if (v.kb !== u.kb || v.m !== u.m) { melPtr.set(e.pointerId, v); noteOn('p' + e.pointerId, v.kb, v.m); drawMelDisplay(); }
+  }
+}
+function melUp(e) {
+  const u = melPtr.get(e.pointerId); if (!u) return;
+  melPtr.delete(e.pointerId);
+  if (u.t === 'key') noteOff('p' + e.pointerId);
+  if (u.t === 'chord') chordUp('p' + e.pointerId);
+}
+const M_STATIONS = [...[0, 1, 2].map((i) => ({ t: 'voice', i })), ...[0, 1, 2].map((i) => ({ t: 'sus', i })), { t: 'vol', key: 'strum' }, ...[0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({ t: 'style', i })), ...[0, 1, 2].map((i) => ({ t: 'leslie', i })), { t: 'disc' }, { t: 'vol', key: 'optigan' }, ...[0, 1, 2, 3, 4, 5, 6].map((i) => ({ t: 'chord', i })), { t: 'mmute' }];
+for (let i = 0; i < SP_N; i++) M_STATIONS.push({ t: 'plate', i });
+for (let m = KB_LO; m <= KB_HI; m++) M_STATIONS.push({ t: 'key', kb: 1, m });
+let mFocus = -1;
+function mFocusSet(i) {
+  mFocus = i; if (i < 0) return;
+  const f = M_STATIONS[i]; melHelp = MEL_HELP[f.t];
+  melValue = f.t === 'key' ? `Optigan ${PC_NAMES[f.m % 12]}${Math.floor(f.m / 12) - 1}` : f.t === 'chord' ? `${ROMANS[f.i]} · ${chordLabel(f.i)}`
+    : f.t === 'plate' ? `zone ${f.i + 1}: ${PC_NAMES[plateMidi(f.i) % 12]}${Math.floor(plateMidi(f.i) / 12) - 1}` : f.t === 'voice' ? SP_VOICES[f.i][0] : f.t === 'sus' ? 'sustain ' + SP_SUS[f.i][0].toLowerCase() : f.t === 'vol' ? volText(f.key) : f.t === 'leslie' ? 'leslie: ' + LESLIE_NAMES[f.i].toLowerCase() : f.t === 'disc' ? `disc: ${OPT_DISCS[mel.disc][0].toLowerCase()}` : f.t === 'mmute' ? (MUTED.melody ? 'muted' : 'mute') : OPT_STYLES[f.i];
+  drawMelDisplay(); blip(660, 0.04, 0.03);
+}
+function melStep(d) { mFocusSet(mFocus < 0 ? (d > 0 ? 0 : M_STATIONS.length - 1) : (mFocus + d + M_STATIONS.length) % M_STATIONS.length); }
+function melAdjust(d) {
+  if (mFocus < 0) { mFocusSet(0); return; }
+  const f = M_STATIONS[mFocus];
+  if (f.t === 'plate') { strumRun(d); return; }
+  if (f.t === 'vol') { melVolBy(f.key, d * 0.05); return; }
+  if (f.t === 'disc') { setDisc(mel.disc + d); return; }          // ↑ strums up the plate, ↓ strums down
+  if (f.t === 'key') {                                     // ↓ from a key drops to the plate zone in front of it
+    if (d < 0) { const j = M_STATIONS.findIndex((q) => q.t === 'plate' && q.i === Math.round((f.m - KB_LO) / (KB_HI - KB_LO) * (SP_N - 1))); if (j >= 0) mFocusSet(j); }
+    return;
+  }
+  melStep(-d);
+}
+function melPress(down) {
+  if (mFocus < 0) { if (down) mFocusSet(0); return; }
+  const f = M_STATIONS[mFocus];
+  if (f.t === 'key') { if (down) noteOn('kb', f.kb, f.m); else noteOff('kb'); drawMelDisplay(); return; }
+  if (f.t === 'chord') { if (down) chordDown(f.i, 'kb'); else chordUp('kb'); return; }
+  if (down) melButton(f, 'kb');
+}
+/* ---------- the stained-glass light panel above the console
+   Behind a window of tessellated coloured glass sits a grid of bulbs: one row for every key
+   (C3 at the bottom, C5 at the top). strum-plate notes light the warm bulbs (its four octaves spread over the rows),
+   Optigan notes the cool ones, and each piece of glass glows with the bulbs behind it. */
+const GL = { W: 1.9, H: 0.72, rows: KB_HI - KB_LO + 1, cols: 14 };
+const glassG = new THREE.Group(); glassG.position.set(0, 2.15, -0.98); melG.add(glassG);
+const bulbI = new Float32Array(GL.rows * GL.cols), bulbXY = [];
+let bulbMesh, glassPieces = [];
+{
+  // frame and backing box
+  const mFrame = new THREE.MeshStandardMaterial({ color: '#2a2622', roughness: 0.5 });
+  box(GL.W + 0.12, 0.06, 0.22, mFrame, 0, GL.H / 2 + 0.03, -0.08, glassG);
+  box(GL.W + 0.12, 0.06, 0.22, mFrame, 0, -GL.H / 2 - 0.03, -0.08, glassG);
+  box(0.06, GL.H, 0.22, mFrame, GL.W / 2 + 0.03, 0, -0.08, glassG);
+  box(0.06, GL.H, 0.22, mFrame, -GL.W / 2 - 0.03, 0, -0.08, glassG);
+  box(GL.W, GL.H, 0.02, new THREE.MeshBasicMaterial({ color: '#0e0c0a' }), 0, 0, -0.19, glassG);
+  box(GL.W + 0.12, 1.25, 0.08, mWalnut, 0, -GL.H / 2 - 0.62, -0.16, glassG);   // walnut back board down to the cabinet
+  // the bulbs
+  const geo = new THREE.SphereGeometry(0.012, 10, 8);
+  bulbMesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ toneMapped: false }), GL.rows * GL.cols);
+  const dm = new THREE.Object3D();
+  for (let r = 0; r < GL.rows; r++) for (let c = 0; c < GL.cols; c++) {
+    const x = -GL.W * 0.45 + c * (GL.W * 0.9 / (GL.cols - 1)) + (r % 2 ? 0.02 : -0.02), y = -GL.H * 0.45 + r * (GL.H * 0.9 / (GL.rows - 1));
+    dm.position.set(x, y, -0.13); dm.updateMatrix(); bulbMesh.setMatrixAt(r * GL.cols + c, dm.matrix);
+    bulbXY.push([x, y]); bulbMesh.setColorAt(r * GL.cols + c, new THREE.Color('#2a241c'));
+  }
+  glassG.add(bulbMesh);
+  // the glass: a grid of cells, each a square, two triangles, or four triangles
+  const rnd = rng(1967), pal = ALCOVE_COL.slice(1), cx = 11, cy = 4, cw = GL.W / cx, ch = GL.H / cy;
+  const lead = [];
+  const piece = (pts) => {
+    const shape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
+    const col = new THREE.Color(pal[Math.floor(rnd() * pal.length)]);
+    const mat = new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.1), transparent: true, opacity: 0.8, toneMapped: false, depthWrite: false });
+    const m = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat); glassG.add(m);
+    const ctr = pts.reduce((a, [x, y]) => [a[0] + x / pts.length, a[1] + y / pts.length], [0, 0]);
+    const near = [];
+    bulbXY.forEach(([bx, by], k) => { const d = Math.hypot(bx - ctr[0], by - ctr[1]); if (d < 0.15) near.push([k, 1 - d / 0.15]); });
+    glassPieces.push({ mat, col, near });
+    for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; lead.push(a[0], a[1], 0.002, b[0], b[1], 0.002); }
+  };
+  for (let i = 0; i < cx; i++) for (let j = 0; j < cy; j++) {
+    const x0 = -GL.W / 2 + i * cw, y0 = -GL.H / 2 + j * ch, x1 = x0 + cw, y1 = y0 + ch, xm = (x0 + x1) / 2, ym = (y0 + y1) / 2, k = rnd();
+    if (k < 0.3) piece([[x0, y0], [x1, y0], [x1, y1], [x0, y1]]);
+    else if (k < 0.65) { if ((i + j) % 2) { piece([[x0, y0], [x1, y0], [x1, y1]]); piece([[x0, y0], [x1, y1], [x0, y1]]); } else { piece([[x0, y0], [x1, y0], [x0, y1]]); piece([[x1, y0], [x1, y1], [x0, y1]]); } }
+    else { piece([[x0, y0], [x1, y0], [xm, ym]]); piece([[x1, y0], [x1, y1], [xm, ym]]); piece([[x1, y1], [x0, y1], [xm, ym]]); piece([[x0, y1], [x0, y0], [xm, ym]]); }
+  }
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lead, 3));
+  glassG.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: '#141210' })));
+}
+const glassEvents = [];                                     // backing notes scheduled ahead: light them when they sound
+const BULB_WARM = new THREE.Color('#ffc27a'), BULB_COOL = new THREE.Color('#cfe8ff'), BULB_OFF = new THREE.Color('#2a241c'), _bc = new THREE.Color();
+const bulbInst = (c) => c % 2;                              // even columns: strum plate; odd: Optigan
+function updateGlass(dt) {
+  const tgt = new Float32Array(GL.rows * GL.cols), now = ac ? ac.currentTime : 0;
+  const light = (m, inst, lvl, row) => {
+    const r = Math.max(0, Math.min(GL.rows - 1, row ?? m - KB_LO));
+    for (const [dr, w] of [[0, 1], [-1, 0.3], [1, 0.3]]) {
+      const rr = r + dr; if (rr < 0 || rr >= GL.rows) continue;
+      for (let c = 0; c < GL.cols; c++) if (bulbInst(c) === inst) { const k = rr * GL.cols + c; tgt[k] = Math.max(tgt[k], lvl * w); }
+    }
+  };
+  for (const n of mel.held.values()) light(n.m, n.kb, 1);
+  for (let i = 0; i < SP_N; i++) {                          // strum-plate notes: warm bulbs, their whole range spread up the window
+    const z = mel.plates[i], lvl = plateLevel(i, now);
+    if (lvl > 0.03) light(z.m, 0, Math.min(1, lvl * 1.15), Math.round((z.m - SP_LO) / (SP_HI - SP_LO) * (GL.rows - 1)));
+  }
+  if (mel.holdChord) chordMidis(mel.chord ?? 0).forEach((m) => light(m, 1, 0.9));
+  for (let i = glassEvents.length - 1; i >= 0; i--) {
+    const e = glassEvents[i];
+    if (now > e.t + e.d) { glassEvents.splice(i, 1); continue; }
+    if (now >= e.t) light(e.m, 1, e.lvl);
+  }
+  const up = Math.min(1, dt * 25), down = Math.min(1, dt * 4);
+  for (let k = 0; k < bulbI.length; k++) {
+    bulbI[k] += (tgt[k] - bulbI[k]) * (tgt[k] > bulbI[k] ? up : down);
+    _bc.copy(BULB_OFF).lerp(bulbInst(k % GL.cols) ? BULB_COOL : BULB_WARM, Math.min(1, bulbI[k] * 1.2)).multiplyScalar(1 + bulbI[k] * 1.5);
+    bulbMesh.setColorAt(k, _bc);
+  }
+  bulbMesh.instanceColor.needsUpdate = true;
+  for (const p of glassPieces) {
+    let g = 0; for (const [k, w] of p.near) g += bulbI[k] * w;
+    p.mat.color.copy(p.col).multiplyScalar(0.1 + Math.min(1.9, g * 1.0));   // dim at rest, blazing when lit
+  }
+}
+
+melKeyChanged();
+function updateMelody(dt) {
+  updateGlass(dt);
+  const sig = org.root + ':' + org.mood;
+  if (sig !== mel.sig) { mel.sig = sig; melKeyChanged(); }
+  const foc = playing && curM === MEL_M && mFocus >= 0 ? M_STATIONS[mFocus] : null;
+  for (const [kbI, kb] of keyboards.entries()) if (kb) for (const k of kb.keys) {
+    const down = (k.down || 0) > 0, isF = foc && foc.t === 'key' && foc.kb === kbI && foc.m === k.m;
+    k.mesh.position.y = k.y0 - (down ? 0.009 : 0);
+    k.mat.emissive.set(down ? (kbI === 0 ? '#ffb46b' : '#8fd3ff') : '#ffffff');
+    k.mat.emissiveIntensity = down ? 0.55 : isF ? 0.35 : 0;
+  }
+  const glow = (mat, on) => { mat.emissive.set('#ffffff'); mat.emissiveIntensity = on ? 0.3 : 0; };
+  voiceBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'voice' && foc.i === k));
+  susBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'sus' && foc.i === k));
+  for (const key in melVolK) glow(melVolK[key].mat, foc && foc.t === 'vol' && foc.key === key);
+  glow(muteBtns.melody.mat, foc && foc.t === 'mmute');
+  // plate zones glow as they ring and fade with the sound
+  const now = ac ? ac.currentTime : 0; let ring = 0;
+  plateSegs.forEach((s, i) => {
+    const lvl = plateLevel(i, now), isF = foc && foc.t === 'plate' && foc.i === i; ring = Math.max(ring, lvl);
+    s.mat.emissive.set(lvl > 0.02 ? '#ffc27a' : '#ffffff'); s.mat.emissiveIntensity = lvl > 0.02 ? 0.15 + lvl * 0.75 : isF ? 0.35 : 0;
+  });
+  styleBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'style' && foc.i === k));
+  lesBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'leslie' && foc.i === k));
+  // the Leslie's rotors: the horn is light and answers quickly, the bass drum is heavy and lags behind,
+  // and each is slower to coast down than to spin up
+  { const T = [[0, 0], [0.8, 0.7], [6.7, 5.7]][mel.leslie] || [0, 0];
+    const ease = (v, tgt, up, down) => v + (tgt - v) * (1 - Math.exp(-dt / (tgt > v ? up : down)));
+    mel.hornV = ease(mel.hornV, T[0], 0.7, 1.6); mel.drumV = ease(mel.drumV, T[1], 2.2, 3.5);
+    if (mel.hornV < 0.002 && !T[0]) mel.hornV = 0; if (mel.drumV < 0.002 && !T[1]) mel.drumV = 0;
+    mel.hornA += mel.hornV * dt * Math.PI * 2; mel.drumA += mel.drumV * dt * Math.PI * 2;
+    if (lesHorn) { lesHorn.rotation.y = mel.hornA; lesDrum.rotation.y = -mel.drumA; }
+    const L = melAudio && melAudio.les;
+    if (L) for (const [r, v] of [[L.horn, mel.hornV], [L.drum, mel.drumV]]) {
+      const k = Math.min(1, v / 0.6);                        // a stopped rotor has no swing, so it never freezes on a quiet spot
+      r.rate.offset.value = v; r.ad.gain.value = r.ampDepth * k; r.dd.gain.value = r.dly * k;
+    } }
+  chordBtns.forEach((b, k) => glow(b.mat, foc && foc.t === 'chord' && foc.i === k));
+  // the disc's motor runs while anyone is at the console or the backing plays; it spins up and coasts down
+  const motor = optRunning() || mel.holdChord || mel.held.size || (playing && curM === MEL_M) ? 2.4 : 0;
+  mel.discV = (mel.discV || 0) + (motor - (mel.discV || 0)) * Math.min(1, dt * 1.2);
+  optDisc.rotation.y -= dt * mel.discV;
+  if (mel.discSwap > 0) { mel.discSwap = Math.max(0, mel.discSwap - dt * 2.5); optDisc.position.y = 1.16 + Math.sin(mel.discSwap * Math.PI) * 0.05; }
+  const organ = optRunning() || mel.holdChord || mel.held.size ? 1 : 0;
+  mel.cols[0].emissiveIntensity += (Math.min(0.6, ring * 0.7) - mel.cols[0].emissiveIntensity) * Math.min(1, dt * 10);
+  mel.cols[1].emissiveIntensity += ((organ ? 0.55 : 0) - mel.cols[1].emissiveIntensity) * Math.min(1, dt * 6);
+}
+
+  // --- the apartment's side: sound output, taps, and handles so Pip and Moss can play it
+  function ensureAudio() {
+    const a = audio(); if (!a) return false;
+    if (!ac) {
+      ac = a;
+      consoleOut = a.createGain(); consoleOut.gain.value = 0.9; consoleOut.connect(a.destination);
+    }
+    if (!melAudio) { initMelodyAudio(); }
+    return true;
+  }
+  const wp = (obj) => obj.getWorldPosition(new THREE.Vector3());
+  let tapPtr = null;
+  canvas.addEventListener('pointerdown', (e) => {
+    if (!melRay(e)) return;
+    e.stopImmediatePropagation(); controls.enabled = false; tapPtr = e.pointerId;
+    try { consoleTouched(); } catch (err) {}
+    if (!ensureAudio()) return; melDown(e);
+  }, { capture: true });
+  canvas.addEventListener('pointermove', (e) => { if (tapPtr === e.pointerId) { e.stopImmediatePropagation(); melMove(e); } }, { capture: true });
+  const release = (e) => { if (tapPtr !== e.pointerId) return; tapPtr = null; controls.enabled = true; melUp(e); };
+  canvas.addEventListener('pointerup', release, { capture: true }); canvas.addEventListener('pointercancel', release, { capture: true });
+  function setKeyByName(name, minor) {
+    const pcs = { c: 0, 'c#': 1, db: 1, d: 2, 'd#': 3, eb: 3, e: 4, f: 5, 'f#': 6, gb: 6, g: 7, 'g#': 8, ab: 8, a: 9, 'a#': 10, bb: 10, b: 11 };
+    const pc = pcs[String(name || '').toLowerCase().replace('♯', '#').replace('♭', 'b')]; if (pc == null) return false;
+    org.root = NOTE_SEMI.indexOf(pc); org.mood = minor ? 1 : 0; return true;
+  }
+  CONSOLE = {
+    root: consoleRoot, mel, org, OPT_STYLES, OPT_DISCS, SP_N, ROMANS,
+    ensureAudio, update: updateMelody, strumZone, strumRun, chordDown, chordUp, chordLabel, setKeyByName,
+    setStyle(i) { melButton({ t: 'style', i }); }, setDisc, setLeslie(i) { melButton({ t: 'leslie', i }); }, setVoice(i) { melButton({ t: 'voice', i }); },
+    noteOn, noteOff, keyNames: () => `${PC_NAMES[NOTE_SEMI[org.root]]} ${org.mood === 1 ? 'minor' : 'major'}`,
+    plateAt: (i) => wp(plateSegs[i].mesh), chordAt: (d) => wp(chordBtns[d].L.m), styleAt: (k) => wp(styleBtns[k].L.m),
+    keyAt: (m) => { const k = keyboards[1].keys.find((q) => q.m === m); return k ? wp(k.mesh) : null; },
+    stepDur, beat: () => 60 / rhy.bpm, setBpm: (b) => { rhy.bpm = Math.max(60, Math.min(160, b)); },
+    stopAll() { if (mel.style) melButton({ t: 'style', i: 0 }); chordUp(); for (const id of [...mel.held.keys()]) noteOff(id); },
+    playing: () => optRunning() || !!mel.holdChord || mel.held.size > 0,
+    summary: () => `the Melody Console, an Optigan organ with an Omnichord strum plate${optRunning() ? `, playing a ${OPT_STYLES[mel.style].toLowerCase()} backing on ${chordLabel(mel.chord)}` : ''}`
+  };
+}
+
 
 
 /* ---------- Places ---------- */
@@ -476,9 +1420,10 @@ const PLACES = [
   { key: 'table', label: 'coffee table', alias: ['coffee', 'mug'], pos: [-1.2, -1.3], look: [-1.2, -2.2], side: [1, 0] },
   { key: 'bookshelf', label: 'bookshelf', alias: ['book', 'shelf'], pos: [-3.9, -0.5], look: [-5, -0.5], side: [0, 1] },
   { key: 'plant', label: 'plant', alias: ['fern', 'leaf'], pos: [-3.5, -3.2], look: [-4.3, -4.3], side: [0.7, -0.7] },
-  { key: 'lamp', label: 'lamp', alias: ['light'], pos: [0.9, -3.4], look: [0.9, -4.4], side: [1, 0] },
-  { key: 'window', label: 'window', alias: ['moon', 'sky', 'outside'], pos: [2.5, -4.0], look: [2.5, -5], side: [1, 0] },
-  { key: 'radio', label: 'radio', alias: ['music', 'song'], pos: [4.0, -3.4], look: [4.2, -4.5], side: [1, 0] },
+  { key: 'lamp', label: 'lamp', alias: ['light'], pos: [-2.85, -3.55], look: [-3.45, -4.45], side: [1, 0] },
+  { key: 'window', label: 'window', alias: ['moon', 'sky', 'outside'], pos: [1.0, -3.1], look: [2.0, -5], side: [1, 0], spread: 0.35 },
+  { key: 'console', label: 'Melody Console', alias: ['optigan', 'omnichord', 'organ', 'instrument', 'music', 'piano', 'keyboard', 'strum'], pos: [2.5, -3.45], look: [2.5, -4.6], side: [1, 0], spread: 0.5 },
+  { key: 'radio', label: 'radio', alias: ['song', 'tune'], pos: [4.1, 0.35], look: [4.3, -0.6], side: [0, 1], spread: 0.3 },
   { key: 'armchair', label: 'armchair', alias: ['chair'], pos: [3.55, 1.6], look: [0, 1.6], side: [0, 1], spread: 0.22, sit: 0.45 },
   { key: 'rug', label: 'rug', alias: ['middle', 'centre', 'center', 'floor'], pos: [1.5, 1.0], look: [8, 9], side: [1, 0], spread: 0.75 },
   { key: 'door', label: 'door', alias: ['exit'], pos: [-4.0, 3.0], look: [-5, 3], side: [0, 1] },
@@ -745,7 +1690,7 @@ function planGrammar(o) {
     ...SIDED.map(j => `side ${gq(j + ' ')} (${galt(Object.keys(JT[j]))}) " " num`),
     `side "HAND " (${galt(Object.keys(SHAPES))})`, `side (${galt(FINGERS)}) " " ("curl" | "spread") " " num`];
   return [
-    'root ::= go pose move hands board computer project',
+    'root ::= go pose move hands board computer project music',
     `go ::= "GO: " (${galt(['stay', ...o.places])}) "\\n"`,
     `pose ::= "POSE: " ("none" | ${galt(o.poses)}) "\\n"`,
     'move ::= "MOVE: " ("none" | cmd (", " cmd){0,5}) "\\n"',
@@ -763,7 +1708,11 @@ function planGrammar(o) {
     'pts ::= pt (("-" | "~" | " / ") pt){1,30}',
     'pt ::= "(" [0-9] [0-9]? [0-9]? "," [0-9] [0-9]? [0-9]? ")"',
     'computer ::= "COMPUTER: " ("none" | "onthisday" | ("search " | "weather " | "books " | "archive ") [^\\n]{2,40}) "\\n"',
-    `project ::= "PROJECT: " ("none" | ("write " | "review ") [0-9] [0-9]? [0-9]? | "start a " (${galt(KIND_LIST)}) " about " [^\\n]{3,60}) "\\n"`
+    `project ::= "PROJECT: " ("none" | ("write " | "review ") [0-9] [0-9]? [0-9]? | "start a " (${galt(KIND_LIST)}) " about " [^\\n]{3,60}) "\\n"`,
+    'music ::= "MUSIC: " ("none" | "play " rom (" " rom){1,7} (" in " sty)? (" on " dsc)?) "\\n"',
+    `rom ::= ${galt(['VII', 'VI', 'V', 'IV', 'III', 'II', 'I'])}`,
+    `sty ::= ${galt(MUSIC_STYLES.slice(1))}`,
+    `dsc ::= ${galt(MUSIC_DISCS)}`
   ].join('\n');
 }
 // Step 2: one spoken line.
@@ -776,6 +1725,7 @@ function planWords(p, other) {
   if (p.skill) w.push(`do your move "${p.skill}"`);
   if (p.hands) { const h = p.hands; w.push(h.verb === 'put' ? `put the ${h.thing || 'thing'} on the ${h.surf}` : h.verb === 'give' || h.verb === 'toss' ? `${h.verb} the ${h.thing || 'thing'} to ${h.to || other}` : `${h.verb} the ${h.thing || 'thing'}`); }
   if (p.board) { const b = p.board; w.push(b.verb === 'write' ? `write "${b.text}" on the whiteboard` : b.verb === 'erase' ? 'wipe the whiteboard' : `${b.verb === 'sketch' ? 'sketch' : 'draw'} ${b.text || 'something'} on the whiteboard`); }
+  if (p.music) w.push(`play ${p.music.chords.join(' ')} on the Melody Console${p.music.style ? ' as ' + p.music.style : ''}`);
   if (p.project) w.push(p.project.verb === 'start' ? `start a new ${p.project.kind} about ${p.project.brief || 'something'} at the typewriter` : p.project.verb === 'review' ? `read project #${p.project.id} on the project board and give a note` : `type the next page of project #${p.project.id} at the typewriter`);
   if (p.computer) w.push(p.computer.cmd === 'onthisday' ? 'check what happened on this day on the computer' : `look up ${p.computer.cmd === 'search' ? '' : p.computer.cmd + ' '}${p.computer.arg} on the computer`);
   return w.length ? w.join(', then ') : 'stay where you are';
@@ -798,6 +1748,7 @@ function visitorIntent(text, names) {
   if ((m = lead.match(/^(?:go|walk|head|move|run|come)\s+(?:over\s+|back\s+)?(?:to|towards|by)\s+(?:the\s+)?([a-z ]{2,20})/i))) r.placeText = m[1];
   if ((m = lead.match(/^(?:do a |do the |show me a |)?(dance|wave|bow|jump|clap|cheer|sit down|sit|shrug|nod|think|point)\b/i))) r.poseText = m[1];
   if (/^(grab|pick up|take|hold|give|pass|toss|throw|put|drop)\b/i.test(lead)) r.handsText = lead;
+  if (/^(play|jam|strum|perform)\b/i.test(lead) && /\b(music|song|tune|something|console|organ|optigan|omnichord|instrument|piano|keyboard|chords?|bossa|swing|tango|polka|reggae|ballad|melody|[iv]{1,3}\b)/i.test(lead)) r.music = parseMusic(lead.replace(/\b(some )?(music|song|tune|something)\b/i, ' ')) || { chords: ['I', 'V', 'VI', 'IV'], style: null, disc: null };
   return r;
 }
 /* ---------- Mind: memory stream, recall, learning (pure logic) ---------- */
@@ -911,6 +1862,23 @@ function enjoyTags(res) {
   else if (res.pose || (res.moves && res.moves.length)) tags.push('expressive body language');
   if (res.say && res.say !== '(puppet lab)') tags.push(/\?\s*$/.test(res.say) ? 'questions' : 'chatting');
   return tags;
+}
+/* ---------- Music at the Melody Console ---------- */
+const MUSIC_STYLES = ['off', 'strum', 'bossa', 'ballad', 'polka', 'swing', 'tango', 'reggae'];
+const MUSIC_DISCS = ['organ', 'hammond', 'harpsichord', 'vibes', 'accordion', 'e.piano', 'theatre'];
+const ROMAN_DEG = { i: 0, ii: 1, iii: 2, iv: 3, v: 4, vi: 5, vii: 6 };
+// MUSIC line → { chords: [tokens], style, disc }
+function parseMusic(s) {
+  if (!s) return null;
+  const t = String(s).replace(/[*`<>"]/g, ' ').replace(/[–—,|-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!t || NONE_RE.test(t)) return null;
+  if (!/\b(play|jam|strum|perform|noodle|improvi[sz]e)\b/i.test(t) && !/\b(i{1,3}|iv|vi{0,2}|[a-g][#b♯♭]?m?)\b/i.test(t)) return null;
+  const low = t.toLowerCase();
+  const style = MUSIC_STYLES.find(x => new RegExp('\\b' + x + '\\b').test(low)) || null;
+  const disc = MUSIC_DISCS.find(x => low.includes(x.replace('.', '').replace('e piano', 'epiano')) || low.includes(x)) || (/\bpiano\b/.test(low) ? 'e.piano' : null);
+  const body = t.replace(/^(play|jam|strum|perform)\s*(on\s+the\s+\w+\s*)?/i, '').replace(/\b(in|as|with|on|a|an|the|style|backing|beat|rhythm|disc|voice|sound)\b/gi, ' ');
+  const chords = (body.match(/\b(VII|VI|IV|V|III|II|I|vii|vi|iv|v|iii|ii|i|[A-G](?:#|b|♯|♭)?(?:m|min|maj|dim|°)?)\b/g) || []).slice(0, 8);
+  return { chords: chords.length ? chords : ['I', 'V', 'VI', 'IV'], style, disc };
 }
 /* ---------- Projects: things Pip and Moss make together (and with the visitor) at the typewriter ---------- */
 const KINDS = { poem: 'poem', haiku: 'poem', limerick: 'poem', story: 'story', 'short story': 'story', fable: 'story', 'fairy tale': 'story', tale: 'story', novel: 'novel', chapter: 'novel', book: 'novel', song: 'song', lyrics: 'song', letter: 'letter', essay: 'essay', article: 'essay', play: 'play', script: 'play', list: 'notes', notes: 'notes', recipe: 'notes' };
@@ -1063,10 +2031,10 @@ function parseReply(txt, myName, otherName, placeFinder) {
   const place = g !== undefined ? placeFinder(g) : null;
   const pose = p !== undefined ? findPose(p) : null;
   const moves = (mv || '').split(/[,;]|\band\b/i).map(x => x.trim()).filter(x => x && !/^none$/i.test(x)).slice(0, 14);
-  if (say === undefined) say = (txt.split('\n').map(x => x.trim()).find(x => x && !/^\**(go|pose|moves?|computer|hands|board|project)\**\s*[:\-]/i.test(x)) || '');
+  if (say === undefined) say = (txt.split('\n').map(x => x.trim()).find(x => x && !/^\**(go|pose|moves?|computer|hands|board|project|music)\**\s*[:\-]/i.test(x)) || '');
   say = say.replace(new RegExp('^(' + myName + '|' + otherName + ')\\s*:\\s*', 'i'), '').replace(/[*_#`]/g, '').replace(/^["'“”]+|["'“”]+$/g, '').trim();
   if (say.length > 160) { const cut = say.slice(0, 160); const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? ')); say = end > 40 ? cut.slice(0, end + 1) : cut.trim() + '…'; }
-  return { place: place ? place.key : null, pose, poseRaw: p || '', moves, computer: parseComputer(line('COMPUTER')), hands: parseHands(line('HANDS'), [myName, otherName]), board: parseBoard(line('BOARD')), project: parseProject(line('PROJECT')), say: say || 'Hmm.' };
+  return { place: place ? place.key : null, pose, poseRaw: p || '', moves, computer: parseComputer(line('COMPUTER')), hands: parseHands(line('HANDS'), [myName, otherName]), board: parseBoard(line('BOARD')), project: parseProject(line('PROJECT')), music: parseMusic(line('MUSIC')), say: say || 'Hmm.' };
 }
 /*PURE-END*/
 
@@ -1615,6 +2583,7 @@ const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   for (const c of chars) if (c.drawJob) stepDrawing(c, dt);
+  if (CONSOLE) { try { CONSOLE.update(dt); } catch (e) { console.warn(e); } }
   stepProps(dt);
   for (const c of chars) updateChar(c, dt, t);
   radioLed.material.emissiveIntensity = Math.sin(t * 4) > 0 ? 2.5 : 0.3;
@@ -1647,13 +2616,14 @@ const SEEN = [
   { name: 'coffee table', p: [-1.2, .45, -2.2], r: .85, d: () => 'the coffee table with a mug on it' },
   { name: 'bookshelf', p: [-4.65, 1.3, -.5], r: 1.2, d: () => 'the bookshelf full of colourful books' },
   { name: 'plant', p: [-4.3, 1.1, -4.3], r: .6, d: () => 'the tall potted plant' },
-  { name: 'lamp', p: [.9, 1.8, -4.4], r: .4, d: () => 'the floor lamp, glowing warm' },
+  { name: 'lamp', p: [-3.45, 1.8, -4.45], r: .4, d: () => 'the floor lamp, glowing warm' },
   { name: 'window', p: [2.5, 2.2, -4.98], r: 1.1, d: () => 'the window: a night sky with a full moon over city lights' },
   { name: 'painting', p: [-1.2, 2.45, -4.95], r: .7, d: () => 'a painting of an orange sunset' },
-  { name: 'radio', p: [4.2, 1.0, -4.5], r: .6, d: () => 'the old radio, its red light blinking' },
+  { name: 'radio', p: [4.3, 1.0, -0.6], r: .6, d: () => 'the old radio, its red light blinking' },
   { name: 'armchair', p: [3.6, .5, 1.6], r: .8, d: () => 'the green armchair' },
   { name: 'rug', p: [1.5, .03, 1], r: 1.8, d: () => 'the round red and yellow rug' },
   { name: 'door', p: [-4.93, 1.2, 3], r: .7, d: () => 'the closed door' },
+  { name: 'melody console', p: [2.5, 0.9, -4.2], r: .9, d: dist => CONSOLE ? CONSOLE.summary() + (dist < 3.5 ? `, in ${CONSOLE.keyNames()}` : '') : 'the melody console' },
   { name: 'typewriter', p: [TW.x, .95, TW.z], r: .35, d: dist => dist < 3 && paperTitle ? `the typewriter, with a page of "${trimTxt(paperTitle, 50)}" in it` : 'the typewriter on its little writing desk' },
   { name: 'project board', p: [-4.95, 1.55, 4.35], r: .6, d: dist => dist < 4 ? `the project board: ${projectSummary() || 'empty'}` : 'the project board on the wall' },
   { name: 'computer', p: [-4.5, 1.0, 1.45], r: .5, d: dist => dist < 3 && screenTitle ? `the computer; its screen reads "${trimTxt(screenTitle, 70)}"` : 'the computer, its screen glowing green' }
@@ -2380,13 +3350,15 @@ MOVE: <joint commands separated by commas, or none>
 HANDS: <grab THING | put THING on SURFACE | give THING to NAME | toss THING to NAME | drop THING | none>
 BOARD: <draw IDEAS | sketch TITLE: freehand points | write "TEXT" | erase mine or all | none, optionally with: in COLOUR, at top/bottom left/middle/right>
 COMPUTER: <computer command, or none>
-PROJECT: <write NUMBER | review NUMBER | start a KIND about TOPIC | none>${opt.plan ? '' : '\nSAY: <sentence>'}
+PROJECT: <write NUMBER | review NUMBER | start a KIND about TOPIC | none>
+MUSIC: <play CHORDS, optionally in STYLE and on DISC | none>${opt.plan ? '' : '\nSAY: <sentence>'}
 Places: ${PLACES.map(p => p.key).join(', ')}, stay.
 Poses: ${POSE_NAMES.join(', ')}${skillList(c)}, none.
 Things you can pick up: mug, ball, blue book, box (needs both hands), eraser, and dry-erase markers: black, red, blue, green, purple, orange. Surfaces: table, floor, shelf, desk, couch, armchair, windowsill, tray (the whiteboard's marker tray).
 There is a whiteboard on the wall. Use it to show ${o.name} or the visitor something, to share an idea, or just to be creative. You fetch a marker yourself. "draw" makes a quick doodle of any of: ${DOODLE_NAMES.join(', ')} (combine up to three). "sketch" is true freehand: you choose every line. Give points as (x,y) from 0 to 100 on your patch of board, (0,0) is top left; join points with - for a straight line or ~ for a smooth curve, and use / to lift the pen. Example: sketch a smiling face: (20,20)~(50,5)~(80,20)~(95,50)~(80,80)~(50,95)~(20,80)~(5,50)~(20,20) / (35,40)-(36,41) / (65,40)-(66,41) / (30,60)~(50,75)~(70,60)
 There is a computer in the room with real internet. Computer commands: search <topic> (Wikipedia), weather <city>, books <topic>, archive <topic> (Internet Archive), onthisday. Use it when you are curious about something real; you will walk over and use it. Otherwise write none.
 There is a typewriter on a little writing desk, and a project board on the wall listing the things you, ${o.name} and the visitor are making: stories, poems, songs, letters, plays and even novels. PROJECT: write N means walk to the typewriter and type the next page of project N; review N means read its latest page and pin up a helpful note; start a KIND about TOPIC begins something new of your own (KIND is ${KIND_LIST.join(', ')}). Otherwise write none.
+There is also the Melody Console by the window: an Optigan organ with an Omnichord strum plate, seven chord buttons, rhythm backings and a spinning sound disc. MUSIC: play CHORDS means walk over and play them, strumming the plate. Write chords as Roman numerals of its key (I II III IV V VI VII), for example: play I IV V I in bossa on vibes. Styles: ${MUSIC_STYLES.slice(1).join(', ')}. Discs: ${MUSIC_DISCS.join(', ')}. Otherwise write none.
 Joint commands are JOINT verb degrees. Put L_ or R_ before arm, leg, hand and finger joints for left or right. ${JOINT_HELP}.
 Example:
 GO: window
@@ -2395,14 +3367,15 @@ MOVE: R_SHOULDER raise 120, R_ELBOW bend 20, R_HAND point, HEAD nod -20, L_HAND 
 HANDS: none
 BOARD: none
 COMPUTER: none
-PROJECT: none${opt.plan ? '' : `\nSAY: Look, ${o.name}, a shooting star over the rooftops!`}`;
+PROJECT: none
+MUSIC: none${opt.plan ? '' : `\nSAY: Look, ${o.name}, a shooting star over the rooftops!`}`;
   const last = transcript.slice(-6).map(l => `${l.who}: ${l.text}`).join('\n') || '(nobody has spoken yet)';
   const ev = events.filter(e => e.left > 0).map(e => { e.left--; return e.text; }).join(' ');
   for (let i = events.length - 1; i >= 0; i--) if (events[i].left <= 0) events.splice(i, 1);
   const user = `${memoryBlock(c, o, (c.lastSeen || '') + ' ' + transcript.slice(-4).map(l => l.text).join(' ') + ' ' + events.map(e => e.text).join(' '))}${c.lastSeen || perceive(c, o)}
 ${projectLines(c)}${exampleBlock(c, (c.lastSeen || '') + ' ' + transcript.slice(-3).map(l => l.text).join(' '), opt.plan)}Recent conversation:
 ${last}
-${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER, PROJECT${opt.plan ? ' lines. You will say something next.' : ' and SAY lines.'}`;
+${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER, PROJECT, MUSIC${opt.plan ? ' lines. You will say something next.' : ' and SAY lines.'}`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
 }
 function buildMsgsLite(c, o) {
@@ -2410,7 +3383,7 @@ function buildMsgsLite(c, o) {
 GO: <place or stay>
 POSE: <pose or none>
 SAY: <one short sentence to ${o.name} or the visitor>
-You may add one extra line: BOARD: draw <thing> or write "<words>" | HANDS: grab <thing>, give <thing> to ${o.name}, toss <thing> to ${o.name} or put <thing> on <place> | COMPUTER: search <topic> or weather <city>
+You may add one extra line: BOARD: draw <thing> or write "<words>" | HANDS: grab <thing>, give <thing> to ${o.name}, toss <thing> to ${o.name} or put <thing> on <place> | COMPUTER: search <topic> or weather <city> | MUSIC: play I IV V I
 Places: ${PLACES.map(p => p.key).join(', ')}.
 Poses: wave, dance, sit, point, think, cheer, bow, shrug, clap, nod, jump${skillList(c)}.
 Things: mug, ball, blue book, box, eraser, markers.
@@ -2538,6 +3511,7 @@ function withIntent(c, o, p) {
   if (first && it.computer && !p.computer) p.computer = it.computer;
   if (first && it.board && (!p.board || p.board.verb !== it.board.verb)) p.board = it.board;
   if (first && it.handsText && !p.hands) p.hands = parseHands(it.handsText, [c.name, o.name]);
+  if (first && it.music && !p.music) { p.music = it.music; p.project = null; }
   if (it.project) { const pr = projects.find(x => x.fromMsg === m.t); p.board = p.board && p.board.verb === 'write' ? null : p.board; if (pr && pr.writers[0] === c.name && !pr.pages.length) { p.project = { verb: 'write', id: pr.id }; p.computer = null; } }
   return p;
 }
@@ -2569,7 +3543,7 @@ function scriptDecide(c, o) {
   return { hands, board, place: computer ? 'computer' : place, pose: sk ? null : pose, skill: sk, moves: sk ? [] : moves, computer, say: computer ? 'Let me check the computer.' : line, scripted: true };
 }
 function apply(c, res) {
-  if (res.hands || res.board || res.project) { res.place = null; res.computer = null; }
+  if (res.hands || res.board || res.project || res.music) { res.place = null; res.computer = null; }
   if (res.computer) res.place = 'computer';
   if (res.skill) { const sk = c.mind.skills.find(s => s.name === res.skill); if (sk) { res.pose = res.pose || sk.pose; res.moves = [...sk.moves, ...(res.moves || [])]; } else res.skill = null; }
   const p = res.place ? byKey(res.place) : null;
@@ -2735,6 +3709,7 @@ async function loop() {
       if (pace === 'focus' || (pace === 'alt' && !c.lastWorked)) { const w = dueWork(projects, c.name); if (w) res.project = w; }
     }
     if (res && res.project && mode !== 'ai') res.project = null;
+    if (res && res.music && res.project) res.project = null;
     if (res && !res.scripted) { try { checkPlan(c, o, res); } catch (e) { console.warn(e); } }
     c.lastWorked = !!(res && res.project);
     for (const m of pendingFor(c)) m.done[c.name] = true;
@@ -2752,6 +3727,7 @@ async function loop() {
     if (res && res.hands) { try { const m = await doHands(c, o, res.hands); report(m); noteResult(c, o, `${res.hands.verb}:${res.hands.thing || '-'}`, m); } catch (e) { console.error(e); report(`${c.name} fumbled (${e.message}).`); } }
     if (res && res.board) { try { const m = await doBoard(c, o, res.board); report(m); noteResult(c, o, `${res.board.verb}:-`, m); } catch (e) { console.error(e); report(`${c.name} couldn't use the whiteboard (${e.message}).`); } }
     if (res && res.computer && running) { await useComputer(c, res.computer); await sleep(1500); }
+    if (res && res.music && running) { try { const m = await doMusic(c, o, res.music); report(m); } catch (e) { console.error(e); report(`${c.name} couldn't play the console (${e.message}).`); } }
     if (res && res.project && running) { try { const m = await doProject(c, o, res.project); report(m); } catch (e) { console.error(e); report(`${c.name} couldn't work on the project (${e.message}).`); } }
     if (c.mind.impSince >= 45 && running && mindsReady) await reflect(c, o);
   }
@@ -2925,6 +3901,77 @@ function logPage(c, p, pg, what, where) {
   dn.onclick = () => { up.disabled = dn.disabled = true; p.notes.push({ by: 'visitor', text: "I didn't like that page much. Try a different approach.", t: Date.now(), page: p.pages.length, used: false }); remember(c, 'feedback', `${firstCap(visitorRef())} didn't like what I wrote for "${p.title}": ${pg.sum}`, { imp: 7 }); saveProjects(); toast(`${c.name} will try a different approach next page`); };
   fb.append(up, dn);
   d.append(b, m, det, fb); logEl.prepend(d);
+}
+/* ---------- Pip and Moss at the Melody Console */
+let consoleBusy = null, consoleNoteT = 0;
+function chordDegree(tok) {
+  const r = ROMAN_DEG[String(tok).toLowerCase()]; if (r != null) return r;
+  if (!CONSOLE) return null;
+  const nm = String(tok).replace(/min$/, 'm').replace(/maj$/, '').replace('dim', '°').replace('♯', '#').replace('♭', 'b').toLowerCase();
+  for (let d = 0; d < 7; d++) if (CONSOLE.chordLabel(d).replace('♯', '#').replace('♭', 'b').toLowerCase() === nm) return d;
+  for (let d = 0; d < 7; d++) if (CONSOLE.chordLabel(d).replace('♯', '#').replace('♭', 'b').toLowerCase()[0] === nm[0]) return d;   // close enough: same letter
+  return null;
+}
+const lerpDof = (a, b, k) => { const o = {}; for (const key in b) o[key] = a[key] == null || b[key] == null ? b[key] : a[key] + (b[key] - a[key]) * k; return o; };
+async function tweenArm(c, S, from, to, ms) {
+  const t0 = performance.now();
+  for (;;) { const k = Math.min(1, (performance.now() - t0) / ms), e = k * k * (3 - 2 * k); c.armDof[S] = lerpDof(from, to, e); if (k >= 1) break; await sleep(16); }
+}
+// a robot walks to the console, picks a sound and a backing, and plays its chords: left hand on the chord buttons, right hand strumming the plate
+async function doMusic(c, o, mu) {
+  if (!CONSOLE) return null;
+  if (consoleBusy && consoleBusy !== c) return `${c.name} wanted to play the Melody Console, but ${consoleBusy.name} is playing it.`;
+  consoleBusy = c;
+  try {
+    await walkTo(c, 2.5 + (o.place && o.place.key === 'console' ? (c.i ? .45 : -.45) : 0), -3.58, 2.5, -4.6, 'Melody Console');
+    for (const S of ['L', 'R']) if (c.hold[S]) return `${c.name} can't play the console with full hands.`;
+    c.pose = neutral(); c.anim = null; await sleep(200);
+    const sound = CONSOLE.ensureAudio();
+    const degs = mu.chords.map(chordDegree).filter(d => d != null);
+    if (!degs.length) degs.push(0, 4, 5, 3);
+    const styleI = mu.style ? MUSIC_STYLES.indexOf(mu.style) : 0, discI = mu.disc ? MUSIC_DISCS.indexOf(mu.disc) : -1;
+    const up = new THREE.Vector3(0, 0.02, 0);
+    const solve = (S, p, start) => solveIK(c, S, p.clone().add(up), { end: 'tip', torso: true, start: start || {} });
+    const rest = { raise: 25, spread: 8, twist: 10, elbow: 70, wrist: 0, torso: null, crouch: null };
+    // reach targets, worked out from where the robot actually stands
+    const plateA = solve('R', CONSOLE.plateAt(0)), plateB = solve('R', CONSOLE.plateAt(CONSOLE.SP_N - 1), plateA.d);
+    const chordSol = {}; for (const d of new Set(degs)) chordSol[d] = solve('L', CONSOLE.chordAt(d));
+    if (plateA.err > .12 || plateB.err > .12) window.__addDiag && window.__addDiag(`${c.name} is stretching to reach the strum plate (${Math.round(Math.max(plateA.err, plateB.err) * 100)} cm short)`);
+    if (discI >= 0) CONSOLE.setDisc(discI);
+    if (styleI > 0) { const st = solve('L', CONSOLE.styleAt(styleI)); await tweenArm(c, 'L', rest, st.d, 400); CONSOLE.setStyle(styleI); await sleep(250); }
+    const beat = CONSOLE.beat(), bars = degs.length <= 4 ? 2 : 1;
+    let lPrev = c.armDof.L || rest;
+    c.armDof.R = plateA.d;
+    for (let rep = 0; rep < bars; rep++) for (const d of degs) {
+      await tweenArm(c, 'L', lPrev, chordSol[d].d, 220); lPrev = chordSol[d].d;
+      CONSOLE.chordDown(d, 'robot' + c.i);
+      const strums = styleI > 0 ? 1 : 2;
+      for (let k = 0; k < strums; k++) {
+        const fwd = k % 2 === 0;
+        const arm = tweenArm(c, 'R', fwd ? plateA.d : plateB.d, fwd ? plateB.d : plateA.d, 260);
+        if (sound) for (let z = 0; z < CONSOLE.SP_N; z++) setTimeout(() => CONSOLE.strumZone(fwd ? z : CONSOLE.SP_N - 1 - z), z * 20);
+        await arm; await sleep(beat * 2000 / strums - 260);
+      }
+      if (!styleI) CONSOLE.chordUp('robot' + c.i);
+    }
+    if (styleI > 0) { await sleep(beat * 1000); CONSOLE.setStyle(0); }
+    CONSOLE.chordUp();
+    await Promise.all([tweenArm(c, 'L', lPrev, rest, 300), tweenArm(c, 'R', c.armDof.R || plateA.d, rest, 300)]);
+    c.armDof.L = c.armDof.R = null;
+    const names = degs.map(d => CONSOLE.chordLabel(d)).join(' ');
+    const what = `${mu.chords.slice(0, degs.length).join(' ')} (${names})${styleI > 0 ? ' as a ' + MUSIC_STYLES[styleI] : ''}${discI >= 0 ? ' on the ' + MUSIC_DISCS[discI] + ' disc' : ''}`;
+    remember(c, 'did', `I played ${what} on the Melody Console.`, { imp: 5 });
+    remember(o, 'heard', `${c.name} played ${what} on the Melody Console.`);
+    chatAdd('ev', '', `🎹 ${c.name} played ${names}${styleI > 0 ? ' · ' + MUSIC_STYLES[styleI] : ''} on the Melody Console`);
+    return sound ? `${c.name} played ${what} on the Melody Console.` : `${c.name} played ${what} on the Melody Console (sound is off: tap the screen to let it play).`;
+  } finally { consoleBusy = null; c.armDof.L = c.armDof.R = null; }
+}
+// when the visitor plays the console themselves, the robots notice
+function consoleTouched() {
+  const now = Date.now(); if (now - consoleNoteT < 45000) return; consoleNoteT = now;
+  const t = `${firstCap(visitorRef())} is playing the Melody Console.`;
+  events.push({ text: t, left: 2 }); transcript.push({ who: 'Event', text: t }); if (transcript.length > 30) transcript.shift();
+  noteVisitor(t, '');
 }
 /* ---------- Smart mode: optional free cloud minds on the visitor's own Cloudflare Worker ---------- */
 let cloudDownUntil = 0, cloudNote = '';
@@ -3404,6 +4451,26 @@ function openProject(id, quiet) {
   });
   if (!quiet) v.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+{
+  let near = false;
+  const ROOM_CAM = [new THREE.Vector3(7.5, 6.5, 9), new THREE.Vector3(-.3, 1, -.8)], CON_CAM = [new THREE.Vector3(2.5, 1.95, -2.25), new THREE.Vector3(2.5, 0.85, -4.1)];
+  $('#cview').onclick = () => {
+    near = !near; boardView = false; $('#bview').textContent = 'Look at the board';
+    const [tp, tt] = near ? CON_CAM : ROOM_CAM;
+    camTw = { t: 0, fp: camera.position.clone(), ft: controls.target.clone(), tp: tp.clone(), tt: tt.clone() };
+    $('#cview').textContent = near ? 'Back to the room view' : 'Walk up to the console';
+    if (near) { if (CONSOLE) CONSOLE.ensureAudio(); toast('Tap or drag on the console to play it'); }
+  };
+  const ks = $('#ckey'), keys = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'];
+  for (const minor of [false, true]) for (const k of keys) { const op = document.createElement('option'); op.value = k + (minor ? 'm' : ''); op.textContent = `${k.replace('#', '♯').replace(/^([A-G])b/, '$1♭')} ${minor ? 'minor' : 'major'}`; ks.append(op); }
+  const savedKey = store.get('consoleKey', 'C'); ks.value = savedKey;
+  const applyKey = v => { if (CONSOLE) CONSOLE.setKeyByName(v.replace(/m$/, ''), /m$/.test(v)); };
+  applyKey(savedKey);
+  ks.onchange = () => { store.set('consoleKey', ks.value); applyKey(ks.value); toast('The console is now in ' + ks.options[ks.selectedIndex].textContent); };
+  const bp = $('#cbpm'); bp.value = store.get('consoleBpm', 92); if (CONSOLE) CONSOLE.setBpm(+bp.value);
+  bp.oninput = () => { store.set('consoleBpm', +bp.value); if (CONSOLE) CONSOLE.setBpm(+bp.value); };
+  bp.onchange = () => toast(`Tempo ${bp.value} beats a minute`);
+}
 $('#pjPolish').value = store.get('pjPolish', true) ? '1' : '0';
 $('#pjPolish').onchange = e => { store.set('pjPolish', e.target.value === '1'); toast(e.target.value === '1' ? 'They will critique and fix each draft first' : 'They will type their first drafts'); };
 $('#pjPace').value = store.get('pjPace', 'alt');
@@ -3557,6 +4624,7 @@ async function runLabAction(c, act) {
   } catch (e) { console.error(e); toast('That action failed: ' + e.message, 5000); }
 }
 renderMem(); loadMinds(); loadProjects();
+if (/[?&]debug\b/.test(location.search)) window.__pm = { THREE, camera, controls, scene, chars, renderer, doMusic, parseMusic, get CONSOLE() { return CONSOLE; } };   // for testing only
 const engSel = $('#engine'); if (!LLAMA) engSel.querySelector('option[value=native]').remove(); engSel.value = aiBackend;
 engSel.onchange = async () => {
   aiBackend = engSel.value; store.set('engine', aiBackend); running = false; await unloadAll(); loadedKey = '';
