@@ -52,6 +52,11 @@ if [ -f permissions.txt ]; then
   grep uses-permission "$M"
 fi
 
+echo "==> Let the app find the phone's text-to-speech engine (Android 11+ package visibility)"
+M=android/app/src/main/AndroidManifest.xml
+grep -q "TTS_SERVICE" "$M" || sed -i 's#</manifest>#    <queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent></queries>\n</manifest>#' "$M"
+grep -n "TTS_SERVICE" "$M"
+
 echo "==> App icons"
 cp -r res/* android/app/src/main/res/
 

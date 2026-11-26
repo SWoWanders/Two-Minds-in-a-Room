@@ -16,7 +16,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
 #stage canvas{display:block;width:100%;height:100%;touch-action:none}
 #bubbles{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .bubble{position:absolute;transform:translate(-50%,-100%);width:max-content;max-width:min(240px,62vw);background:#fff8ee;color:#2a1d2e;padding:8px 12px;border-radius:14px;font-weight:700;font-size:14px;line-height:1.3;box-shadow:0 4px 14px #0006;transition:opacity .3s;opacity:0}
-.bubble::after{content:"";position:absolute;left:50%;bottom:-7px;margin-left:-7px;border:7px solid transparent;border-top-color:#fff8ee;border-bottom:0}
+.bubble::after{content:"";position:absolute;left:calc(50% + var(--tail,0px));bottom:-7px;margin-left:-7px;border:7px solid transparent;border-top-color:#fff8ee;border-bottom:0}
 .bubble.on{opacity:1}
 .bubble.thinking{font-size:18px;letter-spacing:3px;padding:2px 14px;animation:pulse 1s infinite alternate}
 @keyframes pulse{from{opacity:.55}to{opacity:1}}
@@ -151,6 +151,7 @@ window.__diag = { errors: [], t0: Date.now() };
     </details>
     <label class="pick">Voices
       <select id="voice"><option value="sam">Retro robot voices (mouth follows the real sound)</option><option value="tts">Phone voices (more natural, mouth follows the words)</option><option value="off">Off</option></select>
+      <button type="button" id="vtest" style="margin-top:6px">Test the voices</button>
     </label>
     <label class="pick">Voice volume<input type="range" id="vvol" min="0" max="1" step="0.05" style="padding:10px 0"></label>
     <label class="pick">Pace
@@ -1473,10 +1474,17 @@ function placeLabels() {
   const w = stage.clientWidth, h = stage.clientHeight;
   for (const c of chars) {
     c.headObj.getWorldPosition(v3); v3.y += 0.55; v3.project(camera);
-    c.bub.style.left = (v3.x * .5 + .5) * w + 'px'; c.bub.style.top = (-v3.y * .5 + .5) * h + 'px';
+    let bx = (v3.x * .5 + .5) * w, by = (-v3.y * .5 + .5) * h;
+    const bw = c.bub.offsetWidth || 0, bh = c.bub.offsetHeight || 0;
+    const cx = Math.max(bw / 2 + 6, Math.min(w - bw / 2 - 6, bx));     // keep the bubble on screen; its tail still points at the head
+    c.bub.style.setProperty('--tail', Math.max(-bw / 2 + 14, Math.min(bw / 2 - 14, bx - cx)) + 'px');
+    c.bub.style.left = cx + 'px'; c.bub.style.top = Math.max(bh + 4, by) + 'px';
     v3.set(c.g.position.x, -0.02, c.g.position.z); v3.project(camera);
-    c.tag.style.left = (v3.x * .5 + .5) * w + 'px'; c.tag.style.top = (-v3.y * .5 + .5) * h + 'px';
+    c.tx = (v3.x * .5 + .5) * w; c.ty = (-v3.y * .5 + .5) * h;
   }
+  const [a, b] = chars;
+  if (Math.abs(a.tx - b.tx) < ((a.tag.offsetWidth + b.tag.offsetWidth) / 2 || 120) && Math.abs(a.ty - b.ty) < 24) { const lo = a.ty >= b.ty ? a : b; lo.ty = (lo === a ? b : a).ty + 24; }
+  for (const c of chars) { c.tag.style.left = c.tx + 'px'; c.tag.style.top = c.ty + 'px'; }
 }
 /* ---------- Voices: audible speech, with a mouth that follows it ---------- */
 let voiceMode = ['sam', 'tts', 'off'].includes(store.get('voice', 'sam')) ? store.get('voice', 'sam') : 'sam';
@@ -1496,7 +1504,25 @@ function audio() {
   for (const c of chars) c.vchain.g.gain.value = voiceVol;
   return actx;
 }
-['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, () => { if (voiceMode === 'sam') audio(); }, { passive: true }));
+// Phones only allow sound after a tap: wake the audio on the first touches, and play a silent blip to unlock it
+['pointerdown', 'touchend', 'keydown'].forEach(ev => window.addEventListener(ev, () => {
+  if (voiceMode === 'off') return; const a = audio(); if (!a || a.__unlocked) return;
+  try { const b = a.createBuffer(1, 1, 22050), s = a.createBufferSource(); s.buffer = b; s.connect(a.destination); s.start(); a.__unlocked = a.state === 'running'; } catch {}
+}, { passive: true }));
+const CAPV = window.Capacitor;
+// In the Android app the WebView has no speechSynthesis, so the app's own Voice plugin speaks with the phone's voices
+const VOX = CAPV && CAPV.isNativePlatform && CAPV.isNativePlatform() ? (CAPV.Plugins && CAPV.Plugins.Voice) || (CAPV.registerPlugin && CAPV.registerPlugin('Voice')) : null;
+let voxInfo = null, voxSeq = 0; const voxWait = {};
+if (VOX) {
+  try {
+    VOX.addListener('range', d => { const w = voxWait[d.id]; if (w && w.L) { w.L.base = d.start || 0; w.L.t0 = performance.now(); } });
+    VOX.addListener('start', d => { const w = voxWait[d.id]; if (w && w.L) w.L.t0 = performance.now(); });
+    VOX.addListener('done', d => { const w = voxWait[d.id]; if (w) w.fin(); });
+  } catch {}
+  VOX.info().then(i => { voxInfo = i; }).catch(e => { voxInfo = { ready: false }; window.__addDiag && window.__addDiag('Phone voices: ' + (e.message || e)); });
+}
+const phoneVoicesOK = () => (VOX && (!voxInfo || voxInfo.ready)) || ('speechSynthesis' in window);
+let voiceWarned = false;
 function loadSam() {
   if (SamJs) return Promise.resolve(SamJs);
   return samLoad || (samLoad = import('https://cdn.jsdelivr.net/npm/sam-js@0.3.1/+esm').then(m => (SamJs = m.default || m.SamJs || m)).catch(e => { samLoad = null; throw e; }));
@@ -1505,7 +1531,10 @@ const cleanSpeech = t => String(t || '').replace(/[“”]/g, '"').replace(/[‘
 async function speakLine(c, text) {
   if (voiceMode === 'off' || !text || text === '(puppet lab)') return;
   text = cleanSpeech(text); if (!text) return;
-  if (voiceMode === 'tts') return speakTTS(c, text);
+  if (voiceMode === 'tts') {
+    if (phoneVoicesOK()) return speakTTS(c, text);
+    if (!voiceWarned) { voiceWarned = true; toast("Phone voices aren't available here, so they'll use the retro voices", 4000); }
+  }
   const ctx = audio(); if (!ctx) return;
   try {
     const S = await loadSam(), sam = new S(VOICE[c.i].sam);
@@ -1535,8 +1564,16 @@ function chirp(c) {
 function loadVoices() { try { ttsVoices = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); } catch {} }
 if ('speechSynthesis' in window) { loadVoices(); try { speechSynthesis.onvoiceschanged = loadVoices; } catch {} }
 function speakTTS(c, text) {
+  if (VOX) return new Promise(res => {
+    const id = 'v' + (++voxSeq), vo = VOICE[c.i].tts, vs = (voxInfo && voxInfo.voices) || [];
+    const L = c.tts = { text, t0: performance.now(), base: 0, cps: 14 * vo.rate };
+    let done = false; const fin = () => { if (done) return; done = true; delete voxWait[id]; if (c.tts === L) c.tts = null; res(); };
+    voxWait[id] = { L, fin }; setTimeout(fin, text.length * 110 + 6000);
+    const voice = vs.length ? (c.i === 0 ? vs[0] : vs[Math.min(vs.length - 1, Math.max(1, Math.floor(vs.length / 2)))]) : '';
+    VOX.speak({ text, id, voice, pitch: vo.pitch, rate: vo.rate, volume: voiceVol }).catch(e => { window.__addDiag && window.__addDiag('Phone voice: ' + (e.message || e)); fin(); });
+  });
   return new Promise(res => {
-    if (!('speechSynthesis' in window)) { toast("This browser can't use the phone's voices"); return res(); }
+    if (!('speechSynthesis' in window)) return res();
     const u = new SpeechSynthesisUtterance(text), vo = VOICE[c.i].tts;
     if (ttsVoices.length) u.voice = c.i === 0 ? ttsVoices[0] : ttsVoices[ttsVoices.length - 1];
     u.pitch = vo.pitch; u.rate = vo.rate; u.volume = voiceVol;
@@ -3544,6 +3581,7 @@ function diagText() {
     `GPU buffers: ${mem.geometries ?? '?'} shapes, ${mem.textures ?? '?'} textures`,
     `Device: ${navigator.deviceMemory ? navigator.deviceMemory + ' GB RAM (reported)' : 'RAM not reported'} · ${PHONE ? 'phone' : 'computer'} · WebGPU ${navigator.gpu ? 'yes' : 'no'}`,
     `AI: ${aiBackend === 'native' ? 'native llama.cpp (app)' : aiBackend === 'cpu' ? 'phone processor (llama.cpp in the browser)' : 'graphics chip (WebGPU), ' + aiMode + ' mode'} · ${loadedKey ? 'models ' + short(chars[0].modelId) + ' + ' + short(chars[1].modelId) : 'not loaded'}${curModel ? ' · awake: ' + short(curModel) : ''} · ${running ? 'running' : 'stopped'}${aiBusy ? ' · thinking' : ''}`,
+    `Voices: ${voiceMode} · sound ${actx ? actx.state : 'not started yet (tap the screen)'} · retro voice ${SamJs ? 'loaded' : samLoad ? 'loading' : 'not loaded'}${VOX ? ' · app voices ' + (voxInfo ? (voxInfo.ready ? (voxInfo.voices || []).length + ' English' : 'unavailable') : 'starting') : ''}`,
     `Smart mode: ${store.get('cloudOn', 'off') === 'on' ? (cloudUrl() ? (cloudReady() ? 'on' : 'paused' + (cloudNote ? ' (' + cloudNote + ')' : '')) : 'on, but no Worker address') : 'off'} · library: Pip ${chars[0].mind.know.length}, Moss ${chars[1].mind.know.length} pieces`,
     `AI processor cores: ${window.crossOriginIsolated ? 'all (multi-thread)' : 'one (single-thread)'} · ${navigator.hardwareConcurrency || '?'} cores on this phone`,
     `Crashes (last 6 h): ${cr.length ? '\n  ' + cr.join('\n  ') : 'none'}`
@@ -3562,6 +3600,12 @@ voiceSel.onchange = () => {
   if (voiceMode === 'sam') { audio(); loadSam().then(() => speakLine(chars[0], 'Beep. Pip here.')).catch(() => toast("Couldn't download the robot voice. Check your connection")); }
   else if (voiceMode === 'tts') speakLine(chars[1], 'Moss here. Testing my voice.');
   toast(voiceMode === 'off' ? 'Voices off' : 'Voices on');
+};
+$('#vtest').onclick = async () => {
+  if (voiceMode === 'off') { toast('Voices are off. Pick a voice first'); return; }
+  audio(); toast('Listen…');
+  await speakLine(chars[0], 'Hi! I am Pip.'); await speakLine(chars[1], 'And I am Moss. Can you hear us?');
+  window.__addDiag && window.__addDiag(`Voice test: ${voiceMode}, sound ${actx ? actx.state : 'not started'}${VOX ? ', app voices ' + (voxInfo ? (voxInfo.ready ? (voxInfo.voices || []).length + ' English voices' : 'unavailable') : 'starting') : ''}`);
 };
 const vvol = $('#vvol'); vvol.value = voiceVol;
 vvol.oninput = () => { voiceVol = +vvol.value; store.set('voiceVol', voiceVol); if (actx) for (const c of chars) if (c.vchain) c.vchain.g.gain.value = voiceVol; };
