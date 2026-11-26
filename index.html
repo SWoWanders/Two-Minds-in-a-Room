@@ -2177,13 +2177,19 @@ async function startCPU(a, b) {
   await unloadAll();
   status('Loading the llama.cpp engine…');
   try {
-    if (!wllamaMod) { wllamaMod = await import(WLLAMA + 'index.js'); WasmFromCDN = (await import(WLLAMA + 'wasm-from-cdn.js')).default; }
-  } catch (e) { console.error(e); window.__addDiag && window.__addDiag('wllama failed to load: ' + (e.message || e)); loadFail("Couldn't load the llama.cpp engine from the CDN. Check your connection and try again."); return false; }
+    if (!wllamaMod) wllamaMod = await import(WLLAMA + 'index.js');
+    // wllama 3.x takes one path to its WebAssembly core; it fetches a compatibility build by itself if the browser needs one
+    WasmFromCDN = { default: WLLAMA + 'wasm/wllama.wasm' };
+  } catch (e) {
+    wllamaMod = null; console.error(e);
+    window.__addDiag && window.__addDiag('wllama failed to load: ' + (e.message || e));
+    loadFail("Couldn't download the llama.cpp engine. Check your connection, then tap Start again."); return false;
+  }
   const t0 = performance.now();
   try {
     for (let i = 0; i < 2; i++) {
       const m = CPU_MODELS.find(x => x.id === [a, b][i]);
-      const w = new wllamaMod.Wllama(WasmFromCDN, { logger: { debug() {}, log() {}, warn: console.warn, error: console.error } });
+      const w = new wllamaMod.Wllama(WasmFromCDN, { logger: { debug() {}, log() {}, warn: console.warn, error: e => { console.error(e); window.__addDiag && window.__addDiag('llama.cpp: ' + e); } } });
       await w.loadModelFromHF({ repo: m.repo, file: m.file }, {
         n_ctx: 2048, n_gpu_layers: 0,
         progressCallback: ({ loaded, total }) => {
