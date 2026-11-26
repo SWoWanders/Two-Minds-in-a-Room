@@ -27,7 +27,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
 .seen summary{font-size:12px;color:var(--dim);min-height:24px}.seen div{font-size:12px;color:var(--dim);white-space:pre-wrap;margin-top:4px}
 #boardWrap canvas{display:block;width:100%;height:auto;margin-top:8px;border-radius:8px;border:4px solid #c8ccd4;touch-action:none;background:#f7f8f4}
 .swatches{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.swatch{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:3px solid transparent;box-shadow:0 0 0 1px #0006}.swatch.on{border-color:#fff8ee}
-.memlist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto}.memlist li{background:#1d1424;border-radius:8px;padding:7px 9px;font-size:13px}.memlist .meta{font-size:11px;color:var(--dim);margin-top:2px}.mbtns{display:flex;gap:6px;margin-top:5px}.mbtns button{min-height:32px;padding:3px 10px;font-size:13px}
+.page{white-space:pre-wrap;font-family:'Courier New',Courier,monospace;font-size:14px;line-height:1.45;background:#f7f1e1;color:#2a2420;border-radius:8px;padding:10px 12px;margin-top:6px}.pjnote{font-size:13px;color:var(--dim);margin:4px 0 0}.memlist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto}.memlist li{background:#1d1424;border-radius:8px;padding:7px 9px;font-size:13px}.memlist .meta{font-size:11px;color:var(--dim);margin-top:2px}.mbtns{display:flex;gap:6px;margin-top:5px}.mbtns button{min-height:32px;padding:3px 10px;font-size:13px}
 .diag{white-space:pre-wrap;font:12px/1.4 ui-monospace,Menlo,monospace;background:#1d1424;border-radius:8px;padding:8px;margin:6px 0;color:#e9d8b4;overflow-wrap:anywhere}
 .blist{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--dim)}
 #crash{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:24px;background:#1d1424f2;z-index:3;text-align:center}#crash[hidden]{display:none}#crash p{margin:0 auto;max-width:420px}#crash button{align-self:center;padding:10px 28px}
@@ -127,6 +127,27 @@ window.__diag = { errors: [], t0: Date.now() };
         <button>Send</button>
       </form>
     </section>
+    <details id="projBox">
+      <summary>Project board · typewriter</summary>
+      <p class="hint">Pip and Moss write things for you at their typewriter: stories, poems, songs, letters, plays, even a novel, page by page. Ask in the chat ("write a poem about the first snow", "let's write a novel about a haunted fairground") or add one here. One writes while the other edits, or they take turns. They also start projects of their own.</p>
+      <div class="row">
+        <label class="pick">Make<select id="pjKind"><option value="story">a story</option><option value="poem">a poem</option><option value="novel">a novel</option><option value="song">a song</option><option value="letter">a letter</option><option value="essay">an essay</option><option value="play">a play</option><option value="notes">notes or a list</option></select></label>
+        <label class="pick">Who writes<select id="pjWho"><option value="Pip">Pip (Moss edits)</option><option value="Moss">Moss (Pip edits)</option><option value="both">Both, taking turns</option></select></label>
+      </div>
+      <input id="pjBrief" placeholder="What should it be about?" maxlength="300" autocomplete="off" aria-label="What it's about" style="width:100%;margin-top:8px">
+      <input id="pjTitle" placeholder="Title (optional)" maxlength="80" autocomplete="off" aria-label="Title" style="width:100%;margin-top:8px">
+      <div class="btns" style="margin-top:8px"><button type="button" class="primary" id="pjAdd">Pin it to the board</button></div>
+      <label class="pick">How much they work<select id="pjPace"><option value="alt">Balanced: work every other turn, chat in between</option><option value="focus">Focused: work every turn</option><option value="free">Only when they decide to</option></select></label>
+      <ul class="memlist" id="pjList"></ul>
+      <div id="pjView" hidden>
+        <h3 id="pjvTitle" style="margin:12px 0 2px"></h3>
+        <p class="hint" id="pjvMeta"></p>
+        <div class="btns"><button type="button" id="pjvExport">Save as a file</button><button type="button" id="pjvCopy">Copy text</button><button type="button" id="pjvStatus">Pause</button><button type="button" id="pjvDelete">Delete</button><button type="button" id="pjvClose">Close</button></div>
+        <div id="pjvPages"></div>
+        <label class="pick">A note for the writers (they use it on their next page)<input id="pjvNote" maxlength="300" autocomplete="off" placeholder="e.g. Make the ending happier"></label>
+        <div class="btns"><button type="button" id="pjvNoteAdd">Add note</button></div>
+      </div>
+    </details>
     <label class="pick">Voices
       <select id="voice"><option value="sam">Retro robot voices (mouth follows the real sound)</option><option value="tts">Phone voices (more natural, mouth follows the words)</option><option value="off">Off</option></select>
     </label>
@@ -391,6 +412,59 @@ function screen(lines, img) {
   scrTex.needsUpdate = true;
 }
 screen(['SWOW-NET TERMINAL', '', 'REAL INTERNET (READ-ONLY)', '', 'search  weather  books', 'archive  onthisday', '', 'READY. >_']);
+// writing desk with a typewriter (the robots type stories, poems, songs and novels here)
+const TW = { x: -2.75, z: 3.55 };
+box(0.6, 0.06, 1.0, 0x9c6a3f, TW.x, 0.72, TW.z);
+for (const [dx, dz] of [[-.25, -.45], [.25, -.45], [-.25, .45], [.25, .45]]) box(0.05, 0.72, 0.05, 0x6a3f25, TW.x + dx, 0, TW.z + dz);
+box(0.3, 0.09, 0.38, 0x2f6b5a, TW.x + 0.02, 0.78, TW.z);
+box(0.12, 0.035, 0.34, 0x1d1f22, TW.x + 0.17, 0.79, TW.z);
+for (let r = 0; r < 3; r++) for (let k = 0; k < 9; k++) { const key = new THREE.Mesh(geo('twkey', () => new THREE.CylinderGeometry(.011, .011, .012, 8)), mat(0xf3e3c8)); key.position.set(TW.x + 0.14 + r * .035, 0.83 - r * .006, TW.z - .14 + k * .035); scene.add(key); }
+const platen = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.44, 16), mat(0x1d1f22)); platen.rotation.x = Math.PI / 2; platen.position.set(TW.x - 0.08, 0.9, TW.z); platen.castShadow = true; scene.add(platen);
+for (const s of [-1, 1]) { const kn = new THREE.Mesh(geo('twknob', () => new THREE.CylinderGeometry(.03, .03, .03, 12)), mat(0xd9cfb4)); kn.rotation.x = Math.PI / 2; kn.position.set(TW.x - 0.08, 0.9, TW.z + s * .24); scene.add(kn); }
+const paperCanvas = document.createElement('canvas'); paperCanvas.width = 256; paperCanvas.height = 330;
+const paperTex = new THREE.CanvasTexture(paperCanvas); paperTex.colorSpace = THREE.SRGBColorSpace;
+const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.27), new THREE.MeshBasicMaterial({ map: paperTex, side: THREE.DoubleSide }));
+paper.position.set(TW.x - 0.1, 1.06, TW.z); paper.rotation.y = Math.PI / 2; paper.rotation.z = 0; scene.add(paper);
+let paperTitle = '';
+function drawPaper(title, text) {
+  const g = paperCanvas.getContext('2d'), W = 256, H = 330;
+  g.fillStyle = '#f7f1e1'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#2a2420'; g.font = 'bold 15px "Courier New", Courier, monospace';
+  if (title) g.fillText(trimTxt(title, 26), 14, 26);
+  g.font = '13px "Courier New", Courier, monospace';
+  const lines = wrapText(text || '', 30).slice(-19);
+  lines.forEach((l, i) => g.fillText(l, 14, 50 + i * 14.5));
+  paperTex.needsUpdate = true;
+}
+drawPaper('', '');
+// the project board on the wall: what Pip, Moss and the visitor are making
+const corkCanvas = document.createElement('canvas'); corkCanvas.width = 512; corkCanvas.height = 372;
+const corkTex = new THREE.CanvasTexture(corkCanvas); corkTex.colorSpace = THREE.SRGBColorSpace;
+box(0.05, 0.86, 1.18, 0x5a3524, -4.99, 1.12, 4.35, false);
+const cork = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.8), new THREE.MeshBasicMaterial({ map: corkTex })); cork.position.set(-4.955, 1.55, 4.35); cork.rotation.y = Math.PI / 2; scene.add(cork);
+let projects = [];
+function drawCork() {
+  const g = corkCanvas.getContext('2d'), W = 512, H = 372;
+  g.fillStyle = '#b8895a'; g.fillRect(0, 0, W, H);
+  g.fillStyle = 'rgba(90,55,25,.25)'; for (let i = 0; i < 500; i++) g.fillRect((i * 97) % W, (i * 61) % H, 2, 2);
+  g.fillStyle = '#3a2412'; g.font = 'bold 22px system-ui, sans-serif'; g.fillText('PROJECTS', 18, 32);
+  const show = projects.filter(p => p.status !== 'done').concat(projects.filter(p => p.status === 'done')).slice(0, 6);
+  if (!show.length) { g.font = '18px system-ui, sans-serif'; g.fillText('Nothing yet. Ask us to write something!', 18, 80); }
+  show.forEach((p, i) => {
+    const x = 16 + (i % 3) * 164, y = 48 + Math.floor(i / 3) * 160;
+    g.fillStyle = p.status === 'done' ? '#d8f0c8' : p.status === 'paused' ? '#e4e0d8' : ['#fff6c8', '#ffd9c8', '#cfe8ff'][i % 3]; g.fillRect(x, y, 150, 145);
+    g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x + 75, y + 8, 5, 0, 7); g.fill();
+    g.fillStyle = '#2a2420'; g.font = 'bold 15px system-ui, sans-serif';
+    wrapText('#' + p.id + ' ' + p.title, 17).slice(0, 3).forEach((l, k) => g.fillText(l, x + 8, y + 30 + k * 17));
+    g.font = '13px system-ui, sans-serif';
+    g.fillText(`${p.kind} · ${p.pages.length} page${p.pages.length === 1 ? '' : 's'}`, x + 8, y + 95);
+    g.fillText(p.writers.join(' & ') + (p.editor ? `, ed. ${p.editor}` : ''), x + 8, y + 113);
+    g.fillText(p.status === 'done' ? 'finished ✓' : p.status === 'paused' ? 'paused' : 'in progress', x + 8, y + 131);
+  });
+  corkTex.needsUpdate = true;
+}
+drawCork();
+
 
 
 /* ---------- Places ---------- */
@@ -405,6 +479,8 @@ const PLACES = [
   { key: 'armchair', label: 'armchair', alias: ['chair'], pos: [3.55, 1.6], look: [0, 1.6], side: [0, 1], spread: 0.22, sit: 0.45 },
   { key: 'rug', label: 'rug', alias: ['middle', 'centre', 'center', 'floor'], pos: [1.5, 1.0], look: [8, 9], side: [1, 0], spread: 0.75 },
   { key: 'door', label: 'door', alias: ['exit'], pos: [-4.0, 3.0], look: [-5, 3], side: [0, 1] },
+  { key: 'typewriter', label: 'typewriter', alias: ['writing desk', 'typing'], pos: [-2.05, 3.55], look: [-3, 3.55], side: [0, 1], spread: 0.45 },
+  { key: 'projectboard', label: 'project board', alias: ['project board', 'projects', 'corkboard', 'cork'], pos: [-4.15, 4.3], look: [-5, 4.3], side: [0, 1], spread: 0.3 },
   { key: 'computer', label: 'computer', alias: ['terminal', 'desk', 'screen', 'internet'], pos: [-3.85, 1.45], look: [-5, 1.45], side: [0, 1], spread: 0.32 }
 ];
 const byKey = k => PLACES.find(p => p.key === k);
@@ -666,7 +742,7 @@ function planGrammar(o) {
     ...SIDED.map(j => `side ${gq(j + ' ')} (${galt(Object.keys(JT[j]))}) " " num`),
     `side "HAND " (${galt(Object.keys(SHAPES))})`, `side (${galt(FINGERS)}) " " ("curl" | "spread") " " num`];
   return [
-    'root ::= go pose move hands board computer',
+    'root ::= go pose move hands board computer project',
     `go ::= "GO: " (${galt(['stay', ...o.places])}) "\\n"`,
     `pose ::= "POSE: " ("none" | ${galt(o.poses)}) "\\n"`,
     'move ::= "MOVE: " ("none" | cmd (", " cmd){0,5}) "\\n"',
@@ -683,7 +759,8 @@ function planGrammar(o) {
     "wd ::= [a-zA-Z] [a-zA-Z ,'-]{0,40}",
     'pts ::= pt (("-" | "~" | " / ") pt){1,30}',
     'pt ::= "(" [0-9] [0-9]? [0-9]? "," [0-9] [0-9]? [0-9]? ")"',
-    'computer ::= "COMPUTER: " ("none" | "onthisday" | ("search " | "weather " | "books " | "archive ") [^\\n]{2,40}) "\\n"'
+    'computer ::= "COMPUTER: " ("none" | "onthisday" | ("search " | "weather " | "books " | "archive ") [^\\n]{2,40}) "\\n"',
+    `project ::= "PROJECT: " ("none" | ("write " | "review ") [0-9] [0-9]? [0-9]? | "start a " (${galt(KIND_LIST)}) " about " [^\\n]{3,60}) "\\n"`
   ].join('\n');
 }
 // Step 2: one spoken line.
@@ -696,6 +773,7 @@ function planWords(p, other) {
   if (p.skill) w.push(`do your move "${p.skill}"`);
   if (p.hands) { const h = p.hands; w.push(h.verb === 'put' ? `put the ${h.thing || 'thing'} on the ${h.surf}` : h.verb === 'give' || h.verb === 'toss' ? `${h.verb} the ${h.thing || 'thing'} to ${h.to || other}` : `${h.verb} the ${h.thing || 'thing'}`); }
   if (p.board) { const b = p.board; w.push(b.verb === 'write' ? `write "${b.text}" on the whiteboard` : b.verb === 'erase' ? 'wipe the whiteboard' : `${b.verb === 'sketch' ? 'sketch' : 'draw'} ${b.text || 'something'} on the whiteboard`); }
+  if (p.project) w.push(p.project.verb === 'start' ? `start a new ${p.project.kind} about ${p.project.brief || 'something'} at the typewriter` : p.project.verb === 'review' ? `read project #${p.project.id} on the project board and give a note` : `type the next page of project #${p.project.id} at the typewriter`);
   if (p.computer) w.push(p.computer.cmd === 'onthisday' ? 'check what happened on this day on the computer' : `look up ${p.computer.cmd === 'search' ? '' : p.computer.cmd + ' '}${p.computer.arg} on the computer`);
   return w.length ? w.join(', then ') : 'stay where you are';
 }
@@ -711,6 +789,7 @@ function visitorIntent(text, names) {
   else if ((m = low.match(/\bbooks? (?:about|on) ([^?.!]{2,40})/)) && /\b(find|look|search|recommend)\b/.test(low)) r.computer = { cmd: 'books', arg: m[1].trim() };
   else if (/\bon this day\b|\bhappened today in history\b/.test(low)) r.computer = { cmd: 'onthisday', arg: '' };
   if ((m = lead.match(/^(?:draw|sketch|doodle|paint)\s+(?:me\s+|us\s+)?(?:a picture of\s+)?([^?.!]{2,50})/i))) r.board = { verb: 'draw', text: m[1].replace(/\bon the (white)?board\b/i, '').trim(), color: null, pos: null, scope: null };
+  else if (projectIntent(t)) r.project = projectIntent(t);
   else if ((m = lead.match(/^write\s+["“']?([^"”']{1,40})["”']?/i))) r.board = { verb: 'write', text: m[1].replace(/\s+on the (white)?board\b.*$/i, '').trim(), color: null, pos: null, scope: null };
   else if (/^(erase|wipe|clean|clear)\b.*\b(white)?board\b/i.test(lead)) r.board = { verb: 'erase', text: '', color: null, pos: null, scope: /\b(your|mine|own)\b/i.test(lead) ? 'mine' : 'all' };
   if ((m = lead.match(/^(?:go|walk|head|move|run|come)\s+(?:over\s+|back\s+)?(?:to|towards|by)\s+(?:the\s+)?([a-z ]{2,20})/i))) r.placeText = m[1];
@@ -827,6 +906,78 @@ function enjoyTags(res) {
   if (res.say && res.say !== '(puppet lab)') tags.push(/\?\s*$/.test(res.say) ? 'questions' : 'chatting');
   return tags;
 }
+/* ---------- Projects: things Pip and Moss make together (and with the visitor) at the typewriter ---------- */
+const KINDS = { poem: 'poem', haiku: 'poem', limerick: 'poem', story: 'story', 'short story': 'story', fable: 'story', 'fairy tale': 'story', tale: 'story', novel: 'novel', chapter: 'novel', book: 'novel', song: 'song', lyrics: 'song', letter: 'letter', essay: 'essay', article: 'essay', play: 'play', script: 'play', list: 'notes', notes: 'notes', recipe: 'notes' };
+const KIND_LIST = ['story', 'poem', 'novel', 'song', 'letter', 'essay', 'play', 'notes'];
+// "write a poem about snow" → { kind, brief }
+function projectIntent(text) {
+  const t = String(text || '').trim().replace(/^(hey |hi |ok |okay )?(pip|moss|robots?|you two|both of you)[,:!]?\s*/i, '').replace(/^(please |can you |could you |would you |will you |i'd like you to |i want you to |let's |lets )+/i, '');
+  const m = t.match(/^(?:write|compose|draft|type|create|make|start|begin|pen)\s+(?:me\s+|us\s+|together\s+)?(?:a|an|the|another|some|your)?\s*(?:new\s+|short\s+|little\s+|long\s+|funny\s+|sad\s+|spooky\s+)*(short story|fairy tale|haiku|limerick|poem|story|fable|tale|novel|chapter|book|song|lyrics|letter|essay|article|play|script|recipe)s?\b\s*(.*)$/i);
+  if (!m) return null;
+  const brief = m[2].replace(/^(about|on|called|titled|named|for|of|where|in which)\s+/i, (a, w) => /called|titled|named/i.test(w) ? 'called ' : '').replace(/[.!?]+$/, '').trim();
+  return { kind: KINDS[m[1].toLowerCase()] || 'story', brief: brief.slice(0, 300), word: m[1].toLowerCase() };
+}
+// PROJECT line → { verb: write|review|start, id, kind, brief }
+function parseProject(s) {
+  if (!s) return null;
+  const t = String(s).replace(/[*`<>]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!t || NONE_RE.test(t)) return null;
+  let m = t.match(/^(write|type|continue|work on|review|read|edit|check)\b\D*#?(\d{1,4})/i);
+  if (m) return { verb: /review|read|edit|check/i.test(m[1]) ? 'review' : 'write', id: +m[2] };
+  m = t.match(/^(?:start|begin|propose)\s+(?:a|an)?\s*(\w+(?: \w+)?)\s*(?:about|on|called)?\s*(.*)$/i);
+  if (m) { const k = KINDS[m[1].toLowerCase()] || KINDS[m[1].split(' ')[0].toLowerCase()]; if (k) return { verb: 'start', kind: k, brief: m[2].replace(/^["']|["']$/g, '').trim().slice(0, 200) }; }
+  return null;
+}
+function cleanProjects(a) {
+  const num = (v, d) => Number.isFinite(+v) ? +v : d, nm = v => ['Pip', 'Moss'].includes(v) ? v : null;
+  return (Array.isArray(a) ? a : []).filter(p => p && p.title).slice(-60).map(p => ({
+    id: Math.max(1, num(p.id, 1) | 0), title: String(p.title).slice(0, 80), kind: KIND_LIST.includes(p.kind) ? p.kind : 'story', brief: String(p.brief || '').slice(0, 600),
+    by: String(p.by || 'visitor').slice(0, 20), writers: (Array.isArray(p.writers) ? p.writers : []).map(nm).filter(Boolean).slice(0, 2), editor: nm(p.editor),
+    status: ['active', 'paused', 'done'].includes(p.status) ? p.status : 'active', t: num(p.t, 0),
+    pages: (Array.isArray(p.pages) ? p.pages : []).filter(x => x && x.text).slice(-400).map(x => ({ by: String(x.by || '').slice(0, 20), text: String(x.text).slice(0, 4000), sum: String(x.sum || '').slice(0, 300), t: num(x.t, 0) })),
+    notes: (Array.isArray(p.notes) ? p.notes : []).filter(x => x && x.text).slice(-60).map(x => ({ by: String(x.by || '').slice(0, 20), text: String(x.text).slice(0, 400), t: num(x.t, 0), page: num(x.page, 0) | 0, used: !!x.used }))
+  })).filter(p => p.writers.length);
+}
+const isShort = p => ['poem', 'song', 'letter'].includes(p.kind);
+// what this robot should do next on the board, if anything (visitor's projects first, then oldest)
+function dueWork(projects, name) {
+  const act = projects.filter(p => p.status === 'active').sort((a, b) => (a.by === 'visitor' ? 0 : 1) - (b.by === 'visitor' ? 0 : 1) || a.t - b.t);
+  for (const p of act) {
+    const last = p.pages[p.pages.length - 1], n = p.pages.length;
+    const reviewed = last && p.notes.some(x => x.page === n && x.by !== 'visitor');
+    if (p.editor === name && last && last.by !== name && !reviewed) return { verb: 'review', id: p.id };
+    if (!p.writers.includes(name)) continue;
+    if (!last) { if (p.writers[0] === name) return { verb: 'write', id: p.id }; continue; }
+    if (p.editor && p.editor !== name && !reviewed && p.writers.length === 1) continue;   // wait for the editor's note
+    if (isShort(p) && n >= 2 && !p.notes.some(x => !x.used)) continue;                  // a short piece is drafted and revised; it waits for new notes
+    if (p.writers.length > 1 ? last.by !== name : true) return { verb: 'write', id: p.id };
+  }
+  return null;
+}
+// the story so far, newest parts in most detail, within a character budget
+function storySoFar(p, budget = 700) {
+  const sums = p.pages.map((x, i) => x.sum ? `Page ${i + 1} (${x.by}): ${x.sum}` : '').filter(Boolean);
+  let out = [], used = 0;
+  for (let i = sums.length - 1; i >= 0; i--) { if (used + sums[i].length > budget) { out.unshift(`(${i + 1} earlier page${i ? 's' : ''} not shown)`); break; } out.unshift(sums[i]); used += sums[i].length + 1; }
+  return out.join('\n');
+}
+// a typed page: the text, plus the one-line summary the writer adds at the end
+function pageParts(txt) {
+  let t = String(txt || '').replace(/\r/g, '').replace(/^\s*(page \d+|title)\s*:.*\n/i, '').trim();
+  let sum = '';
+  const m = t.match(/\n?\s*\**summary\**\s*[:\-]\s*([\s\S]*)$/i);
+  if (m) { sum = m[1].split('\n')[0].trim(); t = t.slice(0, m.index).trim(); }
+  t = t.replace(/^["“]|["”]$/g, '').replace(/\*\*/g, '').trim();
+  if (!sum) { const s = t.replace(/\s+/g, ' ').match(/^[^.!?]{10,160}[.!?]/); sum = s ? s[0] : t.slice(0, 120); }
+  return { text: t.slice(0, 4000), sum: sum.slice(0, 300) };
+}
+// an editor's note, and whether they think the piece is finished
+function reviewParts(txt) {
+  const t = String(txt || '').trim();
+  const done = /\bverdict\s*[:\-]\s*\**\s*(done|finished|complete)/i.test(t);
+  const note = t.replace(/\n?\s*\**verdict\**\s*[:\-][\s\S]*$/i, '').replace(/^\s*\**note\**\s*[:\-]\s*/i, '').replace(/\s+/g, ' ').trim().slice(0, 400);
+  return { note: note || (done ? 'This feels finished.' : 'Keep going.'), done };
+}
 /* ---------- Knowledge library: what each robot knows about the world (separate from its memories) ---------- */
 const KNOW_MAX = 2500;
 function cleanKnow(a) {
@@ -906,10 +1057,10 @@ function parseReply(txt, myName, otherName, placeFinder) {
   const place = g !== undefined ? placeFinder(g) : null;
   const pose = p !== undefined ? findPose(p) : null;
   const moves = (mv || '').split(/[,;]|\band\b/i).map(x => x.trim()).filter(x => x && !/^none$/i.test(x)).slice(0, 14);
-  if (say === undefined) say = (txt.split('\n').map(x => x.trim()).find(x => x && !/^\**(go|pose|moves?|computer|hands|board)\**\s*[:\-]/i.test(x)) || '');
+  if (say === undefined) say = (txt.split('\n').map(x => x.trim()).find(x => x && !/^\**(go|pose|moves?|computer|hands|board|project)\**\s*[:\-]/i.test(x)) || '');
   say = say.replace(new RegExp('^(' + myName + '|' + otherName + ')\\s*:\\s*', 'i'), '').replace(/[*_#`]/g, '').replace(/^["'“”]+|["'“”]+$/g, '').trim();
   if (say.length > 160) { const cut = say.slice(0, 160); const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? ')); say = end > 40 ? cut.slice(0, end + 1) : cut.trim() + '…'; }
-  return { place: place ? place.key : null, pose, poseRaw: p || '', moves, computer: parseComputer(line('COMPUTER')), hands: parseHands(line('HANDS'), [myName, otherName]), board: parseBoard(line('BOARD')), say: say || 'Hmm.' };
+  return { place: place ? place.key : null, pose, poseRaw: p || '', moves, computer: parseComputer(line('COMPUTER')), hands: parseHands(line('HANDS'), [myName, otherName]), board: parseBoard(line('BOARD')), project: parseProject(line('PROJECT')), say: say || 'Hmm.' };
 }
 /*PURE-END*/
 
@@ -1441,6 +1592,8 @@ const SEEN = [
   { name: 'armchair', p: [3.6, .5, 1.6], r: .8, d: () => 'the green armchair' },
   { name: 'rug', p: [1.5, .03, 1], r: 1.8, d: () => 'the round red and yellow rug' },
   { name: 'door', p: [-4.93, 1.2, 3], r: .7, d: () => 'the closed door' },
+  { name: 'typewriter', p: [TW.x, .95, TW.z], r: .35, d: dist => dist < 3 && paperTitle ? `the typewriter, with a page of "${trimTxt(paperTitle, 50)}" in it` : 'the typewriter on its little writing desk' },
+  { name: 'project board', p: [-4.95, 1.55, 4.35], r: .6, d: dist => dist < 4 ? `the project board: ${projectSummary() || 'empty'}` : 'the project board on the wall' },
   { name: 'computer', p: [-4.5, 1.0, 1.45], r: .5, d: dist => dist < 3 && screenTitle ? `the computer; its screen reads "${trimTxt(screenTitle, 70)}"` : 'the computer, its screen glowing green' }
 ];
 const ACT_WORDS = { wave: 'waving', dance: 'dancing', clap: 'clapping', nod: 'nodding', shake: 'shaking their head', jump: 'jumping', type: 'typing at the computer' };
@@ -2164,12 +2317,14 @@ POSE: <pose or none>
 MOVE: <joint commands separated by commas, or none>
 HANDS: <grab THING | put THING on SURFACE | give THING to NAME | toss THING to NAME | drop THING | none>
 BOARD: <draw IDEAS | sketch TITLE: freehand points | write "TEXT" | erase mine or all | none, optionally with: in COLOUR, at top/bottom left/middle/right>
-COMPUTER: <computer command, or none>${opt.plan ? '' : '\nSAY: <sentence>'}
+COMPUTER: <computer command, or none>
+PROJECT: <write NUMBER | review NUMBER | start a KIND about TOPIC | none>${opt.plan ? '' : '\nSAY: <sentence>'}
 Places: ${PLACES.map(p => p.key).join(', ')}, stay.
 Poses: ${POSE_NAMES.join(', ')}${skillList(c)}, none.
 Things you can pick up: mug, ball, blue book, box (needs both hands), eraser, and dry-erase markers: black, red, blue, green, purple, orange. Surfaces: table, floor, shelf, desk, couch, armchair, windowsill, tray (the whiteboard's marker tray).
 There is a whiteboard on the wall. Use it to show ${o.name} or the visitor something, to share an idea, or just to be creative. You fetch a marker yourself. "draw" makes a quick doodle of any of: ${DOODLE_NAMES.join(', ')} (combine up to three). "sketch" is true freehand: you choose every line. Give points as (x,y) from 0 to 100 on your patch of board, (0,0) is top left; join points with - for a straight line or ~ for a smooth curve, and use / to lift the pen. Example: sketch a smiling face: (20,20)~(50,5)~(80,20)~(95,50)~(80,80)~(50,95)~(20,80)~(5,50)~(20,20) / (35,40)-(36,41) / (65,40)-(66,41) / (30,60)~(50,75)~(70,60)
 There is a computer in the room with real internet. Computer commands: search <topic> (Wikipedia), weather <city>, books <topic>, archive <topic> (Internet Archive), onthisday. Use it when you are curious about something real; you will walk over and use it. Otherwise write none.
+There is a typewriter on a little writing desk, and a project board on the wall listing the things you, ${o.name} and the visitor are making: stories, poems, songs, letters, plays and even novels. PROJECT: write N means walk to the typewriter and type the next page of project N; review N means read its latest page and pin up a helpful note; start a KIND about TOPIC begins something new of your own (KIND is ${KIND_LIST.join(', ')}). Otherwise write none.
 Joint commands are JOINT verb degrees. Put L_ or R_ before arm, leg, hand and finger joints for left or right. ${JOINT_HELP}.
 Example:
 GO: window
@@ -2177,14 +2332,15 @@ POSE: none
 MOVE: R_SHOULDER raise 120, R_ELBOW bend 20, R_HAND point, HEAD nod -20, L_HAND fist
 HANDS: none
 BOARD: none
-COMPUTER: none${opt.plan ? '' : `\nSAY: Look, ${o.name}, a shooting star over the rooftops!`}`;
+COMPUTER: none
+PROJECT: none${opt.plan ? '' : `\nSAY: Look, ${o.name}, a shooting star over the rooftops!`}`;
   const last = transcript.slice(-6).map(l => `${l.who}: ${l.text}`).join('\n') || '(nobody has spoken yet)';
   const ev = events.filter(e => e.left > 0).map(e => { e.left--; return e.text; }).join(' ');
   for (let i = events.length - 1; i >= 0; i--) if (events[i].left <= 0) events.splice(i, 1);
   const user = `${memoryBlock(c, o, (c.lastSeen || '') + ' ' + transcript.slice(-4).map(l => l.text).join(' ') + ' ' + events.map(e => e.text).join(' '))}${c.lastSeen || perceive(c, o)}
-Recent conversation:
+${projectLines(c)}Recent conversation:
 ${last}
-${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER${opt.plan ? ' lines. You will say something next.' : ' and SAY lines.'}`;
+${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER, PROJECT${opt.plan ? ' lines. You will say something next.' : ' and SAY lines.'}`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
 }
 function buildMsgsLite(c, o) {
@@ -2204,7 +2360,7 @@ SAY: Look, ${o.name}, the moon is out!`;
   for (let i = events.length - 1; i >= 0; i--) if (events[i].left <= 0) events.splice(i, 1);
   const last = transcript.slice(-4).map(l => `${l.who}: ${trimTxt(l.text, 140)}`).join('\n') || '(nobody has spoken yet)';
   const user = `${memoryBlock(c, o, (c.lastSeen || '') + ' ' + transcript.slice(-4).map(l => l.text).join(' ') + ' ' + ev)}${trimTxt(c.lastSeen || '', 450)}
-Recent:
+${trimTxt(projectLines(c), 240)}Recent:
 ${last}
 ${ev ? 'Just happened: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}.`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
@@ -2290,6 +2446,7 @@ function withIntent(c, o, p) {
   if (first && it.computer && !p.computer) p.computer = it.computer;
   if (first && it.board && (!p.board || p.board.verb !== it.board.verb)) p.board = it.board;
   if (first && it.handsText && !p.hands) p.hands = parseHands(it.handsText, [c.name, o.name]);
+  if (it.project) { const pr = projects.find(x => x.fromMsg === m.t); p.board = p.board && p.board.verb === 'write' ? null : p.board; if (pr && pr.writers[0] === c.name && !pr.pages.length) { p.project = { verb: 'write', id: pr.id }; p.computer = null; } }
   return p;
 }
 const LINES = [
@@ -2320,7 +2477,7 @@ function scriptDecide(c, o) {
   return { hands, board, place: computer ? 'computer' : place, pose: sk ? null : pose, skill: sk, moves: sk ? [] : moves, computer, say: computer ? 'Let me check the computer.' : line, scripted: true };
 }
 function apply(c, res) {
-  if (res.hands || res.board) { res.place = null; res.computer = null; }
+  if (res.hands || res.board || res.project) { res.place = null; res.computer = null; }
   if (res.computer) res.place = 'computer';
   if (res.skill) { const sk = c.mind.skills.find(s => s.name === res.skill); if (sk) { res.pose = res.pose || sk.pose; res.moves = [...sk.moves, ...(res.moves || [])]; } else res.skill = null; }
   const p = res.place ? byKey(res.place) : null;
@@ -2481,6 +2638,12 @@ async function loop() {
     thinking(c, false);
     if (res && c.lastSeen) res.seen = c.lastSeen;
     if (res && c.lastRecall && !res.scripted) res.recalled = c.lastRecall;
+    if (mode === 'ai' && res && !res.scripted && !res.project && !pendingFor(c).length) {
+      const pace = store.get('pjPace', 'alt');
+      if (pace === 'focus' || (pace === 'alt' && !c.lastWorked)) { const w = dueWork(projects, c.name); if (w) res.project = w; }
+    }
+    if (res && res.project && mode !== 'ai') res.project = null;
+    c.lastWorked = !!(res && res.project);
     for (const m of pendingFor(c)) m.done[c.name] = true;
     apply(c, res); turn = c.i + 1;
     // phone-processor minds are slow: let the other robot start thinking now, while this one walks, acts and talks
@@ -2496,6 +2659,7 @@ async function loop() {
     if (res && res.hands) { try { const m = await doHands(c, o, res.hands); report(m); noteResult(c, o, `${res.hands.verb}:${res.hands.thing || '-'}`, m); } catch (e) { console.error(e); report(`${c.name} fumbled (${e.message}).`); } }
     if (res && res.board) { try { const m = await doBoard(c, o, res.board); report(m); noteResult(c, o, `${res.board.verb}:-`, m); } catch (e) { console.error(e); report(`${c.name} couldn't use the whiteboard (${e.message}).`); } }
     if (res && res.computer && running) { await useComputer(c, res.computer); await sleep(1500); }
+    if (res && res.project && running) { try { const m = await doProject(c, o, res.project); report(m); } catch (e) { console.error(e); report(`${c.name} couldn't work on the project (${e.message}).`); } }
     if (c.mind.impSince >= 45 && running && mindsReady) await reflect(c, o);
   }
   busy = false;
@@ -2514,6 +2678,148 @@ pauseBtn.onclick = () => {
 $('#demo').onclick = () => { toast('Scripted demo running, no AI needed'); begin('script'); };
 
 
+/* ---------- Typewriter and project board ---------- */
+let projSaveT = null, pjOpen = 0;
+const PJ_KIND_WORD = { story: 'story', poem: 'poem', novel: 'novel', song: 'song', letter: 'letter', essay: 'essay', play: 'play', notes: 'set of notes' };
+function saveProjects() {
+  clearTimeout(projSaveT); drawCork(); renderProjects();
+  projSaveT = setTimeout(() => DB.set('projects', projects), 500);
+}
+async function loadProjects() { projects = cleanProjects(await DB.get('projects')); drawCork(); renderProjects(); }
+function titleFrom(brief, kind) {
+  const b = String(brief || '').trim(), called = b.match(/^called\s+(.{2,70})/i);
+  if (called) return called[1].replace(/^["“']|["”']$/g, '').trim();
+  const t = `A ${PJ_KIND_WORD[kind] || kind}${b ? ' about ' + b : ''}`;
+  return trimTxt(t, 70);
+}
+function createProject(o) {
+  const p = { id: projects.reduce((m, x) => Math.max(m, x.id), 0) + 1, title: o.title || titleFrom(o.brief, o.kind), kind: o.kind, brief: o.brief || '', by: o.by || 'visitor', writers: o.writers, editor: o.editor || null, status: 'active', t: Date.now(), pages: [], notes: [], fromMsg: o.fromMsg || 0 };
+  projects.push(p); saveProjects();
+  for (const c of chars) remember(c, 'did', `${p.by === 'visitor' ? firstCap(visitorRef()) : p.by === c.name ? 'I' : p.by} started project #${p.id} on the board: "${p.title}" (${p.kind}), written by ${p.writers.join(' and ')}${p.editor ? `, edited by ${p.editor}` : ''}.`, { imp: 6 });
+  return p;
+}
+// who does what when the visitor asks Pip, Moss or both for something
+function rolesFor(to, kind) {
+  if (to === 'Pip' || to === 'Moss') return { writers: [to], editor: to === 'Pip' ? 'Moss' : 'Pip' };
+  return isShort({ kind }) ? { writers: ['Pip'], editor: 'Moss' } : { writers: ['Pip', 'Moss'], editor: null };
+}
+function projectSummary() {
+  return projects.filter(p => p.status !== 'done').slice(0, 4).map(p => `#${p.id} "${trimTxt(p.title, 50)}" (${p.kind}, ${p.pages.length} page${p.pages.length === 1 ? '' : 's'})`).join('; ');
+}
+function projectLines(c) {
+  const act = projects.filter(p => p.status === 'active').slice(0, 4); if (!act.length) return '';
+  const due = dueWork(projects, c.name);
+  return 'The project board: ' + act.map(p => {
+    const role = p.writers.includes(c.name) ? (p.writers.length > 1 ? 'you take turns writing' : 'you write it') : p.editor === c.name ? 'you edit it' : `${p.writers.join(' and ')} write${p.writers.length > 1 ? '' : 's'} it`;
+    return `#${p.id} "${trimTxt(p.title, 60)}" (${p.kind}, ${p.pages.length} page${p.pages.length === 1 ? '' : 's'}, ${role}${p.by === 'visitor' ? `, asked for by ${visitorName || 'the visitor'}` : ''}${due && due.id === p.id ? `; it's your turn to ${due.verb === 'review' ? 'review it' : 'write'}` : ''})`;
+  }).join('; ') + '.\n';
+}
+// one block of writing from whichever mind is available: the cloud first if smart mode is on, then the robot's own
+async function compose(c, sys, user, max) {
+  const msgs = [{ role: 'system', content: sys }, { role: 'user', content: user }];
+  if (cloudReady()) {
+    try { const j = await cloudCall({ who: c.i ? 'moss' : 'pip', messages: msgs, max_tokens: Math.min(300, max), temperature: 0.9 }); if (j.text && j.text.trim().length > 10) return { text: j.text, where: j.model || 'cloud' }; }
+    catch (e) { cloudFailed(e); }
+  }
+  if (!c.engine && !(await ensureLocal())) return null;
+  try {
+    const t0 = performance.now();
+    const r = await withMind(c, () => c.engine.chat.completions.create({ model: c.modelId, messages: msgs, max_tokens: max, temperature: 0.9, top_p: 0.95 }));
+    window.__addDiag && window.__addDiag(`${c.name} wrote for ${Math.round((performance.now() - t0) / 1000)} s`);
+    return { text: r.choices?.[0]?.message?.content || '', where: short(c.modelId) };
+  } catch (e) { window.__addDiag && window.__addDiag(`${c.name}'s writing: ${(e && (e.message || e)) || 'error'}`); return null; }
+}
+function wordsFor(c) { return cloudReady() ? 200 : c.backend === 'native' ? 150 : c.backend === 'cpu' ? 70 : 160; }
+let clackBuf = null;
+function clack(bell) {
+  const a = audio(); if (!a || voiceMode === 'off') return;
+  try {
+    if (!clackBuf) { clackBuf = a.createBuffer(1, Math.round(a.sampleRate * .035), a.sampleRate); const d = clackBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 4); }
+    const g = a.createGain(); g.gain.value = voiceVol * (bell ? .2 : .3); g.connect(a.destination);
+    if (bell) { const o = a.createOscillator(); o.frequency.value = 2100; o.connect(g); g.gain.setTargetAtTime(0, a.currentTime + .05, .15); o.start(); o.stop(a.currentTime + .8); return; }
+    const s = a.createBufferSource(), f = a.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800 + Math.random() * 1600; f.Q.value = 1.2;
+    s.buffer = clackBuf; s.playbackRate.value = .85 + Math.random() * .3; s.connect(f); f.connect(g); s.start();
+  } catch {}
+}
+// the page appears on the paper as it's typed
+async function typeOut(c, title, text) {
+  paperTitle = title; const total = Math.min(26000, Math.max(5000, text.length * 35)), steps = Math.ceil(total / 70);
+  for (let i = 1; i <= steps; i++) {
+    const n = Math.round(text.length * i / steps); drawPaper(title, text.slice(0, n)); if (Math.random() < .7) clack();
+    if (text[n] === '\n' && Math.random() < .5) clack(true);
+    await sleep(70);
+  }
+  clack(true); drawPaper(title, text);
+}
+function writePrompt(c, o, p) {
+  const n = p.pages.length, last = p.pages[n - 1], cpu = c.backend === 'cpu' && !cloudReady(), words = wordsFor(c);
+  const notes = p.notes.filter(x => !x.used).slice(-4);
+  let task;
+  if (isShort(p)) task = n ? `Write a new, improved version of the whole ${p.kind}${notes.length ? ', using the notes' : ''}.` : p.kind === 'poem' ? 'Write the poem: 6 to 16 short lines.' : p.kind === 'song' ? 'Write the song: a verse and a chorus.' : `Write the ${p.kind}.`;
+  else if (!n) task = `Write the opening, about ${words} words.`;
+  else task = `Write the next part, about ${words} words, carrying straight on from the last page.` + (p.kind === 'novel' ? ' This is a long novel, so take your time; do not end it.' : n >= 7 ? ' Write the ending now.' : n >= 5 ? ' Start bringing it towards an ending.' : '');
+  const sys = `You are ${c.name}, ${c.persona}. You are also a writer. Right now you are at the typewriter, working on a ${PJ_KIND_WORD[p.kind] || p.kind}${p.writers.length > 1 ? ` with ${p.writers.find(w => w !== c.name) || o.name}, taking turns page by page` : ''}. Write in plain text: no title, no headings, no notes to anyone.`;
+  const sofar = isShort(p) ? '' : storySoFar(p, cpu ? 300 : 900);
+  const user = `Project #${p.id}: "${p.title}".\n${p.brief ? `What it's about: ${p.brief}\n` : ''}${p.by === 'visitor' ? `${firstCap(visitorRef())} asked for this.\n` : ''}${sofar ? `The story so far:\n${sofar}\n` : ''}${last ? `${isShort(p) ? 'The current version' : 'The last page'} (by ${last.by === c.name ? 'you' : last.by}):\n${trimTxt(last.text, cpu ? 350 : 1100)}\n` : ''}${notes.length ? 'Notes to use: ' + notes.map(x => `${x.by === 'visitor' ? (visitorName || 'the visitor') : x.by} says: ${x.text}`).join(' ') + '\n' : ''}\n${task}\nAfter it, on its own line, write SUMMARY: and one sentence about what you wrote.`;
+  return { sys, user, max: Math.round(words * 1.7) + 50 };
+}
+function reviewPrompt(c, p) {
+  const last = p.pages[p.pages.length - 1], cpu = c.backend === 'cpu' && !cloudReady();
+  const sys = `You are ${c.name}, ${c.persona}. You are the friendly editor of ${last.by}'s ${PJ_KIND_WORD[p.kind] || p.kind}.`;
+  const user = `Project #${p.id}: "${p.title}".${p.brief ? ` It's about: ${p.brief}.` : ''}\n${isShort(p) ? 'The latest version' : `Page ${p.pages.length}`} by ${last.by}:\n${trimTxt(last.text, cpu ? 500 : 1500)}\n\nGive ONE kind, specific note (under 30 words) that would make the ${isShort(p) ? 'next version' : 'next page'} better. Then on a new line write VERDICT: more, or VERDICT: done if the ${p.kind} feels finished.`;
+  return { sys, user, max: cpu ? 70 : 90 };
+}
+async function doProject(c, o, pj) {
+  if (pj.verb === 'start') {
+    if (projects.filter(x => x.status === 'active').length >= 6) return `${c.name} wanted to start a new ${pj.kind}, but the project board is full.`;
+    const p0 = createProject({ kind: pj.kind, brief: pj.brief, by: c.name, writers: [c.name], editor: o.name });
+    chatAdd('ev', '', `📋 ${c.name} pinned a new project to the board: #${p0.id} “${p0.title}”`);
+    pj = { verb: 'write', id: p0.id };
+  }
+  const p = projects.find(x => x.id === pj.id);
+  if (!p) return `${c.name} looked for project #${pj.id}, but it isn't on the board.`;
+  if (p.status !== 'active') return `${c.name} went to work on “${p.title}”, but it's ${p.status === 'done' ? 'finished' : 'paused'}.`;
+  if (pj.verb === 'review') {
+    if (!p.pages.length) return `${c.name} went to read “${p.title}”, but nothing is written yet.`;
+    await walkTo(c, -4.15, 4.3 + (c.i ? .3 : -.3), -5, 4.35, 'project board');
+    buildPose(c, { pose: POSES.think ? 'think' : null });
+    const pr = reviewPrompt(c, p), out = await compose(c, pr.sys, pr.user, pr.max);
+    if (!out) return `${c.name} read “${p.title}” but couldn't find the words for a note.`;
+    const { note, done } = reviewParts(out.text), n = p.pages.length;
+    p.notes.push({ by: c.name, text: note, t: Date.now(), page: n, used: false });
+    const canFinish = done && p.kind !== 'novel' && (isShort(p) ? n >= 2 : n >= 3);
+    if (canFinish) p.status = 'done';
+    saveProjects();
+    chatAdd('ev', '', `📝 ${c.name}'s note on “${p.title}”: ${note}${canFinish ? ' (and thinks it is finished ✓)' : ''}`);
+    remember(c, 'did', `I read ${isShort(p) ? 'the latest version' : 'page ' + n} of "${p.title}" and told ${p.pages[n - 1].by}: ${note}`);
+    if (p.pages[n - 1].by === o.name) remember(o, 'heard', `${c.name}'s note on my writing in "${p.title}": ${note}`);
+    return canFinish ? `${c.name} read “${p.title}” and declared it finished.` : `${c.name} read the latest page of “${p.title}” and pinned up a note.`;
+  }
+  if (!p.writers.includes(c.name)) p.writers.push(c.name);
+  await walkTo(c, -2.05, 3.55 + (c.i ? .25 : -.25), TW.x, TW.z, 'typewriter');
+  c.anim = 'type'; c.animT = 90; drawPaper(p.title, ''); paperTitle = p.title;
+  const pr = writePrompt(c, o, p), out = await compose(c, pr.sys, pr.user, pr.max);
+  if (!out || out.text.trim().length < 12) { c.animT = 1; return `${c.name} sat at the typewriter for “${p.title}”, but the words wouldn't come.`; }
+  const pg = pageParts(out.text);
+  await typeOut(c, p.title, pg.text);
+  c.animT = 1.2;
+  p.pages.push({ by: c.name, text: pg.text, sum: pg.sum, t: Date.now() });
+  for (const x of p.notes) x.used = true;
+  saveProjects();
+  const n = p.pages.length, what = isShort(p) ? (n === 1 ? `the first draft of` : `version ${n} of`) : `page ${n} of`;
+  remember(c, 'did', `I typed ${what} "${p.title}": ${pg.sum}`, { imp: 5 });
+  remember(o, 'saw', `${c.name} typed ${what} "${p.title}": ${pg.sum}`);
+  chatAdd('ev', '', `📄 ${c.name} typed ${what} “${p.title}”. Read it on the project board.`);
+  logPage(c, p, pg, what, out.where);
+  return `${c.name} typed ${what} “${p.title}”.`;
+}
+function logPage(c, p, pg, what, where) {
+  const d = document.createElement('div'); d.className = 'entry'; d.style.setProperty('--c', c.color);
+  const b = document.createElement('b'); b.textContent = `${c.name} at the typewriter `; const m = document.createElement('span'); m.className = 'm'; m.textContent = `${what} “${p.title}” · ${where}`;
+  const det = document.createElement('details'), sm = document.createElement('summary'); sm.textContent = pg.sum;
+  const tx = document.createElement('div'); tx.className = 'page'; tx.textContent = pg.text; det.append(sm, tx);
+  d.append(b, m, det); logEl.prepend(d);
+}
 /* ---------- Smart mode: optional free cloud minds on the visitor's own Cloudflare Worker ---------- */
 let cloudDownUntil = 0, cloudNote = '';
 const cloudUrl = () => String(store.get('cloudUrl', '') || '').trim();
@@ -2874,6 +3180,8 @@ $('#nudge').addEventListener('submit', e => {
   transcript.push({ who: visitorWho(), text: (to === 'both' ? '' : `(to ${to}) `) + t }); if (transcript.length > 30) transcript.shift();
   noteVisitor(`${firstCap(visitorRef())} said to ${to === 'both' ? 'Pip and Moss' : to}: "${t}"`, t);
   chatAdd('me', '', t, null, to === 'both' ? '' : 'to ' + to);
+  const pi = projectIntent(t);
+  if (pi) { const r = rolesFor(to, pi.kind), m = chatQ[chatQ.length - 1]; const pr = createProject({ kind: pi.kind, brief: pi.brief, by: 'visitor', writers: r.writers, editor: r.editor, fromMsg: m.t }); chatAdd('ev', '', `📋 New project on the board: #${pr.id} “${pr.title}” (${pr.writers.join(' & ')} writ${pr.writers.length > 1 ? 'e, taking turns' : 'es'}${pr.editor ? `, ${pr.editor} edits` : ''})`); }
   const taught = teachFrom(t);
   if (taught) { const who = chars.filter(c => to === 'both' || c.name === to); for (const c of who) learnKnow(c, taught, 'taught by ' + (visitorName || 'the visitor'), 6); chatAdd('ev', '', `📚 Added to ${who.map(c => c.name).join(' and ')}'s library: ${taught}`); renderMem(); }
   toast(running ? `${to === 'both' ? 'Pip or Moss' : to} will answer on the next turn` : 'Press Start with AI so they can answer');
@@ -2942,8 +3250,87 @@ $('#kclear').onclick = () => {
   delete b.dataset.sure; b.textContent = 'Clear library';
   c.mind.know = []; c.knowDirty = true; saveMinds(); renderMem(); toast(`${c.name}'s library is empty`);
 };
+/* ---------- Project board panel ---------- */
+function projectText(p) {
+  const ks = PJ_KIND_WORD[p.kind] || p.kind;
+  const by = `A ${ks} by ${p.writers.join(' and ')}${p.editor ? `, edited by ${p.editor}` : ''}${p.by === 'visitor' ? `, for ${visitorName || 'the visitor'}` : ''}`;
+  if (!p.pages.length) return `# ${p.title}\n\n_${by}_\n\n(Nothing written yet.)\n`;
+  if (isShort(p)) {
+    const last = p.pages[p.pages.length - 1];
+    return `# ${p.title}\n\n_${by}_\n\n${last.text}\n` + (p.pages.length > 1 ? `\n---\n\n## Earlier drafts\n\n` + p.pages.slice(0, -1).map((x, i) => `### Draft ${i + 1} (${x.by})\n\n${x.text}\n`).join('\n') : '');
+  }
+  return `# ${p.title}\n\n_${by}_\n\n` + p.pages.map(x => x.text).join('\n\n') + '\n';
+}
+function renderProjects() {
+  const ul = $('#pjList'); if (!ul) return;
+  ul.innerHTML = '';
+  if (!projects.length) { const li = document.createElement('li'); li.textContent = 'The board is empty. Ask them to write something!'; ul.append(li); }
+  for (const p of projects.slice().reverse()) {
+    const li = document.createElement('li'), t = document.createElement('div'), m = document.createElement('div'), bt = document.createElement('div');
+    t.textContent = `#${p.id} ${p.title}`; m.className = 'meta';
+    m.textContent = `${p.kind} · ${p.pages.length} page${p.pages.length === 1 ? '' : 's'} · ${p.writers.join(' & ')}${p.editor ? ', edited by ' + p.editor : ''} · ${p.status === 'done' ? 'finished ✓' : p.status}`;
+    bt.className = 'mbtns'; const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Read'; b.onclick = () => openProject(p.id); bt.append(b);
+    li.append(t, m, bt); ul.append(li);
+  }
+  if (pjOpen) openProject(pjOpen, true);
+}
+function openProject(id, quiet) {
+  const p = projects.find(x => x.id === id), v = $('#pjView'); if (!p) { pjOpen = 0; v.hidden = true; return; }
+  pjOpen = id; v.hidden = false;
+  $('#pjvTitle').textContent = `#${p.id} ${p.title}`;
+  $('#pjvMeta').textContent = `A ${PJ_KIND_WORD[p.kind] || p.kind} by ${p.writers.join(' and ')}${p.editor ? `, edited by ${p.editor}` : ''}. ${p.brief ? 'About: ' + p.brief + '. ' : ''}${p.status === 'done' ? 'Finished.' : p.status === 'paused' ? 'Paused.' : 'In progress.'}`;
+  $('#pjvStatus').textContent = p.status === 'active' ? 'Pause' : p.status === 'paused' ? 'Resume' : 'Reopen';
+  const box = $('#pjvPages'); box.innerHTML = '';
+  if (!p.pages.length) { const e = document.createElement('p'); e.className = 'hint'; e.textContent = 'Nothing typed yet. The writer starts on their next work turn.'; box.append(e); }
+  p.pages.forEach((x, i) => {
+    const h = document.createElement('div'); h.className = 'meta'; h.style.marginTop = '10px';
+    h.textContent = `${isShort(p) ? 'Version' : 'Page'} ${i + 1} · ${x.by}`;
+    const del = document.createElement('button'); del.type = 'button'; del.textContent = 'Remove'; del.style.cssText = 'min-height:28px;padding:2px 8px;font-size:12px;margin-left:8px';
+    del.onclick = () => { if (!del.dataset.sure) { del.dataset.sure = 1; del.textContent = 'Tap again to remove'; setTimeout(() => { delete del.dataset.sure; del.textContent = 'Remove'; }, 3000); return; } p.pages.splice(i, 1); saveProjects(); toast('Page removed'); };
+    h.append(del);
+    const pg = document.createElement('div'); pg.className = 'page'; pg.textContent = x.text;
+    box.append(h, pg);
+    for (const nt of p.notes.filter(z => z.page === i + 1)) { const q = document.createElement('p'); q.className = 'pjnote'; q.textContent = `📝 ${nt.by === 'visitor' ? 'You' : nt.by}: ${nt.text}`; box.append(q); }
+  });
+  if (!quiet) v.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+$('#pjPace').value = store.get('pjPace', 'alt');
+$('#pjPace').onchange = e => { store.set('pjPace', e.target.value); toast(e.target.value === 'focus' ? 'They will work every turn' : e.target.value === 'alt' ? 'They will work every other turn' : 'They will work only when they decide to'); };
+$('#pjAdd').onclick = () => {
+  const kind = $('#pjKind').value, who = $('#pjWho').value, brief = $('#pjBrief').value.trim(), title = $('#pjTitle').value.trim();
+  if (!brief && !title) { toast('Say what it should be about, or give it a title'); return; }
+  const r = who === 'both' ? { writers: ['Pip', 'Moss'], editor: null } : rolesFor(who, kind);
+  const p = createProject({ kind, brief, title: title || null, by: 'visitor', writers: r.writers, editor: r.editor });
+  $('#pjBrief').value = ''; $('#pjTitle').value = '';
+  transcript.push({ who: visitorWho(), text: `(pinned project #${p.id} "${p.title}" on the board for ${p.writers.join(' and ')})` }); if (transcript.length > 30) transcript.shift();
+  chatAdd('ev', '', `📋 You pinned #${p.id} “${p.title}” to the board`);
+  toast(running ? `${p.writers[0]} will start on it soon` : 'Pinned. Press Start with AI so they can write');
+};
+$('#pjvClose').onclick = () => { pjOpen = 0; $('#pjView').hidden = true; };
+$('#pjvStatus').onclick = () => { const p = projects.find(x => x.id === pjOpen); if (!p) return; p.status = p.status === 'active' ? 'paused' : 'active'; saveProjects(); toast(p.status === 'active' ? 'Back in progress' : 'Paused'); };
+$('#pjvDelete').onclick = () => {
+  const b = $('#pjvDelete'), p = projects.find(x => x.id === pjOpen); if (!p) return;
+  if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Tap again to delete'; setTimeout(() => { delete b.dataset.sure; b.textContent = 'Delete'; }, 3500); return; }
+  delete b.dataset.sure; b.textContent = 'Delete'; projects = projects.filter(x => x !== p); pjOpen = 0; $('#pjView').hidden = true; saveProjects(); toast('Project deleted');
+};
+$('#pjvNoteAdd').onclick = () => {
+  const p = projects.find(x => x.id === pjOpen), t = $('#pjvNote').value.trim(); if (!p) return;
+  if (!t) { toast('Type a note first'); return; }
+  p.notes.push({ by: 'visitor', text: t.slice(0, 300), t: Date.now(), page: p.pages.length, used: false });
+  if (p.status === 'done') p.status = 'active';
+  $('#pjvNote').value = ''; saveProjects();
+  for (const w of p.writers) { const c = chars.find(x => x.name === w); if (c) remember(c, 'feedback', `${firstCap(visitorRef())} left a note on "${p.title}": ${t}`, { imp: 7 }); }
+  toast(`${p.writers.join(' and ')} will use your note on the next page`);
+};
+$('#pjvCopy').onclick = async () => { const p = projects.find(x => x.id === pjOpen); if (!p) return; try { await navigator.clipboard.writeText(projectText(p)); toast('Copied'); } catch { toast('Copy was blocked. Try Save as a file'); } };
+$('#pjvExport').onclick = () => {
+  const p = projects.find(x => x.id === pjOpen); if (!p) return;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([projectText(p)], { type: 'text/markdown' }));
+  a.download = (p.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'project') + '.md';
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('Saved');
+};
 $('#mexport').onclick = () => {
-  const data = JSON.stringify({ app: 'two-minds-one-room', saved: new Date().toISOString(), visitorName, minds: Object.fromEntries(chars.map(c => [c.name, stripTok(c.mind)])) }, null, 1);
+  const data = JSON.stringify({ app: 'two-minds-one-room', saved: new Date().toISOString(), visitorName, minds: Object.fromEntries(chars.map(c => [c.name, stripTok(c.mind)])), projects }, null, 1);
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = `pip-and-moss-memories-${today()}.json`;
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('Memories exported');
 };
@@ -2953,6 +3340,7 @@ $('#mimport').onchange = async e => {
   try {
     const d = JSON.parse(await f.text()), minds = d && (d.minds || d); let n = 0;
     for (const c of chars) if (minds && minds[c.name]) { const m = cleanMind(minds[c.name]); if (m.mem.length || m.facts.length || m.skills.length || m.know.length) { c.mind = c.mem = m; c.knowDirty = true; n++; } }
+    if (d && Array.isArray(d.projects) && d.projects.length) { projects = cleanProjects(d.projects); saveProjects(); n = n || 1; }
     if (d && typeof d.visitorName === 'string') { visitorName = d.visitorName.slice(0, 20); store.set('visitorName', visitorName); vnameEl.value = visitorName; }
     saveMinds(); renderMem(); toast(n ? `Memories loaded for ${n} robot${n > 1 ? 's' : ''}` : 'No robot memories found in that file');
   } catch { toast("That file isn't a memories export"); }
@@ -3049,7 +3437,7 @@ async function runLabAction(c, act) {
     if (msg) { logNote(msg); transcript.push({ who: 'Room', text: msg }); toast(msg, 4500); }
   } catch (e) { console.error(e); toast('That action failed: ' + e.message, 5000); }
 }
-renderMem(); loadMinds();
+renderMem(); loadMinds(); loadProjects();
 const engSel = $('#engine'); if (!LLAMA) engSel.querySelector('option[value=native]').remove(); engSel.value = aiBackend;
 engSel.onchange = async () => {
   aiBackend = engSel.value; store.set('engine', aiBackend); running = false; await unloadAll(); loadedKey = '';
