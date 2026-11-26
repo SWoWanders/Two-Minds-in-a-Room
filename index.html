@@ -114,6 +114,9 @@ window.__diag = { errors: [], t0: Date.now() };
       <pre id="diagErr" class="diag">No errors so far.</pre>
       <div class="btns"><button type="button" id="diagCopy">Copy diagnostics</button><button type="button" id="diagClear">Clear crash log</button></div>
     </details>
+    <label class="pick">AI engine
+      <select id="engine"><option value="cpu">Phone's processor (reliable, slower)</option><option value="gpu">Graphics chip, WebGPU (fast, crashes some phones)</option></select>
+    </label>
     <label class="pick">AI memory use
       <select id="aimode"><option value="saver">Memory saver: one mind in graphics memory at a time (best for phones)</option><option value="fast">Fast: both minds loaded at once (needs a strong device)</option></select>
     </label>
@@ -213,7 +216,7 @@ stage.prepend(renderer.domElement);
 renderer.domElement.addEventListener('webglcontextlost', e => {
   e.preventDefault();
   try { const log = (store.get('crashes', []) || []).slice(-9); log.push({ t: Date.now(), ai: typeof aiMode !== 'undefined' ? aiMode : '?', loaded: typeof loadedKey !== 'undefined' && !!loadedKey, running: typeof running !== 'undefined' && running, busy: typeof aiBusy !== 'undefined' ? aiBusy : 0, mins: Math.round((Date.now() - window.__diag.t0) / 6e4) }); store.set('crashes', log); } catch {}
-  window.__addDiag && window.__addDiag('3D context lost (graphics process crashed or reset)'); store.set('gfx', 'lite'); store.set('aimode', 'saver'); store.set('eyes', false); $('#crash').hidden = false; toast('3D view stopped: out of graphics memory', 5000); });
+  window.__addDiag && window.__addDiag('3D context lost (graphics process crashed or reset)'); store.set('gfx', 'lite'); store.set('aimode', 'saver'); store.set('eyes', false); try { if (aiBackend === 'gpu' && loadedKey) store.set('engine', 'cpu'); } catch {} $('#crash').hidden = false; toast('3D view stopped: out of graphics memory', 5000); });
 if (NO3D && GFX_OFF) { $('#crashmsg').innerHTML = '<b>3D is switched off for an AI test.</b> The robots still live, see, move and remember. You just can\'t watch them. Follow along in the log below. Switch Graphics back to Lite to see the room again.'; $('#reload').hidden = true; $('#crash').hidden = false; }
 else if (NO3D) { $('#crashmsg').innerHTML = "<b>Chrome has paused 3D graphics for this page.</b> It does this for a while after its graphics process crashes. To reset it, close Chrome completely (swipe it away in your recent apps), then open this page again. The robots' memories are safe."; $('#crash').hidden = false; }
 if (SAFE && !NO3D) setTimeout(() => toast('Safe graphics mode is on because the 3D view crashed recently', 5000), 800);
@@ -884,7 +887,7 @@ function experienceLines(c) {
 const firstCap = s => s[0].toUpperCase() + s.slice(1);
 function memoryBlock(c, o, query) {
   const md = c.mind, parts = [];
-  const got = recall(md.mem, query, md.turns, 7);
+  const got = recall(md.mem, query, md.turns, c.backend === 'cpu' ? 5 : 7);
   for (const m of got) m.n = (m.n || 0) + 1;
   c.lastRecall = got.map(m => m.x);
   if (got.length) parts.push('Memories that come to mind (most relevant first):\n' + got.map(m => `- ${m.day < md.day ? `[${md.day - m.day === 1 ? 'yesterday' : `${md.day - m.day} days ago`}] ` : ''}${m.x}`).join('\n'));
@@ -897,7 +900,7 @@ function memoryBlock(c, o, query) {
   if (likes.length) parts.push(`${firstCap(visitorRef())} seems to enjoy: ${likes.join(', ')}.`);
   if (dislikes.length) parts.push(`They seem less keen on: ${dislikes.join(', ')}.`);
   if (md.skills.length) parts.push('Moves you have learned (write the name as your POSE): ' + md.skills.map(s => s.name).join(', ') + '.');
-  let out = parts.join('\n'); if (out.length > 1300) out = out.slice(0, 1300) + '…';
+  let out = parts.join('\n'); const cap = c.backend === 'cpu' ? 900 : 1300; if (out.length > cap) out = out.slice(0, cap) + '…';
   return out + '\n\n';
 }
 const skillList = c => c.mind.skills.length ? ', ' + c.mind.skills.map(s => s.name).join(', ') : '';
@@ -1120,7 +1123,7 @@ renderer.setAnimationLoop(() => {
   if (camTw) { camTw.t = Math.min(1, camTw.t + dt / .9); const e = camTw.t * camTw.t * (3 - 2 * camTw.t); camera.position.lerpVectors(camTw.fp, camTw.tp, e); controls.target.lerpVectors(camTw.ft, camTw.tt, e); if (camTw.t >= 1) camTw = null; }
   controls.update();
   const nowMs = performance.now();
-  if (aiBusy || nowMs - lastDraw < (SAFE ? 50 : 33)) { placeLabels(); return; }
+  if ((aiBusy && aiBackend === 'gpu') || nowMs - lastDraw < (aiBusy ? 66 : SAFE ? 50 : 33)) { placeLabels(); return; }
   lastDraw = nowMs;
   const w = stage.clientWidth, h = stage.clientHeight;
   renderer.shadowMap.needsUpdate = true;
@@ -1864,7 +1867,7 @@ chars[0].favCol = 'orange'; chars[1].favCol = 'green';
 
 /* ---------- Brains ---------- */
 const transcript = [], events = [];
-const short = id => (id || '').replace(/-q\d.*$/i, '').replace(/-MLC$/i, '');
+const short = id => { const cm = typeof CPU_MODELS !== 'undefined' && CPU_MODELS.find(m => m.id === id); return cm ? cm.name : (id || '').replace(/-q\d.*$/i, '').replace(/-MLC$/i, ''); };
 const JOINT_HELP = `HEAD nod/turn/tilt; TORSO bend/lean/twist; SHOULDER raise 0-180, spread 0-180, twist; ELBOW bend 0-145; WRIST flex/tilt/twist; HIP raise -20-125, spread, twist; KNEE bend 0-140; ANKLE flex/tilt; HAND fist/open/point/thumbsup/peace/grab; THUMB/INDEX/MIDDLE/RING/PINKY curl 0-90 or spread`;
 function buildMsgs(c, o) {
   const sys = `You are ${c.name}, ${c.persona}. You are a humanoid robot with a full human body: head, neck, torso, two arms with shoulders, elbows, wrists and five-fingered hands, two legs with hips, knees and ankles. You share a cozy room with ${o.name}, another robot. You have working eyes: each turn you are told what you can actually see from where you stand and which way you face, and what you can hear. React to what you see, including ${o.name}'s body language. Each turn choose where to go, how to move your body, and say ONE short sentence (under 20 words) to ${o.name}.
@@ -1901,7 +1904,7 @@ ${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}Your turn, ${c.n
 }
 async function aiDecide(c, o) {
   const msgs = buildMsgs(c, o);
-  const r = await withMind(c, () => c.engine.chat.completions.create({ model: c.modelId, messages: msgs, max_tokens: 200, temperature: 0.85, top_p: 0.9 }));
+  const r = await withMind(c, () => c.engine.chat.completions.create({ model: c.modelId, messages: msgs, max_tokens: c.backend === 'cpu' ? 150 : 200, temperature: 0.85, top_p: 0.9 }));
   const txt = r.choices?.[0]?.message?.content || '';
   const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; if (!p.pose) p.skill = findSkill(c, p.poseRaw); return p;
 }
@@ -2117,6 +2120,7 @@ let webllm = null;
 const selA = $('#mA'), selB = $('#mB'), goBtn = $('#go');
 function fillEmpty(t) { for (const s of [selA, selB]) { s.innerHTML = ''; const op = document.createElement('option'); op.value = ''; op.textContent = t; s.append(op); } }
 async function initAI() {
+  if (aiBackend === 'cpu') { fillCPU(); return; }
   let gpuOK = false, f16 = false;
   status('Checking for WebGPU…');
   try { if (navigator.gpu) { const ad = await navigator.gpu.requestAdapter(); if (ad) { gpuOK = true; f16 = ad.features.has('shader-f16'); } } } catch {}
@@ -2140,10 +2144,69 @@ async function initAI() {
   goBtn.disabled = false;
   status(`${list.length} free models available. The first start downloads both (sizes shown) and caches them on this device, so later visits load fast and work offline.`);
 }
+/* ---------- CPU engine: llama.cpp in WebAssembly (wllama), never touches the graphics chip ---------- */
+const WLLAMA = 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.8.1/esm/';
+const CPU_MODELS = [
+  { id: 'cpu-smollm2-135m', name: 'SmolLM2 135M', note: 'fastest', repo: 'bartowski/SmolLM2-135M-Instruct-GGUF', file: 'SmolLM2-135M-Instruct-Q8_0.gguf', mb: 145 },
+  { id: 'cpu-smollm2-360m', name: 'SmolLM2 360M', note: '', repo: 'bartowski/SmolLM2-360M-Instruct-GGUF', file: 'SmolLM2-360M-Instruct-Q4_K_M.gguf', mb: 270 },
+  { id: 'cpu-qwen2.5-0.5b', name: 'Qwen2.5 0.5B', note: '', repo: 'Qwen/Qwen2.5-0.5B-Instruct-GGUF', file: 'qwen2.5-0.5b-instruct-q4_k_m.gguf', mb: 400 },
+  { id: 'cpu-llama3.2-1b', name: 'Llama 3.2 1B', note: 'smartest, slow', repo: 'bartowski/Llama-3.2-1B-Instruct-GGUF', file: 'Llama-3.2-1B-Instruct-Q4_K_M.gguf', mb: 810 }
+];
+let aiBackend = store.get('engine', PHONE ? 'cpu' : 'gpu') === 'gpu' ? 'gpu' : 'cpu';
+let wllamaMod = null, WasmFromCDN = null;
+function fillCPU() {
+  for (const s of [selA, selB]) {
+    s.innerHTML = '';
+    for (const m of CPU_MODELS) { const op = document.createElement('option'); op.value = m.id; op.textContent = `${m.name} · ≈${m.mb} MB${m.note ? ' · ' + m.note : ''}`; s.append(op); }
+  }
+  const ids = CPU_MODELS.map(m => m.id), sa = store.get('cA', ''), sb = store.get('cB', '');
+  selA.value = ids.includes(sa) ? sa : 'cpu-smollm2-360m';
+  selB.value = ids.includes(sb) && sb !== selA.value ? sb : (selA.value === 'cpu-qwen2.5-0.5b' ? 'cpu-smollm2-360m' : 'cpu-qwen2.5-0.5b');
+  selA.disabled = selB.disabled = false; goBtn.disabled = false;
+  status("The minds run on your phone's processor, not the graphics chip, so they can't crash the 3D room. Each turn takes longer, often 20 to 60 seconds. The first start downloads both models, which are then saved on this device.");
+}
+function cpuAdapter(w) {
+  return {
+    wllama: w,
+    chat: { completions: { create: o => w.createChatCompletion({ messages: o.messages, max_tokens: o.max_tokens, temperature: o.temperature, top_p: o.top_p }) } },
+    unload: () => w.exit()
+  };
+}
+async function startCPU(a, b) {
+  running = false; goBtn.disabled = selA.disabled = selB.disabled = true; bar(0);
+  await unloadAll();
+  status('Loading the llama.cpp engine…');
+  try {
+    if (!wllamaMod) { wllamaMod = await import(WLLAMA + 'index.js'); WasmFromCDN = (await import(WLLAMA + 'wasm-from-cdn.js')).default; }
+  } catch (e) { console.error(e); window.__addDiag && window.__addDiag('wllama failed to load: ' + (e.message || e)); loadFail("Couldn't load the llama.cpp engine from the CDN. Check your connection and try again."); return false; }
+  const t0 = performance.now();
+  try {
+    for (let i = 0; i < 2; i++) {
+      const m = CPU_MODELS.find(x => x.id === [a, b][i]);
+      const w = new wllamaMod.Wllama(WasmFromCDN, { logger: { debug() {}, log() {}, warn: console.warn, error: console.error } });
+      await w.loadModelFromHF({ repo: m.repo, file: m.file }, {
+        n_ctx: 2048, n_gpu_layers: 0,
+        progressCallback: ({ loaded, total }) => {
+          const p = total ? loaded / total : 0; bar((i + p) / 2);
+          status(`Loading ${chars[i].name}'s mind (${m.name}, ${i + 1} of 2): ${Math.round(p * 100)}% · ${Math.round(loaded / 1e6)} of ${Math.round(total / 1e6)} MB · ${Math.round((performance.now() - t0) / 1000)} s`);
+        }
+      });
+      chars[i].engine = cpuAdapter(w); chars[i].modelId = m.id; chars[i].backend = 'cpu';
+    }
+  } catch (e) {
+    console.error(e); window.__addDiag && window.__addDiag('CPU model load failed: ' + (e.message || e));
+    await unloadAll(); loadFail('Model load failed: ' + (e && e.message ? e.message : e) + '. Try the smaller models.'); return false;
+  }
+  store.set('cA', a); store.set('cB', b);
+  loadedKey = 'cpu|' + a + '|' + b; curModel = null;
+  goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none';
+  status("Both minds are ready on your phone's processor. Each turn takes a while, so the room keeps moving while they think.");
+  return true;
+}
 const CHAT_OPTS = { context_window_size: 2048, prefill_chunk_size: 128 };
 let aiMode = store.get('aimode', PHONE ? 'saver' : 'fast'), curModel = null, gpuQueue = Promise.resolve();
 async function useMind(c) {
-  if (aiMode !== 'saver' || curModel === c.modelId) return;
+  if (c.backend === 'cpu' || aiMode !== 'saver' || curModel === c.modelId) return;
   const t0 = performance.now(); status(`Waking up ${c.name}'s mind…`);
   await c.engine.reload(c.modelId, CHAT_OPTS); curModel = c.modelId;
   status(`${c.name}'s mind is awake (${((performance.now() - t0) / 1000).toFixed(1)} s to switch).`);
@@ -2152,9 +2215,12 @@ function withMind(c, fn) {
   const run = gpuQueue.then(async () => {
     aiBusy++;
     try {
-      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));   // let the 3D view's last frame finish
-      try { const gl = !NO3D && renderer.getContext && renderer.getContext(); if (gl && !gl.isContextLost()) gl.finish(); } catch {}
-      await useMind(c); return await fn();
+      if (c.backend !== 'cpu') {
+        await new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));   // let the 3D view's last frame finish
+        try { const gl = !NO3D && renderer.getContext && renderer.getContext(); if (gl && !gl.isContextLost()) gl.finish(); } catch {}
+      }
+      const t0 = performance.now(), iv = c.backend === 'cpu' ? setInterval(() => status(`${c.name} is thinking on the phone's processor… ${Math.round((performance.now() - t0) / 1000)} s`), 1000) : null;
+      try { await useMind(c); return await fn(); } finally { if (iv) { clearInterval(iv); status(`${c.name} took ${Math.round((performance.now() - t0) / 1000)} s to think.`); } }
     } finally { aiBusy--; }
   });
   gpuQueue = run.catch(() => {}); return run;
@@ -2181,6 +2247,13 @@ function loadFail(msg) {
   goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none';
 }
 goBtn.onclick = async () => {
+  if (aiBackend === 'cpu') {
+    const a = selA.value, b = selB.value;
+    if (!a || !b) { toast('Pick a model for each robot'); return; }
+    if (a === b) { toast('Pick two different models so each robot has its own mind'); return; }
+    if (loadedKey !== 'cpu|' + a + '|' + b && !(await startCPU(a, b))) return;
+    toast('Two minds, one room. Here we go!'); begin('ai'); return;
+  }
   const a = selA.value, b = selB.value;
   if (!webllm || !a || !b) { toast("AI models aren't available here. Try the scripted demo."); return; }
   if (a === b) { toast('Pick two different models so each robot has its own mind'); return; }
@@ -2383,6 +2456,11 @@ async function runLabAction(c, act) {
   } catch (e) { console.error(e); toast('That action failed: ' + e.message, 5000); }
 }
 renderMem(); loadMinds();
+const engSel = $('#engine'); engSel.value = aiBackend;
+engSel.onchange = async () => {
+  aiBackend = engSel.value; store.set('engine', aiBackend); running = false; await unloadAll(); loadedKey = '';
+  toast(aiBackend === 'cpu' ? "Using the phone's processor" : 'Using the graphics chip (WebGPU)'); initAI();
+};
 const aiSel = $('#aimode'); aiSel.value = aiMode;
 aiSel.onchange = () => { aiMode = aiSel.value; store.set('aimode', aiMode); toast(aiMode === 'saver' ? 'Memory saver on. Tap Start with AI to apply' : 'Fast mode on. Tap Start with AI to apply'); };
 const gfxSel = $('#gfx'); gfxSel.value = GFX_OFF ? 'off' : LITE ? 'lite' : 'full';
@@ -2401,7 +2479,7 @@ function diagText() {
     `Canvas: ${cv.width}×${cv.height}px (pixel ratio ${renderer.getPixelRatio ? renderer.getPixelRatio() : '?'}) · draw calls ${rd.calls ?? '?'} · triangles ${rd.triangles ?? '?'}`,
     `GPU buffers: ${mem.geometries ?? '?'} shapes, ${mem.textures ?? '?'} textures`,
     `Device: ${navigator.deviceMemory ? navigator.deviceMemory + ' GB RAM (reported)' : 'RAM not reported'} · ${PHONE ? 'phone' : 'computer'} · WebGPU ${navigator.gpu ? 'yes' : 'no'}`,
-    `AI: ${aiMode} mode · ${loadedKey ? 'models ' + short(chars[0].modelId) + ' + ' + short(chars[1].modelId) : 'not loaded'}${curModel ? ' · awake: ' + short(curModel) : ''} · ${running ? 'running' : 'stopped'}${aiBusy ? ' · thinking' : ''}`,
+    `AI: ${aiBackend === 'cpu' ? 'phone processor (llama.cpp)' : 'graphics chip (WebGPU), ' + aiMode + ' mode'} · ${loadedKey ? 'models ' + short(chars[0].modelId) + ' + ' + short(chars[1].modelId) : 'not loaded'}${curModel ? ' · awake: ' + short(curModel) : ''} · ${running ? 'running' : 'stopped'}${aiBusy ? ' · thinking' : ''}`,
     `Crashes (last 6 h): ${cr.length ? '\n  ' + cr.join('\n  ') : 'none'}`
   ].join('\n');
 }
