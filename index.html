@@ -138,6 +138,7 @@ window.__diag = { errors: [], t0: Date.now() };
       <input id="pjTitle" placeholder="Title (optional)" maxlength="80" autocomplete="off" aria-label="Title" style="width:100%;margin-top:8px">
       <div class="btns" style="margin-top:8px"><button type="button" class="primary" id="pjAdd">Pin it to the board</button></div>
       <label class="pick">How much they work<select id="pjPace"><option value="alt">Balanced: work every other turn, chat in between</option><option value="focus">Focused: work every turn</option><option value="free">Only when they decide to</option></select></label>
+      <label class="pick">Before typing a page<select id="pjPolish"><option value="1">They draft it, critique it, then type the fixed version (better, slower)</option><option value="0">They type their first draft (faster)</option></select></label>
       <ul class="memlist" id="pjList"></ul>
       <div id="pjView" hidden>
         <h3 id="pjvTitle" style="margin:12px 0 2px"></h3>
@@ -169,6 +170,7 @@ window.__diag = { errors: [], t0: Date.now() };
       <summary>Smart mode (free cloud minds, optional)</summary>
       <p class="hint">Bigger minds on Cloudflare's free Workers AI: Llama 3.1 8B for Pip and Qwen3 30B for Moss. You run your own free Worker (the instructions are in the worker folder of the GitHub repo). On the free plan it can never charge you: after about 700 turns a day it stops until midnight UTC, and the robots switch back to their on-phone minds by themselves.</p>
       <label class="pick">Your Worker address<input id="cloudUrl" placeholder="https://two-minds-smart.yourname.workers.dev" autocomplete="off" inputmode="url"></label>
+      <label class="pick">Use the cloud for<select id="cloudRoute"><option value="all">Every turn</option><option value="hard">Only harder turns (answering you, events, writing); on-phone minds do the rest and your daily allowance lasts longer</option></select></label>
       <div class="btns"><select id="cloudOn" aria-label="Smart mode"><option value="off">Smart mode off</option><option value="on">Smart mode on</option></select><button type="button" id="cloudTest">Test</button></div>
       <p class="hint" id="cloudState"></p>
     </details>
@@ -234,7 +236,7 @@ window.__diag = { errors: [], t0: Date.now() };
         <input type="file" id="kfile" accept=".txt,.md,.csv,.json,.html,.htm,text/plain,text/markdown,text/html,text/csv" hidden>
       </div>
       <ul class="memlist" id="mem"></ul>
-      <div class="btns" style="margin-top:8px"><button type="button" id="mexport">Export memories</button><button type="button" id="mimportBtn">Import memories</button><button type="button" id="mforget">Forget everything</button></div>
+      <div class="btns" style="margin-top:8px"><button type="button" id="mexport">Export memories</button><button type="button" id="mimportBtn">Import memories</button><button type="button" id="mforget">Forget everything</button><button type="button" id="mtrain">Export training data</button></div>
       <input type="file" id="mimport" accept="application/json,.json" hidden>
     </details>
     <div id="log"></div>
@@ -865,7 +867,7 @@ const KIND_WORDS = /\b(thank|thanks|love|great|nice|beautiful|well done|good job
 const RUDE_WORDS = /\b(stupid|annoying|shut up|boring|hate you|go away|dumb|idiot|ugly|leave me alone)\b/i;
 const bondDelta = text => (KIND_WORDS.test(text) ? 1 : 0) - (RUDE_WORDS.test(text) ? 2 : 0);
 function bondLabel(score) { return score >= 10 ? 'very close to' : score >= 4 ? 'friendly with' : score >= -2 ? 'still getting to know' : 'wary of'; }
-function blankMind() { return { v: MIND_VER, day: 1, lastDate: '', lastSeen: 0, turns: 0, nextId: 1, mem: [], facts: [], skills: [], acts: {}, bonds: {}, enjoys: {}, impSince: 0, know: [] }; }
+function blankMind() { return { v: MIND_VER, day: 1, lastDate: '', lastSeen: 0, turns: 0, nextId: 1, mem: [], facts: [], skills: [], acts: {}, bonds: {}, enjoys: {}, impSince: 0, know: [], examples: [], liked: [], fixes: 0 }; }
 // accept saved data (current or older format) and return a clean, bounded mind
 function cleanMind(m) {
   const b = blankMind(); if (!m || typeof m !== 'object') return b;
@@ -889,6 +891,9 @@ function cleanMind(m) {
   for (const [k, v] of Object.entries(m.bonds && typeof m.bonds === 'object' ? m.bonds : {}).slice(0, 6)) b.bonds[String(k).slice(0, 20)] = Math.max(-20, Math.min(30, num(v, 0)));
   for (const [k, v] of Object.entries(m.enjoys && typeof m.enjoys === 'object' ? m.enjoys : {}).slice(0, 40)) b.enjoys[String(k).slice(0, 30)] = Math.max(-20, Math.min(50, num(v, 0)));
   b.know = cleanKnow(m.know);
+  b.examples = (Array.isArray(m.examples) ? m.examples : []).filter(e => e && e.x && e.reply).slice(-30).map(e => ({ x: String(e.x).slice(0, 400), reply: String(e.reply).slice(0, 700), conf: 5, t: num(e.t, 0), uses: 0 }));
+  b.liked = (Array.isArray(m.liked) ? m.liked : []).filter(e => e && e.x).slice(-12).map(e => ({ kind: String(e.kind || 'story').slice(0, 20), x: String(e.x).slice(0, 600), t: num(e.t, 0) }));
+  b.fixes = Math.max(0, num(m.fixes, 0) | 0);
   return b;
 }
 // forget gracefully: keep pins, reflections and the most valuable memories; summarise is done by the caller
@@ -1154,7 +1159,7 @@ let mindsReady = false, visitorName = String(store.get('visitorName', '') || '')
 const visitorRef = () => visitorName ? `the visitor (${visitorName})` : 'the visitor';
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const agoText = ms => { const h = ms / 36e5; return h < 1 ? Math.max(1, Math.round(ms / 6e4)) + ' minutes' : h < 48 ? Math.round(h) + ' hours' : Math.round(h / 24) + ' days'; };
-const stripTok = m => ({ ...m, mem: m.mem.map(({ _tok, n, ...x }) => x), know: (m.know || []).map(({ _tok, ...x }) => x) });
+const stripTok = m => ({ ...m, mem: m.mem.map(({ _tok, n, ...x }) => x), know: (m.know || []).map(({ _tok, ...x }) => x), examples: (m.examples || []).map(({ _tok, ...x }) => x) });
 const stripMind = m => { const { know, ...r } = stripTok(m); return r; };
 let mindSaveT;
 function saveMinds() {
@@ -1207,6 +1212,18 @@ function learnFact(c, f) {
 }
 function learnKnow(c, x, src, conf) {
   const k = addKnow(c.mind.know, { x, src, conf }); if (k) { c.knowDirty = true; saveMinds(); } return k;
+}
+// the most relevant of this robot's own liked turns, shown as an example of what works (in-context learning)
+function exampleBlock(c, query, plan) {
+  const ex = c.mind.examples; if (!ex.length) return '';
+  const e = recallKnow(ex, query, 1)[0] || ex[ex.length - 1];
+  let r = e.reply; if (plan) r = r.split('\n').filter(l => !/^\s*SAY\s*:/i.test(l)).join('\n');
+  return `One of your past turns that the visitor loved (learn from it, don't repeat it):\n${r}\n`;
+}
+const likedLines = c => c.mind.examples.slice(-3).map(e => (e.reply.match(/SAY\s*:\s*(.+)/i) || [])[1]).filter(Boolean).map(x => `"${trimTxt(x, 120)}"`).join(', ');
+// liked turns, with the exact prompt, saved for anyone who later wants to fine-tune a model on them
+async function saveTraining(c, prompt, raw) {
+  try { const all = (await DB.get('train')) || []; all.push({ robot: c.name, t: Date.now(), messages: [...prompt.map(m => ({ role: m.role, content: m.content })), { role: 'assistant', content: raw }] }); while (all.length > 1000) all.shift(); await DB.set('train', all); } catch {}
 }
 function bond(c, who, d) { if (!d) return; const b = c.mind.bonds; b[who] = Math.max(-20, Math.min(30, (b[who] || 0) + d)); saveMinds(); }
 function experience(c, key, ok, why) {
@@ -1332,6 +1349,11 @@ async function feedback(c, res, good, btns) {
   bond(c, 'visitor', good ? 2 : -1);
   for (const tg of enjoyTags(res)) md.enjoys[tg] = (md.enjoys[tg] || 0) + (good ? 1 : -1);
   if (!good) { saveMinds(); toast(`${c.name} will remember you didn't like that`); return; }
+  if (res.raw && !res.scripted) {
+    md.examples.push({ x: trimTxt(`${res.seen || ''} ${res.heard || ''} ${res.say || ''}`, 400), reply: trimTxt(res.raw, 700).replace(/ (?=(GO|POSE|MOVE|HANDS|BOARD|COMPUTER|PROJECT|SAY):)/g, '\n'), conf: 5, t: Date.now(), uses: 0 });
+    if (md.examples.length > 30) md.examples.shift();
+    if (res.prompt) saveTraining(c, res.prompt, res.raw);
+  }
   const hasMove = (res.moves && res.moves.length) || (res.pose && !['sit', 'floorsit'].includes(res.pose));
   if (res.skill) { const sk = md.skills.find(s => s.name === res.skill); if (sk) sk.uses++; toast(`${c.name} is glad you liked “${res.skill}”`); }
   else if (hasMove) {
@@ -1372,6 +1394,9 @@ function renderMem() {
   }
   if (f === 'learned') {
     const ex = experienceLines(c), en = Object.entries(md.enjoys).sort((a, b) => b[1] - a[1]);
+    li(`Learning from your 👍: ${md.examples.length} favourite turn${md.examples.length === 1 ? '' : 's'} and ${md.liked.length} favourite page${md.liked.length === 1 ? '' : 's'} saved as examples`, 'the most relevant one is shown to them each turn');
+    li(`Self-corrections: caught ${md.fixes || 0} mistake${md.fixes === 1 ? '' : 's'} in its own plans before acting`, 'mistakes it caught are remembered, so it makes them less often');
+    for (const e of md.examples.slice().reverse().slice(0, 10)) li(e.reply.replace(/\n/g, ' · '), 'a turn you liked', [btn('Forget', () => { md.examples = md.examples.filter(y => y !== e); saveMinds(); renderMem(); toast('Example removed'); }, 'Forget this example')]);
     for (const l of ex) li(firstCap(l) + '.', 'experience');
     for (const [k, v] of en) li(`${firstCap(visitorRef())} ${v > 0 ? 'enjoys' : 'is less keen on'} ${k}`, `${v > 0 ? '+' : ''}${v} from your feedback`);
     for (const s of md.skills) li(`Learned move: “${s.name}”`, `${s.pose ? 'pose ' + s.pose + ', ' : ''}${s.moves.length} joint moves · used ${s.uses} times`, [btn('Forget', () => { md.skills = md.skills.filter(y => y !== s); saveMinds(); renderMem(); toast('Move forgotten'); }, 'Forget this move')]);
@@ -2338,7 +2363,7 @@ PROJECT: none${opt.plan ? '' : `\nSAY: Look, ${o.name}, a shooting star over the
   const ev = events.filter(e => e.left > 0).map(e => { e.left--; return e.text; }).join(' ');
   for (let i = events.length - 1; i >= 0; i--) if (events[i].left <= 0) events.splice(i, 1);
   const user = `${memoryBlock(c, o, (c.lastSeen || '') + ' ' + transcript.slice(-4).map(l => l.text).join(' ') + ' ' + events.map(e => e.text).join(' '))}${c.lastSeen || perceive(c, o)}
-${projectLines(c)}Recent conversation:
+${projectLines(c)}${exampleBlock(c, (c.lastSeen || '') + ' ' + transcript.slice(-3).map(l => l.text).join(' '), opt.plan)}Recent conversation:
 ${last}
 ${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER, PROJECT${opt.plan ? ' lines. You will say something next.' : ' and SAY lines.'}`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
@@ -2394,7 +2419,7 @@ function chatAdd(kind, who, text, color, to) {
   log.scrollTop = log.scrollHeight;
 }
 async function aiDecide(c, o) {
-  if (cloudReady()) {
+  if (cloudReady() && (store.get('cloudRoute', 'all') === 'all' || !c.engine || hardTurn(c))) {
     try { return await cloudDecide(c, o); }
     catch (e) { if (!e.cloud) throw e; cloudFailed(e); }
   }
@@ -2414,7 +2439,7 @@ async function aiDecide(c, o) {
   const msgs = buildMsgs(c, o);
   const r = await withMind(c, () => c.engine.chat.completions.create({ model: c.modelId, messages: msgs, max_tokens: c.backend === 'cpu' ? 150 : 200, temperature: 0.85, top_p: 0.9 }));
   const txt = r.choices?.[0]?.message?.content || '';
-  const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; if (!p.pose) p.skill = findSkill(c, p.poseRaw); return withIntent(c, o, p);
+  const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; p.prompt = msgs; if (!p.pose) p.skill = findSkill(c, p.poseRaw); return withIntent(c, o, p);
 }
 // Two-step thinking (native engine): decide first, with the format locked, then speak knowing the plan.
 // The prompt for step 2 starts with step 1's, so the engine re-reads almost nothing.
@@ -2427,13 +2452,43 @@ async function twoStep(c, o) {
   if (!p.pose) p.skill = findSkill(c, p.poseRaw);
   const asked = pendingFor(c).slice(-1)[0];
   const who = asked ? (visitorName || 'the visitor') : o.name;
-  const msgs2 = [...msgs, { role: 'assistant', content: plan }, { role: 'user', content: `Now say ONE short sentence (under 20 words) as ${c.name} to ${who}${asked ? `, answering what they said: "${trimTxt(asked.text, 160)}"` : ''}. You are about to ${planWords(p, o.name)}. Reply as: SAY: <sentence>` }];
+  const msgs2 = [...msgs, { role: 'assistant', content: plan }, { role: 'user', content: `Now say ONE short sentence (under 20 words) as ${c.name} to ${who}${asked ? `, answering what they said: "${trimTxt(asked.text, 160)}"` : ''}. You are about to ${planWords(p, o.name)}. ${likedLines(c) ? ` Lines of yours the visitor loved: ${likedLines(c)}.` : ''} Reply as: SAY: <sentence>` }];
   let sayTxt = '';
   try { const r2 = await withMind(c, () => c.engine.chat.completions.create({ messages: msgs2, max_tokens: 60, temperature: 0.85, top_p: 0.9, grammar: SAY_GRAMMAR })); sayTxt = r2.choices?.[0]?.message?.content || ''; }
   catch (e) { window.__addDiag && window.__addDiag(`${c.name} couldn't find words: ${e.message || e}`); }
   p.say = parseReply(sayTxt, c.name, o.name, findPlace).say;
-  p.raw = plan + '\n' + sayTxt.trim();
+  p.raw = plan + '\n' + sayTxt.trim(); p.prompt = msgs;
   window.__addDiag && window.__addDiag(`${c.name} planned and spoke in ${Math.round((performance.now() - t0) / 100) / 10} s`);
+  return p;
+}
+// Self-correction: check the plan against the room and fix what can't work, before acting (no extra AI call needed).
+function checkPlan(c, o, p) {
+  const fixes = [], mine = [...new Set(['R', 'L'].map(s => c.hold[s]).filter(Boolean))];
+  const h = p.hands;
+  if (h) {
+    const named = h.thing && h.thing !== 'marker' ? PROPS.find(x => x.name === h.thing) : null;
+    if (h.verb === 'grab') {
+      const tgt = resolveProp(c, h.thing, 'grab');
+      if (tgt && tgt.holder && tgt.holder.c === c) { fixes.push(`I'm already holding the ${tgt.name}`); p.hands = null; }
+      else if (tgt && tgt.holder && tgt.holder.c === o) { fixes.push(`${o.name} is holding the ${tgt.name}, so I can't pick it up`); p.hands = null; }
+      else if (tgt && (mine.length >= 2 || (tgt.def.grip === 'two' && mine.length))) { fixes.push(`my hands are full, so I can't pick up the ${tgt.name}`); p.hands = null; }
+    } else if (!resolveProp(c, h.thing, h.verb)) {
+      if (named && !named.holder && mine.length < 2 && h.verb !== 'drop') { fixes.push(`I'm not holding the ${named.name}, so I'll pick it up first`); p.hands = { verb: 'grab', thing: named.name, side: null, surf: null, to: null }; }
+      else { fixes.push(`I'm not holding ${h.thing ? 'the ' + h.thing : 'anything'}`); p.hands = null; }
+    }
+  }
+  if (p.project && p.project.verb !== 'start') {
+    const pr = projects.find(x => x.id === p.project.id);
+    if (!pr || pr.status !== 'active') { const w = dueWork(projects, c.name); fixes.push(`project #${p.project.id} isn't open on the board`); p.project = w; }
+    else if (p.project.verb === 'review' && !pr.pages.length) { fixes.push(`project #${pr.id} has nothing to read yet`); p.project = pr.writers.includes(c.name) ? { verb: 'write', id: pr.id } : null; }
+  }
+  if (p.board && p.board.verb === 'erase' && p.board.scope === 'mine' && !boardItems.some(x => x.by === c.name)) { fixes.push("nothing of mine is on the whiteboard to erase"); p.board = null; }
+  if (p.board && p.board.verb === 'sketch' && !(p.board.strokes || []).length) { p.board.verb = 'draw'; }
+  if (fixes.length) {
+    c.mind.fixes = (c.mind.fixes || 0) + fixes.length;
+    window.__addDiag && window.__addDiag(`${c.name} corrected its plan: ${fixes.join('; ')}`);
+    remember(c, 'result', `I caught a mistake in my plan: ${fixes.join('; ')}.`, { imp: 4 });
+  }
   return p;
 }
 // If the visitor plainly asked for something, make sure it happens even if a small mind forgot.
@@ -2643,6 +2698,7 @@ async function loop() {
       if (pace === 'focus' || (pace === 'alt' && !c.lastWorked)) { const w = dueWork(projects, c.name); if (w) res.project = w; }
     }
     if (res && res.project && mode !== 'ai') res.project = null;
+    if (res && !res.scripted) { try { checkPlan(c, o, res); } catch (e) { console.warn(e); } }
     c.lastWorked = !!(res && res.project);
     for (const m of pendingFor(c)) m.done[c.name] = true;
     apply(c, res); turn = c.i + 1;
@@ -2761,7 +2817,8 @@ function writePrompt(c, o, p) {
   const sys = `You are ${c.name}, ${c.persona}. You are also a writer. Right now you are at the typewriter, working on a ${PJ_KIND_WORD[p.kind] || p.kind}${p.writers.length > 1 ? ` with ${p.writers.find(w => w !== c.name) || o.name}, taking turns page by page` : ''}. Write in plain text: no title, no headings, no notes to anyone.`;
   const sofar = isShort(p) ? '' : storySoFar(p, cpu ? 300 : 900);
   const user = `Project #${p.id}: "${p.title}".\n${p.brief ? `What it's about: ${p.brief}\n` : ''}${p.by === 'visitor' ? `${firstCap(visitorRef())} asked for this.\n` : ''}${sofar ? `The story so far:\n${sofar}\n` : ''}${last ? `${isShort(p) ? 'The current version' : 'The last page'} (by ${last.by === c.name ? 'you' : last.by}):\n${trimTxt(last.text, cpu ? 350 : 1100)}\n` : ''}${notes.length ? 'Notes to use: ' + notes.map(x => `${x.by === 'visitor' ? (visitorName || 'the visitor') : x.by} says: ${x.text}`).join(' ') + '\n' : ''}\n${task}\nAfter it, on its own line, write SUMMARY: and one sentence about what you wrote.`;
-  return { sys, user, max: Math.round(words * 1.7) + 50 };
+  const lk = cpu ? null : (c.mind.liked.filter(x => x.kind === p.kind).slice(-1)[0] || c.mind.liked.slice(-1)[0]);
+  return { sys, user: lk ? `A passage of yours that ${visitorName || 'the visitor'} loved (match its quality, not its words):\n${trimTxt(lk.x, 400)}\n\n${user}` : user, max: Math.round(words * 1.7) + 50 };
 }
 function reviewPrompt(c, p) {
   const last = p.pages[p.pages.length - 1], cpu = c.backend === 'cpu' && !cloudReady();
@@ -2800,11 +2857,18 @@ async function doProject(c, o, pj) {
   c.anim = 'type'; c.animT = 90; drawPaper(p.title, ''); paperTitle = p.title;
   const pr = writePrompt(c, o, p), out = await compose(c, pr.sys, pr.user, pr.max);
   if (!out || out.text.trim().length < 12) { c.animT = 1; return `${c.name} sat at the typewriter for “${p.title}”, but the words wouldn't come.`; }
-  const pg = pageParts(out.text);
+  let pg = pageParts(out.text);
+  if (store.get('pjPolish', true) && !(c.backend === 'cpu' && !cloudReady())) {
+    status(`${c.name} is reading the draft back and fixing it…`);
+    const fix = await compose(c, pr.sys, `${pr.user}\n\nYour first draft:\n${pg.text}\n\nNow read your draft like a strict editor: does it do what was asked, follow the notes, and flow from what came before? Are any lines weak, repeated or confusing? Then write the final version, fixing every problem you found and keeping about the same length. Reply with the final text only, then SUMMARY: and one sentence.`, pr.max);
+    const fp = fix && pageParts(fix.text);
+    if (fp && fp.text.length > pg.text.length * .4) { pg = fp; window.__addDiag && window.__addDiag(`${c.name} revised its own draft of "${p.title}" before typing it`); }
+  }
   await typeOut(c, p.title, pg.text);
   c.animT = 1.2;
   p.pages.push({ by: c.name, text: pg.text, sum: pg.sum, t: Date.now() });
   for (const x of p.notes) x.used = true;
+  pg.prompt = [{ role: 'system', content: pr.sys }, { role: 'user', content: pr.user }];
   saveProjects();
   const n = p.pages.length, what = isShort(p) ? (n === 1 ? `the first draft of` : `version ${n} of`) : `page ${n} of`;
   remember(c, 'did', `I typed ${what} "${p.title}": ${pg.sum}`, { imp: 5 });
@@ -2818,7 +2882,12 @@ function logPage(c, p, pg, what, where) {
   const b = document.createElement('b'); b.textContent = `${c.name} at the typewriter `; const m = document.createElement('span'); m.className = 'm'; m.textContent = `${what} “${p.title}” · ${where}`;
   const det = document.createElement('details'), sm = document.createElement('summary'); sm.textContent = pg.sum;
   const tx = document.createElement('div'); tx.className = 'page'; tx.textContent = pg.text; det.append(sm, tx);
-  d.append(b, m, det); logEl.prepend(d);
+  const fb = document.createElement('div'); fb.className = 'fb';
+  const up = document.createElement('button'), dn = document.createElement('button'); up.type = dn.type = 'button'; up.textContent = '👍'; dn.textContent = '👎'; up.setAttribute('aria-label', 'Like this page'); dn.setAttribute('aria-label', 'Dislike this page');
+  up.onclick = () => { up.disabled = dn.disabled = true; c.mind.liked.push({ kind: p.kind, x: pg.text.slice(0, 600), t: Date.now() }); if (c.mind.liked.length > 12) c.mind.liked.shift(); remember(c, 'feedback', `${firstCap(visitorRef())} loved what I wrote for "${p.title}": ${pg.sum}`, { imp: 8 }); bond(c, 'visitor', 2); if (pg.prompt) saveTraining(c, pg.prompt, pg.text); saveMinds(); toast(`${c.name} will learn from that page`); };
+  dn.onclick = () => { up.disabled = dn.disabled = true; p.notes.push({ by: 'visitor', text: "I didn't like that page much. Try a different approach.", t: Date.now(), page: p.pages.length, used: false }); remember(c, 'feedback', `${firstCap(visitorRef())} didn't like what I wrote for "${p.title}": ${pg.sum}`, { imp: 7 }); saveProjects(); toast(`${c.name} will try a different approach next page`); };
+  fb.append(up, dn);
+  d.append(b, m, det, fb); logEl.prepend(d);
 }
 /* ---------- Smart mode: optional free cloud minds on the visitor's own Cloudflare Worker ---------- */
 let cloudDownUntil = 0, cloudNote = '';
@@ -2845,9 +2914,11 @@ async function cloudDecide(c, o) {
   window.__addDiag && window.__addDiag(`${c.name} thought in the cloud (${c.cloudModel}) in ${Math.round((performance.now() - t0) / 100) / 10} s`);
   if (cloudNote) { cloudNote = ''; logNote('Smart mode is back: the robots are thinking in the cloud again'); }
   c.tag.textContent = `${c.name} · ${c.cloudModel} (smart mode)`;
-  const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; if (!p.pose) p.skill = findSkill(c, p.poseRaw);
+  const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; p.prompt = msgs; if (!p.pose) p.skill = findSkill(c, p.poseRaw);
   return withIntent(c, o, p);
 }
+// a turn worth the bigger mind: the visitor is waiting for an answer, or something just happened
+const hardTurn = c => pendingFor(c).length > 0 || events.some(e => e.left > 0);
 function cloudFailed(e) {
   const quota = e && e.quota, now = Date.now();
   if (e && e.soft) { window.__addDiag && window.__addDiag('Smart mode: ' + e.message + ', so this turn used the on-phone mind'); return; }
@@ -3065,6 +3136,8 @@ async function unloadAll() {
   const show = () => { st.textContent = on.value !== 'on' ? 'Off. The robots use their on-device minds.' : !/^https:\/\//.test(u.value.trim()) ? 'Paste your Worker address (it starts with https://) to use smart mode.' : 'On. The cloud is used whenever it answers.'; };
   u.addEventListener('change', () => { const v = u.value.trim().replace(/\/+$/, ''); u.value = v; store.set('cloudUrl', v); cloudDownUntil = 0; show(); toast(v ? 'Worker address saved' : 'Worker address cleared'); });
   on.onchange = () => { store.set('cloudOn', on.value); cloudDownUntil = 0; show(); toast(on.value === 'on' ? 'Smart mode on' : 'Smart mode off'); };
+  const rt = $('#cloudRoute'); rt.value = store.get('cloudRoute', 'all') === 'hard' ? 'hard' : 'all';
+  rt.onchange = () => { store.set('cloudRoute', rt.value); toast(rt.value === 'hard' ? 'The cloud handles the harder turns' : 'The cloud handles every turn'); };
   $('#cloudTest').onclick = async () => {
     if (!/^https:\/\//.test(u.value.trim())) { toast('Paste your Worker address first'); return; }
     store.set('cloudUrl', u.value.trim().replace(/\/+$/, '')); st.textContent = 'Testing…';
@@ -3090,7 +3163,7 @@ function loadFail(msg) {
   goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none';
 }
 goBtn.onclick = async () => {
-  if (cloudReady()) {
+  if (cloudReady() && store.get('cloudRoute', 'all') === 'all') {
     goBtn.disabled = true; status('Checking your smart mode Worker…');
     try { await cloudCall({ ping: 1 }, 15000); goBtn.disabled = false; status('Smart mode is on: the robots think in the cloud, on your free Worker.'); toast('Pip and Moss are awake. Smart mode is on!'); begin('ai'); return; }
     catch (e) { goBtn.disabled = false; cloudFailed(e); toast("Smart mode didn't answer, so the on-phone minds will be used", 4000); }
@@ -3294,6 +3367,8 @@ function openProject(id, quiet) {
   });
   if (!quiet) v.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+$('#pjPolish').value = store.get('pjPolish', true) ? '1' : '0';
+$('#pjPolish').onchange = e => { store.set('pjPolish', e.target.value === '1'); toast(e.target.value === '1' ? 'They will critique and fix each draft first' : 'They will type their first drafts'); };
 $('#pjPace').value = store.get('pjPace', 'alt');
 $('#pjPace').onchange = e => { store.set('pjPace', e.target.value); toast(e.target.value === 'focus' ? 'They will work every turn' : e.target.value === 'alt' ? 'They will work every other turn' : 'They will work only when they decide to'); };
 $('#pjAdd').onclick = () => {
@@ -3333,6 +3408,13 @@ $('#mexport').onclick = () => {
   const data = JSON.stringify({ app: 'two-minds-one-room', saved: new Date().toISOString(), visitorName, minds: Object.fromEntries(chars.map(c => [c.name, stripTok(c.mind)])), projects }, null, 1);
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = `pip-and-moss-memories-${today()}.json`;
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('Memories exported');
+};
+$('#mtrain').onclick = async () => {
+  const all = (await DB.get('train')) || [];
+  if (!all.length) { toast('No training examples yet. Give their turns and pages a 👍'); return; }
+  const jsonl = all.map(e => JSON.stringify({ messages: e.messages })).join('\n') + '\n';
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([jsonl], { type: 'application/jsonl' })); a.download = `pip-and-moss-training-${today()}.jsonl`;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast(`${all.length} training examples saved`);
 };
 $('#mimportBtn').onclick = () => $('#mimport').click();
 $('#mimport').onchange = async e => {
