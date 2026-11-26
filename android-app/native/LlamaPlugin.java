@@ -114,7 +114,7 @@ public class LlamaPlugin extends Plugin {
     @PluginMethod
     public void load(PluginCall call) {
         String file = call.getString("file");
-        int nCtx = call.getInt("nCtx", 2048), threads = call.getInt("threads", 4);
+        int nCtx = call.getInt("nCtx", 4096), threads = call.getInt("threads", 4);
         if (!safeName(file)) { call.reject("bad file name"); return; }
         ai.execute(() -> {
             File f = new File(modelDir(), file);
@@ -134,6 +134,7 @@ public class LlamaPlugin extends Plugin {
         JSArray msgs = call.getArray("messages");
         int max = call.getInt("maxTokens", 160);
         float temp = call.getFloat("temperature", 0.8f), topP = call.getFloat("topP", 0.9f);
+        String grammar = call.getString("grammar", "");
         if (h == 0 || msgs == null) { call.reject("bad arguments"); return; }
         ai.execute(() -> {
             try {
@@ -145,12 +146,15 @@ public class LlamaPlugin extends Plugin {
                     contents[i] = m.optString("content", "").getBytes(StandardCharsets.UTF_8);
                 }
                 long t0 = System.currentTimeMillis();
-                byte[] out = LlamaNative.complete(h, roles, contents, max, temp, topP);
+                byte[] g = grammar == null || grammar.isEmpty() ? null : grammar.getBytes(StandardCharsets.UTF_8);
+                byte[] out = LlamaNative.complete(h, roles, contents, max, temp, topP, g);
+                if (out == null) { call.reject("AI failed: " + LlamaNative.lastError(h)); return; }
                 int[] st = LlamaNative.stats(h);
                 JSObject r = new JSObject();
-                r.put("content", out == null ? "" : new String(out, StandardCharsets.UTF_8));
+                r.put("content", new String(out, StandardCharsets.UTF_8));
                 r.put("promptTokens", st[0]);
                 r.put("completionTokens", st[1]);
+                r.put("reusedTokens", st[2]);
                 r.put("ms", System.currentTimeMillis() - t0);
                 call.resolve(r);
             } catch (Exception e) {

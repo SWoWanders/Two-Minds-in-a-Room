@@ -638,6 +638,68 @@ function parseSketch(s) {
   }
   return strokes.length ? { title, strokes } : null;
 }
+/* ---------- Locked reply format (GBNF grammars for the native llama.cpp engine) ---------- */
+const gq = s => '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+const galt = xs => [...new Set(xs)].filter(Boolean).map(gq).join(' | ');
+// Step 1: the plan. Every line must be present, and every value must be something the room understands.
+function planGrammar(o) {
+  const num = '"-"? [0-9] [0-9]? [0-9]?';
+  const jv = [`"HEAD " (${galt(['nod', 'turn', 'tilt'])}) " " num`, `"TORSO " (${galt(['bend', 'lean', 'twist'])}) " " num`,
+    ...SIDED.map(j => `side ${gq(j + ' ')} (${galt(Object.keys(JT[j]))}) " " num`),
+    `side "HAND " (${galt(Object.keys(SHAPES))})`, `side (${galt(FINGERS)}) " " ("curl" | "spread") " " num`];
+  return [
+    'root ::= go pose move hands board computer',
+    `go ::= "GO: " (${galt(['stay', ...o.places])}) "\\n"`,
+    `pose ::= "POSE: " ("none" | ${galt(o.poses)}) "\\n"`,
+    'move ::= "MOVE: " ("none" | cmd (", " cmd){0,5}) "\\n"',
+    `cmd ::= ${jv.join(' | ')}`,
+    'side ::= ("L_" | "R_")?',
+    `num ::= ${num}`,
+    'hands ::= "HANDS: " ("none" | ("grab " | "drop ") th | "put " th " on " sf | ("give " | "toss ") th " to " nm) "\\n"',
+    `th ::= ${galt(['mug', 'ball', 'blue book', 'box', 'eraser'])} | col " marker"`,
+    `col ::= ${galt(COLOURS)}`,
+    `sf ::= ${galt(['table', 'floor', 'shelf', 'desk', 'couch', 'armchair', 'windowsill', 'tray'])}`,
+    `nm ::= ${galt([o.other])}`,
+    'board ::= "BOARD: " ("none" | "draw " wd at | "write \\"" [^"\\n]{1,40} "\\"" at | "erase " ("mine" | "all") | "sketch " wd ": " pts at) "\\n"',
+    'at ::= (" in " col)? (" at " ("top" | "bottom") " " ("left" | "middle" | "right"))?',
+    "wd ::= [a-zA-Z] [a-zA-Z ,'-]{0,40}",
+    'pts ::= pt (("-" | "~" | " / ") pt){1,30}',
+    'pt ::= "(" [0-9] [0-9]? [0-9]? "," [0-9] [0-9]? [0-9]? ")"',
+    'computer ::= "COMPUTER: " ("none" | "onthisday" | ("search " | "weather " | "books " | "archive ") [^\\n]{2,40}) "\\n"'
+  ].join('\n');
+}
+// Step 2: one spoken line.
+const SAY_GRAMMAR = 'root ::= "SAY: " [^\\n*#]{2,170}';
+// The plan in plain words, so the speaking step knows what the robot is about to do.
+function planWords(p, other) {
+  const w = [];
+  if (p.place) w.push(`walk to the ${p.place}`);
+  if (p.pose) w.push(p.pose);
+  if (p.skill) w.push(`do your move "${p.skill}"`);
+  if (p.hands) { const h = p.hands; w.push(h.verb === 'put' ? `put the ${h.thing || 'thing'} on the ${h.surf}` : h.verb === 'give' || h.verb === 'toss' ? `${h.verb} the ${h.thing || 'thing'} to ${h.to || other}` : `${h.verb} the ${h.thing || 'thing'}`); }
+  if (p.board) { const b = p.board; w.push(b.verb === 'write' ? `write "${b.text}" on the whiteboard` : b.verb === 'erase' ? 'wipe the whiteboard' : `${b.verb === 'sketch' ? 'sketch' : 'draw'} ${b.text || 'something'} on the whiteboard`); }
+  if (p.computer) w.push(p.computer.cmd === 'onthisday' ? 'check what happened on this day on the computer' : `look up ${p.computer.cmd === 'search' ? '' : p.computer.cmd + ' '}${p.computer.arg} on the computer`);
+  return w.length ? w.join(', then ') : 'stay where you are';
+}
+// What the visitor plainly asked for, so code can do it even if a small mind forgets to.
+function visitorIntent(text, names) {
+  const t = String(text || '').trim(), low = t.toLowerCase().replace(/[’]/g, "'");
+  const ask = /^(please\s+|can you\s+|could you\s+|would you\s+|will you\s+|go ahead and\s+|i want you to\s+|try to\s+|let's\s+|lets\s+|now\s+)?/;
+  const lead = t.replace(/[’]/g, "'").replace(/^(hey|hi|ok|okay)\b[ ,!]*/i, '').replace(new RegExp('^(' + names.join('|') + ')\\b[ ,:]*', 'i'), '').replace(new RegExp(ask.source, 'i'), '');
+  const r = {};
+  let m;
+  if ((m = low.match(/\bweather (?:in|for|at) ([a-z][a-z .'-]{1,30})/))) r.computer = { cmd: 'weather', arg: m[1].replace(/[ .]+$/, '').trim() };
+  else if ((m = t.match(/\b(?:look up|search(?: for)?|google|wikipedia|find out about|research)\s+([^?.!]{2,50})/i))) r.computer = { cmd: 'search', arg: m[1].replace(/\b(on|using) the (computer|internet)\b/i, '').trim() };
+  else if ((m = low.match(/\bbooks? (?:about|on) ([^?.!]{2,40})/)) && /\b(find|look|search|recommend)\b/.test(low)) r.computer = { cmd: 'books', arg: m[1].trim() };
+  else if (/\bon this day\b|\bhappened today in history\b/.test(low)) r.computer = { cmd: 'onthisday', arg: '' };
+  if ((m = lead.match(/^(?:draw|sketch|doodle|paint)\s+(?:me\s+|us\s+)?(?:a picture of\s+)?([^?.!]{2,50})/i))) r.board = { verb: 'draw', text: m[1].replace(/\bon the (white)?board\b/i, '').trim(), color: null, pos: null, scope: null };
+  else if ((m = lead.match(/^write\s+["“']?([^"”']{1,40})["”']?/i))) r.board = { verb: 'write', text: m[1].replace(/\s+on the (white)?board\b.*$/i, '').trim(), color: null, pos: null, scope: null };
+  else if (/^(erase|wipe|clean|clear)\b.*\b(white)?board\b/i.test(lead)) r.board = { verb: 'erase', text: '', color: null, pos: null, scope: /\b(your|mine|own)\b/i.test(lead) ? 'mine' : 'all' };
+  if ((m = lead.match(/^(?:go|walk|head|move|run|come)\s+(?:over\s+|back\s+)?(?:to|towards|by)\s+(?:the\s+)?([a-z ]{2,20})/i))) r.placeText = m[1];
+  if ((m = lead.match(/^(?:do a |do the |show me a |)?(dance|wave|bow|jump|clap|cheer|sit down|sit|shrug|nod|think|point)\b/i))) r.poseText = m[1];
+  if (/^(grab|pick up|take|hold|give|pass|toss|throw|put|drop)\b/i.test(lead)) r.handsText = lead;
+  return r;
+}
 /* ---------- Mind: memory stream, recall, learning (pure logic) ---------- */
 const MIND_VER = 2;
 const STOP = new Set('a an the and or but if of to in on at by for with from up down out over under again then once here there when where why how all any both each few more most other some such no nor not only own same so than too very can will just do does did done is am are was were be been being have has had having i me my mine myself you your yours we our us he him his she her it its they them their this that these those what which who whom into about as also just like get got said say says let lets im ive ill youre dont cant its'.split(' '));
@@ -1984,16 +2046,16 @@ chars[0].favCol = 'orange'; chars[1].favCol = 'green';
 const transcript = [], events = [];
 const short = id => { const cm = typeof CPU_MODELS !== 'undefined' && CPU_MODELS.find(m => m.id === id); return cm ? cm.name : (id || '').replace(/-q\d.*$/i, '').replace(/-MLC$/i, ''); };
 const JOINT_HELP = `HEAD nod/turn/tilt; TORSO bend/lean/twist; SHOULDER raise 0-180, spread 0-180, twist; ELBOW bend 0-145; WRIST flex/tilt/twist; HIP raise -20-125, spread, twist; KNEE bend 0-140; ANKLE flex/tilt; HAND fist/open/point/thumbsup/peace/grab; THUMB/INDEX/MIDDLE/RING/PINKY curl 0-90 or spread`;
-function buildMsgs(c, o) {
-  const sys = `You are ${c.name}, ${c.persona}. You are a humanoid robot with a full human body: head, neck, torso, two arms with shoulders, elbows, wrists and five-fingered hands, two legs with hips, knees and ankles. You share a cozy room with ${o.name}, another robot. You have working eyes: each turn you are told what you can actually see from where you stand and which way you face, and what you can hear. React to what you see, including ${o.name}'s body language. Each turn choose where to go, how to move your body, and say ONE short sentence (under 20 words) to ${o.name}.
-Reply in exactly this format and nothing else:
+function buildMsgs(c, o, opt = {}) {
+  const sys = `You are ${c.name}, ${c.persona}. You are a humanoid robot with a full human body: head, neck, torso, two arms with shoulders, elbows, wrists and five-fingered hands, two legs with hips, knees and ankles. You share a cozy room with ${o.name}, another robot. You have working eyes: each turn you are told what you can actually see from where you stand and which way you face, and what you can hear. React to what you see, including ${o.name}'s body language. ${opt.plan ? `Each turn you first plan what to do: where to go, how to move your body, and what to do with your hands, the whiteboard and the computer. Then you will be asked what to say.
+Write your plan in exactly this format and nothing else:` : `Each turn choose where to go, how to move your body, and say ONE short sentence (under 20 words) to ${o.name}.
+Reply in exactly this format and nothing else:`}
 GO: <place or stay>
 POSE: <pose or none>
 MOVE: <joint commands separated by commas, or none>
 HANDS: <grab THING | put THING on SURFACE | give THING to NAME | toss THING to NAME | drop THING | none>
 BOARD: <draw IDEAS | sketch TITLE: freehand points | write "TEXT" | erase mine or all | none, optionally with: in COLOUR, at top/bottom left/middle/right>
-COMPUTER: <computer command, or none>
-SAY: <sentence>
+COMPUTER: <computer command, or none>${opt.plan ? '' : '\nSAY: <sentence>'}
 Places: ${PLACES.map(p => p.key).join(', ')}, stay.
 Poses: ${POSE_NAMES.join(', ')}${skillList(c)}, none.
 Things you can pick up: mug, ball, blue book, box (needs both hands), eraser, and dry-erase markers: black, red, blue, green, purple, orange. Surfaces: table, floor, shelf, desk, couch, armchair, windowsill, tray (the whiteboard's marker tray).
@@ -2006,15 +2068,14 @@ POSE: none
 MOVE: R_SHOULDER raise 120, R_ELBOW bend 20, R_HAND point, HEAD nod -20, L_HAND fist
 HANDS: none
 BOARD: none
-COMPUTER: none
-SAY: Look, ${o.name}, a shooting star over the rooftops!`;
+COMPUTER: none${opt.plan ? '' : `\nSAY: Look, ${o.name}, a shooting star over the rooftops!`}`;
   const last = transcript.slice(-6).map(l => `${l.who}: ${l.text}`).join('\n') || '(nobody has spoken yet)';
   const ev = events.filter(e => e.left > 0).map(e => { e.left--; return e.text; }).join(' ');
   for (let i = events.length - 1; i >= 0; i--) if (events[i].left <= 0) events.splice(i, 1);
   const user = `${memoryBlock(c, o, (c.lastSeen || '') + ' ' + transcript.slice(-4).map(l => l.text).join(' ') + ' ' + events.map(e => e.text).join(' '))}${c.lastSeen || perceive(c, o)}
 Recent conversation:
 ${last}
-${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER and SAY lines.`;
+${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER${opt.plan ? ' lines. You will say something next.' : ' and SAY lines.'}`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
 }
 function buildMsgsLite(c, o) {
@@ -2077,12 +2138,45 @@ async function aiDecide(c, o) {
     const u = r.usage || {}, secs = Math.round((performance.now() - t0) / 1000);
     window.__addDiag && window.__addDiag(`${c.name} thought for ${secs} s (${u.prompt_tokens ?? '?'} tokens read, ${u.completion_tokens ?? '?'} written)`);
     const txt = r.choices?.[0]?.message?.content || '';
-    const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; if (!p.pose) p.skill = findSkill(c, p.poseRaw); return p;
+    const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; if (!p.pose) p.skill = findSkill(c, p.poseRaw); return withIntent(c, o, p);
   }
+  if (c.backend === 'native') return twoStep(c, o);
   const msgs = buildMsgs(c, o);
   const r = await withMind(c, () => c.engine.chat.completions.create({ model: c.modelId, messages: msgs, max_tokens: c.backend === 'cpu' ? 150 : 200, temperature: 0.85, top_p: 0.9 }));
   const txt = r.choices?.[0]?.message?.content || '';
-  const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; if (!p.pose) p.skill = findSkill(c, p.poseRaw); return p;
+  const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; if (!p.pose) p.skill = findSkill(c, p.poseRaw); return withIntent(c, o, p);
+}
+// Two-step thinking (native engine): decide first, with the format locked, then speak knowing the plan.
+// The prompt for step 2 starts with step 1's, so the engine re-reads almost nothing.
+async function twoStep(c, o) {
+  const msgs = buildMsgs(c, o, { plan: true }), t0 = performance.now();
+  const g = planGrammar({ places: PLACES.map(x => x.key), poses: [...POSE_NAMES, ...c.mind.skills.map(k => k.name)], other: o.name });
+  const r1 = await withMind(c, () => c.engine.chat.completions.create({ messages: msgs, max_tokens: 140, temperature: 0.8, top_p: 0.9, grammar: g }));
+  const plan = (r1.choices?.[0]?.message?.content || '').trim();
+  const p = withIntent(c, o, parseReply(plan + '\nSAY: …', c.name, o.name, findPlace));
+  if (!p.pose) p.skill = findSkill(c, p.poseRaw);
+  const asked = pendingFor(c).slice(-1)[0];
+  const who = asked ? (visitorName || 'the visitor') : o.name;
+  const msgs2 = [...msgs, { role: 'assistant', content: plan }, { role: 'user', content: `Now say ONE short sentence (under 20 words) as ${c.name} to ${who}${asked ? `, answering what they said: "${trimTxt(asked.text, 160)}"` : ''}. You are about to ${planWords(p, o.name)}. Reply as: SAY: <sentence>` }];
+  let sayTxt = '';
+  try { const r2 = await withMind(c, () => c.engine.chat.completions.create({ messages: msgs2, max_tokens: 60, temperature: 0.85, top_p: 0.9, grammar: SAY_GRAMMAR })); sayTxt = r2.choices?.[0]?.message?.content || ''; }
+  catch (e) { window.__addDiag && window.__addDiag(`${c.name} couldn't find words: ${e.message || e}`); }
+  p.say = parseReply(sayTxt, c.name, o.name, findPlace).say;
+  p.raw = plan + '\n' + sayTxt.trim();
+  window.__addDiag && window.__addDiag(`${c.name} planned and spoke in ${Math.round((performance.now() - t0) / 100) / 10} s`);
+  return p;
+}
+// If the visitor plainly asked for something, make sure it happens even if a small mind forgot.
+function withIntent(c, o, p) {
+  const m = pendingFor(c).slice(-1)[0]; if (!m) return p;
+  const it = visitorIntent(m.text, chars.map(x => x.name));
+  const first = !(m.to === 'both' && m.done[o.name]);       // when both were asked, only the first one to answer does the task
+  if (it.placeText) { const pl = findPlace(it.placeText); if (pl) p.place = pl.key; }
+  if (it.poseText) { const ps = findPose(it.poseText); if (ps) { p.pose = ps; p.skill = null; } }
+  if (first && it.computer && !p.computer) p.computer = it.computer;
+  if (first && it.board && (!p.board || p.board.verb !== it.board.verb)) p.board = it.board;
+  if (first && it.handsText && !p.hands) p.hands = parseHands(it.handsText, [c.name, o.name]);
+  return p;
 }
 const LINES = [
   ['Ooh, what does this button do?', 'Do you think the radio knows any new songs?', 'I counted the books. Twice. Different answers!', 'Dance with me, Moss!', 'Is the moon following us?', "What's your favourite sound?", 'Look, I can bend all ten fingers!'],
@@ -2340,8 +2434,13 @@ const CPU_MODELS = [
   { id: 'cpu-smollm2-135m', name: 'SmolLM2 135M', note: 'fastest', repo: 'bartowski/SmolLM2-135M-Instruct-GGUF', file: 'SmolLM2-135M-Instruct-Q8_0.gguf', mb: 145 },
   { id: 'cpu-smollm2-360m', name: 'SmolLM2 360M', note: '', repo: 'bartowski/SmolLM2-360M-Instruct-GGUF', file: 'SmolLM2-360M-Instruct-Q4_K_M.gguf', mb: 270 },
   { id: 'cpu-qwen2.5-0.5b', name: 'Qwen2.5 0.5B', note: '', repo: 'Qwen/Qwen2.5-0.5B-Instruct-GGUF', file: 'qwen2.5-0.5b-instruct-q4_k_m.gguf', mb: 400 },
-  { id: 'cpu-llama3.2-1b', name: 'Llama 3.2 1B', note: 'smartest, slow', repo: 'bartowski/Llama-3.2-1B-Instruct-GGUF', file: 'Llama-3.2-1B-Instruct-Q4_K_M.gguf', mb: 810 }
+  { id: 'cpu-llama3.2-1b', name: 'Llama 3.2 1B', note: 'smartest, slow', repo: 'bartowski/Llama-3.2-1B-Instruct-GGUF', file: 'Llama-3.2-1B-Instruct-Q4_K_M.gguf', mb: 810 },
+  // Bigger minds, only offered in the Android app, where llama.cpp runs natively and fast enough for them
+  { id: 'nat-gemma3-1b', native: true, name: 'Gemma 3 1B', note: 'lively', repo: 'ggml-org/gemma-3-1b-it-GGUF', file: 'gemma-3-1b-it-Q4_K_M.gguf', mb: 806 },
+  { id: 'nat-qwen2.5-1.5b', native: true, name: 'Qwen2.5 1.5B', note: 'thoughtful', repo: 'bartowski/Qwen2.5-1.5B-Instruct-GGUF', file: 'Qwen2.5-1.5B-Instruct-Q4_K_M.gguf', mb: 986 },
+  { id: 'nat-llama3.2-3b', native: true, name: 'Llama 3.2 3B', note: 'smartest, slowest, needs 6 GB+ of memory', repo: 'bartowski/Llama-3.2-3B-Instruct-GGUF', file: 'Llama-3.2-3B-Instruct-Q4_K_M.gguf', mb: 2020 }
 ];
+const NATIVE_CTX = 4096;
 /* ---------- Native engine (Android app only): llama.cpp compiled for the phone, via the app's Llama plugin ---------- */
 const CAP = window.Capacitor;
 const LLAMA = CAP && CAP.isNativePlatform && CAP.isNativePlatform() ? (CAP.Plugins && CAP.Plugins.Llama) || (CAP.registerPlugin && CAP.registerPlugin('Llama')) : null;
@@ -2350,8 +2449,9 @@ if (LLAMA && LLAMA.addListener) { try { LLAMA.addListener('progress', d => { if 
 function nativeAdapter(id) {
   return {
     chat: { completions: { create: async o => {
-      const r = await LLAMA.complete({ id, messages: o.messages, maxTokens: o.max_tokens, temperature: o.temperature, topP: o.top_p });
-      window.__addDiag && window.__addDiag(`Native mind: ${Math.round((r.ms || 0) / 100) / 10} s (${r.promptTokens} tokens read, ${r.completionTokens} written)`);
+      const r = await LLAMA.complete({ id, messages: o.messages, maxTokens: o.max_tokens, temperature: o.temperature, topP: o.top_p, grammar: o.grammar || '' });
+      const re = r.reusedTokens || 0;
+      window.__addDiag && window.__addDiag(`Native mind: ${Math.round((r.ms || 0) / 100) / 10} s (${r.promptTokens - re} new tokens read, ${re} remembered from last time, ${r.completionTokens} written)`);
       return { choices: [{ message: { content: r.content || '' } }], usage: { prompt_tokens: r.promptTokens, completion_tokens: r.completionTokens } };
     } } },
     unload: () => LLAMA.unload({ id })
@@ -2374,7 +2474,7 @@ async function startNative(a, b) {
         nativeProgress = null;
       }
       status(`Starting ${chars[i].name}'s mind (${m.name})…`);
-      const r = await LLAMA.load({ file: m.file, nCtx: 2048, threads });
+      const r = await LLAMA.load({ file: m.file, nCtx: NATIVE_CTX, threads });
       chars[i].engine = nativeAdapter(r.id); chars[i].modelId = m.id; chars[i].backend = 'native';
       bar((i + 1) / 2);
     }
@@ -2382,7 +2482,7 @@ async function startNative(a, b) {
     nativeProgress = null; console.error(e); window.__addDiag && window.__addDiag('Native AI: ' + (e.message || e));
     await unloadAll(); loadFail('Could not start the minds: ' + (e && e.message ? e.message : e)); return false;
   }
-  store.set('cA', a); store.set('cB', b);
+  store.set('nA', a); store.set('nB', b);
   loadedKey = 'native|' + a + '|' + b;
   goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none';
   status('Both minds are running natively on your phone.');
@@ -2391,13 +2491,19 @@ async function startNative(a, b) {
 let aiBackend = (() => { const e = store.get('engine', ''); if (LLAMA) return e === 'cpu' || e === 'gpu' ? e : 'native'; return e === 'gpu' || (!e && !PHONE) ? 'gpu' : 'cpu'; })();
 let wllamaMod = null, WasmFromCDN = null;
 function fillCPU() {
+  const nat = aiBackend === 'native', list = CPU_MODELS.filter(m => nat || !m.native);
   for (const s of [selA, selB]) {
     s.innerHTML = '';
-    for (const m of CPU_MODELS) { const op = document.createElement('option'); op.value = m.id; op.textContent = `${m.name} · ≈${m.mb} MB${m.note ? ' · ' + m.note : ''}`; s.append(op); }
+    for (const m of list) { const op = document.createElement('option'); op.value = m.id; op.textContent = `${m.name} · ≈${m.mb} MB${m.note ? ' · ' + m.note : ''}`; s.append(op); }
   }
-  const ids = CPU_MODELS.map(m => m.id), sa = store.get('cA', ''), sb = store.get('cB', '');
-  selA.value = ids.includes(sa) ? sa : 'cpu-smollm2-360m';
-  selB.value = ids.includes(sb) && sb !== selA.value ? sb : (selA.value === 'cpu-qwen2.5-0.5b' ? 'cpu-smollm2-360m' : 'cpu-qwen2.5-0.5b');
+  const ids = list.map(m => m.id), sa = store.get(nat ? 'nA' : 'cA', ''), sb = store.get(nat ? 'nB' : 'cB', '');
+  if (nat) {
+    selA.value = ids.includes(sa) ? sa : 'nat-gemma3-1b';
+    selB.value = ids.includes(sb) && sb !== selA.value ? sb : (selA.value === 'nat-qwen2.5-1.5b' ? 'nat-gemma3-1b' : 'nat-qwen2.5-1.5b');
+  } else {
+    selA.value = ids.includes(sa) ? sa : 'cpu-smollm2-360m';
+    selB.value = ids.includes(sb) && sb !== selA.value ? sb : (selA.value === 'cpu-qwen2.5-0.5b' ? 'cpu-smollm2-360m' : 'cpu-qwen2.5-0.5b');
+  }
   selA.disabled = selB.disabled = false; goBtn.disabled = false;
   status("The minds run on your phone's processor, not the graphics chip, so they can't crash the 3D room. Each turn takes longer, often 20 to 60 seconds. The first start downloads both models, which are then saved on this device.");
 }
@@ -2470,7 +2576,7 @@ function withMind(c, fn) {
         await new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));   // let the 3D view's last frame finish
         try { const gl = !NO3D && renderer.getContext && renderer.getContext(); if (gl && !gl.isContextLost()) gl.finish(); } catch {}
       }
-      const t0 = performance.now(), iv = c.backend === 'cpu' ? setInterval(() => status(`${c.name} is thinking on the phone's processor… ${Math.round((performance.now() - t0) / 1000)} s`), 1000) : null;
+      const t0 = performance.now(), iv = c.backend === 'cpu' || c.backend === 'native' ? setInterval(() => status(`${c.name} is thinking on the phone's processor… ${Math.round((performance.now() - t0) / 1000)} s`), 1000) : null;
       try { await useMind(c); return await fn(); } finally { if (iv) { clearInterval(iv); status(`${c.name} took ${Math.round((performance.now() - t0) / 1000)} s to think.`); } }
     } finally { aiBusy--; }
   });
