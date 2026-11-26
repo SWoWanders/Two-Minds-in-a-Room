@@ -38,6 +38,10 @@ button:disabled{opacity:.45;cursor:default}
 #prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
 #status{font-size:13px;color:var(--dim);margin:0}
 #log{display:flex;flex-direction:column;gap:8px}
+.fb{display:flex;gap:6px;margin-top:6px}.fb button{min-height:38px;padding:4px 14px;font-size:16px}
+.memcard{background:var(--panel);border-left:4px solid var(--c);border-radius:10px;padding:8px 10px;margin-top:8px}
+.memcard b{color:var(--c)}.memcard ul{margin:2px 0 8px;padding-left:18px;font-size:13px}.memcard li.empty{color:var(--dim);list-style:none;margin-left:-18px}
+#memin{min-height:52px}
 .entry .joints{font:12px/1.4 ui-monospace,Menlo,monospace;color:#e9d8b4;margin-top:3px;overflow-wrap:anywhere}
 form.lab{display:flex;flex-direction:column;gap:8px;margin-top:8px}form.lab input{width:100%}
 .entry{background:#1d1424;border-radius:10px;padding:8px 10px;border-left:4px solid var(--c,var(--accent))}
@@ -98,6 +102,13 @@ form.nudge{display:flex;gap:8px}form.nudge input{flex:1}
         <div class="btns"><button class="primary">Move</button><button type="button" id="preset">Relax</button></div>
         <p class="hint" id="jhelp"></p>
       </form>
+    </details>
+    <details>
+      <summary>Memories &amp; learning</summary>
+      <p class="hint">Tap 👍 or 👎 under anything a robot says or does. A 👍 on a movement (including ones you make in the Puppet lab) teaches that robot a new named move it can reuse. Every six turns each robot writes a diary entry, and old entries get squeezed into summaries. Everything is saved on this device only.</p>
+      <div id="mem"></div>
+      <div class="btns" style="margin-top:8px"><button type="button" id="memcopy">Copy memories</button><button type="button" id="memload">Load pasted memories</button></div>
+      <textarea id="memin" placeholder="Paste copied memories here to bring them to this device" aria-label="Paste memories"></textarea>
     </details>
     <div id="log"></div>
   </aside>
@@ -406,7 +417,7 @@ function parseReply(txt, myName, otherName, placeFinder) {
   if (say === undefined) say = (txt.split('\n').map(x => x.trim()).find(x => x && !/^\**(go|pose|moves?)\**\s*[:\-]/i.test(x)) || '');
   say = say.replace(new RegExp('^(' + myName + '|' + otherName + ')\\s*:\\s*', 'i'), '').replace(/[*_#`]/g, '').replace(/^["'“”]+|["'“”]+$/g, '').trim();
   if (say.length > 160) { const cut = say.slice(0, 160); const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? ')); say = end > 40 ? cut.slice(0, end + 1) : cut.trim() + '…'; }
-  return { place: place ? place.key : null, pose, moves, say: say || 'Hmm.' };
+  return { place: place ? place.key : null, pose, poseRaw: p || '', moves, say: say || 'Hmm.' };
 }
 /*PURE-END*/
 
@@ -482,6 +493,99 @@ for (const c of chars) {
   c.tag = document.createElement('div'); c.tag.className = 'tag'; c.tag.style.background = c.color; c.tag.textContent = c.name;
   bubbles.append(c.tag, c.bub);
 }
+/* ---------- Memory & learning (saved on this device) ---------- */
+const MEM_VER = 1;
+const blankMem = () => ({ v: MEM_VER, diary: [], skills: [], liked: [], disliked: [] });
+function cleanMem(m) {
+  const b = blankMem(); if (!m || m.v !== MEM_VER) return b;
+  b.diary = (Array.isArray(m.diary) ? m.diary : []).filter(d => d && d.text).map(d => ({ t: +d.t || Date.now(), text: String(d.text).slice(0, 260), old: !!d.old })).slice(-11);
+  b.skills = (Array.isArray(m.skills) ? m.skills : []).filter(s => s && s.name).map(s => ({ name: String(s.name).slice(0, 40), pose: POSE_NAMES.includes(s.pose) ? s.pose : null, moves: (Array.isArray(s.moves) ? s.moves : []).map(String).slice(0, 14) })).slice(-12);
+  for (const k of ['liked', 'disliked']) b[k] = (Array.isArray(m[k]) ? m[k] : []).map(x => String(x).slice(0, 120)).slice(-4);
+  return b;
+}
+function saveMem(c) { store.set('mem_' + c.name, c.mem); renderMem(); }
+for (const c of chars) { c.mem = cleanMem(store.get('mem_' + c.name, null)); c.turns = 0; }
+const trimTxt = (s, n) => (s = String(s || '').replace(/\s+/g, ' ').trim()).length > n ? s.slice(0, n - 1) + '…' : s;
+const skillList = c => c.mem.skills.length ? ', ' + c.mem.skills.map(s => s.name).join(', ') : '';
+function findSkill(c, raw) {
+  const s = (raw || '').toLowerCase();
+  return c.mem.skills.filter(k => s.includes(k.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0]?.name || null;
+}
+function memoryBlock(c) {
+  const m = c.mem, out = [];
+  if (m.diary.length) out.push('Your diary (oldest first):\n' + m.diary.map(d => '- ' + d.text).join('\n'));
+  if (m.skills.length) out.push('Moves you have learned (write the name as your POSE): ' + m.skills.map(s => s.name).join(', ') + '.');
+  if (m.liked.length) out.push('Things you said that the visitor loved: ' + m.liked.map(x => `"${x}"`).join(' '));
+  if (m.disliked.length) out.push('The visitor did not like these, so avoid anything similar: ' + m.disliked.map(x => `"${x}"`).join(' '));
+  return out.length ? out.join('\n') + '\n\n' : '';
+}
+async function ask(c, sys, user, max = 60) {
+  if (mode !== 'ai' || !c.engine) return null;
+  try {
+    const r = await c.engine.chat.completions.create({ model: c.modelId, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], max_tokens: max, temperature: 0.7 });
+    return (r.choices?.[0]?.message?.content || '').split('\n').map(x => x.replace(/[*#`"“”]/g, '').trim()).find(Boolean) || null;
+  } catch (e) { console.warn(e); return null; }
+}
+async function writeDiary(c, o) {
+  const recent = transcript.slice(-12).map(l => `${l.who}: ${l.text}`).join('\n'); if (!recent) return;
+  status(`${c.name} is writing in their diary…`);
+  let text = await ask(c, `You are ${c.name}, ${c.persona}. Write ONE diary sentence, under 25 words, in first person, about what just happened with ${o.name}. Note anything worth remembering.`, recent, 60);
+  if (!text) {
+    const theirs = transcript.filter(l => l.who === o.name).slice(-1)[0], mine = transcript.filter(l => l.who === c.name).slice(-1)[0];
+    text = `At the ${c.place.label}.${theirs ? ` ${o.name} said "${trimTxt(theirs.text, 60)}"` : ''}${mine ? ` I said "${trimTxt(mine.text, 60)}"` : ''}`;
+  }
+  text = trimTxt(text, 200);
+  c.mem.diary.push({ t: Date.now(), text });
+  if (c.mem.diary.length > 10) {
+    const old = c.mem.diary.splice(0, 5);
+    let sum = await ask(c, `You are ${c.name}. Combine these diary notes into ONE sentence under 35 words that keeps the most important memories.`, old.map(d => '- ' + d.text).join('\n'), 70);
+    if (!sum) sum = old.map(d => trimTxt(d.text, 40)).join(' / ');
+    c.mem.diary.unshift({ t: old[0].t, text: trimTxt('Long ago: ' + sum.replace(/^long ago:\s*/i, ''), 240), old: true });
+  }
+  saveMem(c); logNote(`${c.name} wrote in their diary: “${text}”`); status('Diary saved on this device.');
+}
+async function feedback(c, res, good, btns) {
+  for (const b of btns) b.disabled = true;
+  const m = c.mem, said = res.say && res.say !== '(puppet lab)';
+  if (!good) {
+    if (said) { m.disliked.push(trimTxt(res.say, 100)); if (m.disliked.length > 4) m.disliked.shift(); }
+    saveMem(c); toast(`${c.name} will try to avoid that`); return;
+  }
+  if (said) { m.liked.push(trimTxt(res.say, 100)); if (m.liked.length > 4) m.liked.shift(); }
+  const hasMove = (res.moves && res.moves.length) || (res.pose && !['sit', 'floorsit'].includes(res.pose));
+  if (hasMove && !res.skill) {
+    toast(`${c.name} is naming the move…`);
+    let name = await ask(c, `You are ${c.name}. Give a fun 2 or 3 word name for this body movement. Reply with the name only.`, `Pose: ${res.pose || 'none'}. Joint moves: ${(res.applied || []).join(', ') || 'none'}. You said: ${res.say}`, 12);
+    name = (name || '').toLowerCase().replace(/[^a-z' -]/g, ' ').trim().split(/\s+/).slice(0, 3).join(' ');
+    if (name.length < 3 || POSE_NAMES.includes(name.replace(/\s/g, '')) || m.skills.some(s => s.name === name)) name = `${c.name.toLowerCase()} move ${m.skills.length + 1}`;
+    m.skills.push({ name, pose: res.pose || null, moves: (res.moves || []).map(String) }); if (m.skills.length > 12) m.skills.shift();
+    logNote(`${c.name} learned a new move: “${name}”`); toast(`${c.name} learned “${name}”!`);
+  } else toast(`${c.name} will remember you liked that`);
+  saveMem(c);
+}
+function renderMem() {
+  const el = $('#mem'); if (!el) return; el.innerHTML = '';
+  for (const c of chars) {
+    const box = document.createElement('div'); box.className = 'memcard'; box.style.setProperty('--c', c.color);
+    const h = document.createElement('b'); h.textContent = c.name; box.append(h);
+    const add = (label, items) => {
+      const p = document.createElement('div'); p.className = 'act'; p.textContent = label;
+      const ul = document.createElement('ul');
+      for (const it of items.length ? items : ['Nothing yet']) { const li = document.createElement('li'); li.textContent = it; if (!items.length) li.className = 'empty'; ul.append(li); }
+      box.append(p, ul);
+    };
+    add('Diary', c.mem.diary.map(d => d.text));
+    add('Learned moves', c.mem.skills.map(s => s.name));
+    add('Lines you liked', c.mem.liked);
+    const f = document.createElement('button'); f.type = 'button'; f.textContent = `Forget what ${c.name} learned`;
+    f.onclick = () => {
+      if (f.dataset.sure) { c.mem = blankMem(); saveMem(c); toast(`${c.name}'s memory wiped`); }
+      else { f.dataset.sure = '1'; f.textContent = 'Tap again to confirm'; toast('Tap again to wipe it'); }
+    };
+    box.append(f); el.append(box);
+  }
+}
+
 function buildPose(c, pd) {
   let name = pd.pose || null;
   if (name === 'sit' && !c.place.sit) name = 'floorsit';
@@ -566,7 +670,7 @@ POSE: <pose or none>
 MOVE: <joint commands separated by commas, or none>
 SAY: <sentence>
 Places: ${PLACES.map(p => p.key).join(', ')}, stay.
-Poses: ${POSE_NAMES.join(', ')}, none.
+Poses: ${POSE_NAMES.join(', ')}${skillList(c)}, none.
 Joint commands are JOINT verb degrees. Put L_ or R_ before arm, leg, hand and finger joints for left or right. ${JOINT_HELP}.
 Example:
 GO: window
@@ -576,7 +680,7 @@ SAY: Look, ${o.name}, a shooting star over the rooftops!`;
   const last = transcript.slice(-6).map(l => `${l.who}: ${l.text}`).join('\n') || '(nobody has spoken yet)';
   const ev = events.filter(e => e.left > 0).map(e => { e.left--; return e.text; }).join(' ');
   for (let i = events.length - 1; i >= 0; i--) if (events[i].left <= 0) events.splice(i, 1);
-  const user = `You are at the ${c.place.label}${c.seatH ? ' (sitting)' : ''}. ${o.name} is at the ${o.place.label}.
+  const user = `${memoryBlock(c)}You are at the ${c.place.label}${c.seatH ? ' (sitting)' : ''}. ${o.name} is at the ${o.place.label}.
 Recent conversation:
 ${last}
 ${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}Your turn, ${c.name}. Answer with the GO, POSE, MOVE and SAY lines.`;
@@ -585,7 +689,7 @@ ${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}Your turn, ${c.n
 async function aiDecide(c, o) {
   const r = await c.engine.chat.completions.create({ model: c.modelId, messages: buildMsgs(c, o), max_tokens: 130, temperature: 0.85, top_p: 0.9 });
   const txt = r.choices?.[0]?.message?.content || '';
-  const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; return p;
+  const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; if (!p.pose) p.skill = findSkill(c, p.poseRaw); return p;
 }
 const LINES = [
   ['Ooh, what does this button do?', 'Do you think the radio knows any new songs?', 'I counted the books. Twice. Different answers!', 'Dance with me, Moss!', 'Is the moon following us?', "What's your favourite sound?", 'Look, I can bend all ten fingers!'],
@@ -599,9 +703,11 @@ function scriptDecide(c, o) {
   const pose = Math.random() < 0.6 ? POSE_NAMES[(Math.random() * POSE_NAMES.length) | 0] : null;
   const moves = []; for (let n = (Math.random() * 3) | 0; n > 0; n--) moves.push(EXTRA[(Math.random() * EXTRA.length) | 0]);
   const line = ev ? `Did you see that, ${o.name}? ${ev.text.replace(/\.$/, '')}!` : LINES[c.i][(Math.random() * LINES[c.i].length) | 0];
-  return { place, pose, moves, say: line, scripted: true };
+  const sk = c.mem.skills.length && Math.random() < 0.35 ? c.mem.skills[(Math.random() * c.mem.skills.length) | 0].name : null;
+  return { place, pose: sk ? null : pose, skill: sk, moves: sk ? [] : moves, say: line, scripted: true };
 }
 function apply(c, res) {
+  if (res.skill) { const sk = c.mem.skills.find(s => s.name === res.skill); if (sk) { res.pose = res.pose || sk.pose; res.moves = [...sk.moves, ...(res.moves || [])]; } else res.skill = null; }
   const p = res.place ? byKey(res.place) : null;
   res.moved = !!(p && p !== c.place);
   const check = neutral(); res.notes = []; res.applied = A(check, (res.moves || []).join(','), res.notes);
@@ -617,10 +723,15 @@ function logEntry(c, res) {
   const m = document.createElement('span'); m.className = 'm'; m.textContent = ' · ' + (res.scripted ? 'scripted' : short(c.modelId));
   const p = document.createElement('div'); p.textContent = res.say;
   const a = document.createElement('div'); a.className = 'act';
-  a.textContent = '→ ' + (res.moved ? 'walks to the ' : 'at the ') + c.place.label + (res.pose ? ' · ' + res.pose : '');
+  a.textContent = '→ ' + (res.moved ? 'walks to the ' : 'at the ') + c.place.label + (res.skill ? ' · ★ ' + res.skill : res.pose ? ' · ' + res.pose : '');
   d.append(b, m, p, a);
   if (res.applied && res.applied.length) { const j = document.createElement('div'); j.className = 'joints'; j.textContent = res.applied.join(' · '); d.append(j); }
   if (res.notes && res.notes.length) { const n = document.createElement('div'); n.className = 'act'; n.textContent = 'Limited to human range: ' + res.notes.join(', '); d.append(n); }
+  const fb = document.createElement('div'); fb.className = 'fb';
+  const up = document.createElement('button'), dn = document.createElement('button');
+  up.type = dn.type = 'button'; up.textContent = '👍'; dn.textContent = '👎'; up.setAttribute('aria-label', 'Like'); dn.setAttribute('aria-label', 'Dislike');
+  up.onclick = () => feedback(c, res, true, [up, dn]); dn.onclick = () => feedback(c, res, false, [up, dn]);
+  fb.append(up, dn); d.append(fb);
   if (res.raw) d.title = res.raw;
   logEl.prepend(d); while (logEl.children.length > 60) logEl.lastChild.remove();
 }
@@ -646,6 +757,7 @@ async function loop() {
     apply(c, res); turn++;
     const t0 = performance.now(); while (c.target && performance.now() - t0 < 9000) await sleep(100);
     await sleep(+$('#spd').value + (c.anim ? 1500 : 0));
+    if (++c.turns % 6 === 0 && running) await writeDiary(c, o);
   }
   busy = false;
 }
@@ -729,7 +841,7 @@ goBtn.onclick = async () => {
 $('#nudge').addEventListener('submit', e => {
   e.preventDefault(); const inp = $('#ev'); const t = inp.value.trim();
   if (!t) { toast('Type something to happen first'); return; }
-  events.push({ text: t, left: 2 }); logNote('Event: ' + t); inp.value = '';
+  events.push({ text: t, left: 2 }); transcript.push({ who: 'Event', text: t }); logNote('Event: ' + t); inp.value = '';
   toast(running ? 'Both robots will notice that' : 'Saved. Press Start so they can react');
 });
 const pA = $('#pA'), pB = $('#pB'); pA.value = chars[0].persona; pB.value = chars[1].persona;
@@ -746,12 +858,23 @@ $('#lab').addEventListener('submit', e => {
   const notes = [], applied = A(neutral(), moves.join(','), notes);
   const bad = moves.length - applied.length;
   if (c.target) c.pending = { pose, moves }; else buildPose(c, { pose, moves });
-  logEntry(c, { say: '(puppet lab)', pose, applied, notes, scripted: true, moved: false });
+  logEntry(c, { say: '(puppet lab)', pose, moves, applied, notes, scripted: true, moved: false });
   toast(bad > 0 ? `${bad} command${bad > 1 ? 's' : ''} not understood. Check the joint names` : `${c.name} moved${notes.length ? ', some joints were limited to human range' : ''}`);
   if (running) toast('Tip: pause first, or the next AI turn will change the pose', 4000);
 });
 $('#preset').onclick = () => { const c = chars[+$('#pr').value]; buildPose(c, {}); toast(`${c.name} relaxed`); };
 
+$('#memcopy').onclick = async () => {
+  const data = JSON.stringify({ Pip: chars[0].mem, Moss: chars[1].mem });
+  try { await navigator.clipboard.writeText(data); toast('Memories copied. Paste them on another device'); }
+  catch { $('#memin').value = data; toast('Copy was blocked, so the text is in the box. Copy it from there'); }
+};
+$('#memload').onclick = () => {
+  let d; try { d = JSON.parse($('#memin').value); } catch { toast("That text isn't memory data"); return; }
+  let n = 0; for (const c of chars) if (d && d[c.name] && d[c.name].v === MEM_VER) { c.mem = cleanMem(d[c.name]); saveMem(c); n++; }
+  toast(n ? 'Memories loaded' : 'No robot memories found in that text');
+};
+renderMem();
 initAI();
 </script>
 </body>
