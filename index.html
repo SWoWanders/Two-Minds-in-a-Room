@@ -61,6 +61,16 @@ summary{cursor:pointer;font-weight:700;min-height:28px}
 details label{display:block;font-weight:700;font-size:13px;margin-top:8px}
 textarea{width:100%;min-height:64px;resize:vertical;margin-top:4px}
 form.nudge{display:flex;gap:8px}form.nudge input{flex:1}
+.chat{display:flex;flex-direction:column;gap:8px}
+.chatlog{max-height:260px;min-height:90px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;background:#1d1424;border-radius:12px;padding:10px}
+.msg{max-width:86%;padding:7px 11px;border-radius:14px;font-size:14px;line-height:1.35;overflow-wrap:anywhere}
+.msg.me{align-self:flex-end;background:var(--accent);color:#2a1d2e;border-bottom-right-radius:4px}
+.msg.bot{align-self:flex-start;background:#2f2240;border-left:3px solid var(--c);border-bottom-left-radius:4px}
+.msg.bot b{color:var(--c);font:600 12px Fredoka,sans-serif;display:block}
+.msg .to{display:block;font-size:11px;opacity:.75}
+.msg.ev{align-self:center;background:none;color:var(--dim);font-size:12px;font-style:italic;padding:2px}
+.chatbar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px}
+.chatbar select{width:auto;max-width:34vw}
 #toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%) translateY(20px);background:#fff8ee;color:#2a1d2e;padding:10px 16px;border-radius:12px;font-weight:700;opacity:0;transition:.25s;max-width:90vw;z-index:9;box-shadow:0 6px 20px #0008;pointer-events:none}
 #toast.on{opacity:1;transform:translateX(-50%)}
 .hint{font-size:12px;color:var(--dim);margin:4px 0 0}
@@ -109,10 +119,14 @@ window.__diag = { errors: [], t0: Date.now() };
     </div>
     <div id="prog"><i></i></div>
     <p id="status">Starting up…</p>
-    <form class="nudge" id="nudge">
-      <input id="ev" placeholder="Make something happen… (a cat walks in)" maxlength="120" autocomplete="off" aria-label="Event">
-      <button>Send</button>
-    </form>
+    <section class="chat" aria-label="Chat with the robots">
+      <div class="chatlog" id="chatlog" aria-live="polite"><p class="hint chatempty">Talk to Pip and Moss here. Ask questions, give them things to do, or just chat. Whoever you talk to answers on the very next turn.</p></div>
+      <form class="chatbar" id="nudge">
+        <select id="chatTo" aria-label="Who you're talking to"><option value="both">Both</option><option value="Pip">Pip</option><option value="Moss">Moss</option><option value="event">Make something happen</option></select>
+        <input id="ev" placeholder="Say something to the robots…" maxlength="160" autocomplete="off" aria-label="Message">
+        <button>Send</button>
+      </form>
+    </section>
     <label class="pick">Voices
       <select id="voice"><option value="sam">Retro robot voices (mouth follows the real sound)</option><option value="tts">Phone voices (more natural, mouth follows the words)</option><option value="off">Off</option></select>
     </label>
@@ -2000,14 +2014,14 @@ SAY: Look, ${o.name}, a shooting star over the rooftops!`;
   const user = `${memoryBlock(c, o, (c.lastSeen || '') + ' ' + transcript.slice(-4).map(l => l.text).join(' ') + ' ' + events.map(e => e.text).join(' '))}${c.lastSeen || perceive(c, o)}
 Recent conversation:
 ${last}
-${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER and SAY lines.`;
+${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER and SAY lines.`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
 }
 function buildMsgsLite(c, o) {
   const sys = `You are ${c.name}, ${c.persona}. You are a robot in a cozy room with ${o.name}, another robot. Reply with exactly these lines:
 GO: <place or stay>
 POSE: <pose or none>
-SAY: <one short sentence to ${o.name}>
+SAY: <one short sentence to ${o.name} or the visitor>
 You may add one extra line: BOARD: draw <thing> or write "<words>" | HANDS: grab <thing>, give <thing> to ${o.name}, toss <thing> to ${o.name} or put <thing> on <place> | COMPUTER: search <topic> or weather <city>
 Places: ${PLACES.map(p => p.key).join(', ')}.
 Poses: wave, dance, sit, point, think, cheer, bow, shrug, clap, nod, jump${skillList(c)}.
@@ -2022,8 +2036,36 @@ SAY: Look, ${o.name}, the moon is out!`;
   const user = `${memoryBlock(c, o, (c.lastSeen || '') + ' ' + transcript.slice(-4).map(l => l.text).join(' ') + ' ' + ev)}${trimTxt(c.lastSeen || '', 450)}
 Recent:
 ${last}
-${ev ? 'Just happened: ' + ev + '\n' : ''}Your turn, ${c.name}.`;
+${ev ? 'Just happened: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}.`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
+}
+/* ---------- Chat with the visitor ---------- */
+const chatQ = [];
+const visitorWho = () => visitorName || 'Visitor';
+function pendingFor(c) {
+  const now = Date.now();
+  for (let i = chatQ.length - 1; i >= 0; i--) { const m = chatQ[i]; if (now - m.t > 15 * 60e3 || chars.every(x => m.done[x.name] || !(m.to === 'both' || m.to === x.name))) chatQ.splice(i, 1); }
+  return chatQ.filter(m => !m.done[c.name] && (m.to === 'both' || m.to === c.name));
+}
+function nextSpeaker(def) {
+  const m = chatQ.find(m => chars.some(x => !m.done[x.name] && (m.to === 'both' || m.to === x.name)));
+  if (!m) return def;
+  if (m.to !== 'both') return chars.find(x => x.name === m.to) || def;
+  return m.done[def.name] ? chars[1 - def.i] : def;
+}
+function visitorLine(c) {
+  const ms = pendingFor(c).slice(-2); if (!ms.length) return '';
+  return ms.map(m => `${firstCap(visitorRef())} just said to ${m.to === 'both' ? 'both of you' : 'you'}: "${m.text}"`).join('\n') + `\nAnswer ${visitorName || 'the visitor'} directly in your SAY line, and do what they ask if you can.\n`;
+}
+function chatAdd(kind, who, text, color, to) {
+  const log = $('#chatlog'); if (!log) return;
+  const e = log.querySelector('.chatempty'); if (e) e.remove();
+  const d = document.createElement('div'); d.className = 'msg ' + kind; if (color) d.style.setProperty('--c', color);
+  if (kind === 'bot') { const b = document.createElement('b'); b.textContent = who; d.append(b); }
+  if (to) { const t = document.createElement('span'); t.className = 'to'; t.textContent = to; d.append(t); }
+  d.append(document.createTextNode(text)); log.append(d);
+  while (log.children.length > 80) log.firstChild.remove();
+  log.scrollTop = log.scrollHeight;
 }
 async function aiDecide(c, o) {
   if (c.backend === 'cpu') {
@@ -2053,7 +2095,8 @@ function scriptDecide(c, o) {
   const place = Math.random() < 0.6 ? others[(Math.random() * others.length) | 0].key : null;
   const pose = Math.random() < 0.6 ? POSE_NAMES[(Math.random() * POSE_NAMES.length) | 0] : null;
   const moves = []; for (let n = (Math.random() * 3) | 0; n > 0; n--) moves.push(EXTRA[(Math.random() * EXTRA.length) | 0]);
-  const line = ev ? `Did you see that, ${o.name}? ${ev.text.replace(/\.$/, '')}!` : c.seeOther && Math.random() < 0.35 ? `I can see you ${c.seeOther}, ${o.name}!` : LINES[c.i][(Math.random() * LINES[c.i].length) | 0];
+  const vm = pendingFor(c)[0];
+  const line = vm ? `I hear you, ${visitorName || 'friend'}! I'm running on a simple script right now. Start the AI and I can really answer.` : ev ? `Did you see that, ${o.name}? ${ev.text.replace(/\.$/, '')}!` : c.seeOther && Math.random() < 0.35 ? `I can see you ${c.seeOther}, ${o.name}!` : LINES[c.i][(Math.random() * LINES[c.i].length) | 0];
   const sk = c.mind.skills.length && Math.random() < 0.35 ? c.mind.skills[(Math.random() * c.mind.skills.length) | 0].name : null;
   const NET = [['search theremin', 'onthisday', 'weather Ottawa', 'archive robot cartoons', 'search tiki bar'], ['search ferns', 'books gardening', 'weather Ottawa', 'search green tea', 'onthisday']];
   const computer = !ev && Math.random() < 0.2 ? parseComputer(NET[c.i][(Math.random() * NET[c.i].length) | 0]) : null;
@@ -2080,6 +2123,7 @@ function apply(c, res) {
   say(c, res.say);
   c.speaking = speakLine(c, res.say);
   noteSpeech(c, chars[1 - c.i], res.say);
+  if (res.say && res.say !== '(puppet lab)') chatAdd('bot', c.name, res.say, c.color);
   transcript.push({ who: c.name, text: res.say }); if (transcript.length > 30) transcript.shift();
   logEntry(c, res);
 }
@@ -2204,7 +2248,8 @@ const pauseBtn = $('#pause');
 async function loop() {
   if (busy) return; busy = true;
   while (running) {
-    const c = chars[turn % 2], o = chars[(turn + 1) % 2];
+    const c = nextSpeaker(chars[turn % 2]), o = chars[1 - c.i];
+    if (c.prefetch && pendingFor(c).some(m => m.t > (c.prefetchT || 0))) c.prefetch = null;   // you said something new since it started thinking
     if (!c.prefetch) {
       try { c.lastSeen = perceive(c, o); noteSeen(c, o); } catch (e) { console.warn(e); c.lastSeen = null; }
       c.lastRecall = null; c.mind.turns++;
@@ -2228,12 +2273,13 @@ async function loop() {
     thinking(c, false);
     if (res && c.lastSeen) res.seen = c.lastSeen;
     if (res && c.lastRecall && !res.scripted) res.recalled = c.lastRecall;
-    apply(c, res); turn++;
+    for (const m of pendingFor(c)) m.done[c.name] = true;
+    apply(c, res); turn = c.i + 1;
     // phone-processor minds are slow: let the other robot start thinking now, while this one walks, acts and talks
     if (mode === 'ai' && running && o.engine && o.backend === 'cpu' && !o.prefetch) {
       try { o.lastSeen = perceive(o, c); noteSeen(o, c); } catch (e) { o.lastSeen = null; }
       o.lastRecall = null; o.mind.turns++; thinking(o, true);
-      o.prefetch = aiDecide(o, c); o.prefetch.catch(() => {});
+      o.prefetchT = Date.now(); o.prefetch = aiDecide(o, c); o.prefetch.catch(() => {});
     }
     const t0 = performance.now(); while (c.target && performance.now() - t0 < 9000) await sleep(100);
     if (c.speaking) { await Promise.race([c.speaking, sleep(30000)]); c.speaking = null; }
@@ -2522,11 +2568,22 @@ goBtn.onclick = async () => {
 };
 
 /* ---------- Nudges, personalities, puppet lab ---------- */
+const chatTo = $('#chatTo');
+chatTo.onchange = () => { $('#ev').placeholder = chatTo.value === 'event' ? 'Make something happen… (a cat walks in)' : chatTo.value === 'both' ? 'Say something to the robots…' : `Say something to ${chatTo.value}…`; };
 $('#nudge').addEventListener('submit', e => {
-  e.preventDefault(); const inp = $('#ev'); const t = inp.value.trim();
-  if (!t) { toast('Type something to happen first'); return; }
-  events.push({ text: t, left: 2 }); transcript.push({ who: 'Event', text: t }); noteVisitor(`${firstCap(visitorRef())} made something happen: ${t}`, t); logNote('Event: ' + t); inp.value = '';
-  toast(running ? 'Both robots will notice that' : 'Saved. Press Start so they can react');
+  e.preventDefault(); const inp = $('#ev'); const t = inp.value.trim().slice(0, 160), to = chatTo.value;
+  if (!t) { toast(to === 'event' ? 'Type something to happen first' : 'Type a message first'); return; }
+  inp.value = '';
+  if (to === 'event') {
+    events.push({ text: t, left: 2 }); transcript.push({ who: 'Event', text: t }); noteVisitor(`${firstCap(visitorRef())} made something happen: ${t}`, t); logNote('Event: ' + t);
+    chatAdd('ev', '', t);
+    toast(running ? 'Both robots will notice that' : 'Saved. Press Start so they can react'); return;
+  }
+  chatQ.push({ to, text: t, t: Date.now(), done: {} });
+  transcript.push({ who: visitorWho(), text: (to === 'both' ? '' : `(to ${to}) `) + t }); if (transcript.length > 30) transcript.shift();
+  noteVisitor(`${firstCap(visitorRef())} said to ${to === 'both' ? 'Pip and Moss' : to}: "${t}"`, t);
+  chatAdd('me', '', t, null, to === 'both' ? '' : 'to ' + to);
+  toast(running ? `${to === 'both' ? 'Pip or Moss' : to} will answer on the next turn` : 'Press Start with AI so they can answer');
 });
 const pA = $('#pA'), pB = $('#pB'); pA.value = chars[0].persona; pB.value = chars[1].persona;
 pA.addEventListener('change', () => { chars[0].persona = pA.value.trim() || DEF_A; store.set('pA', chars[0].persona); toast("Pip's personality updated"); });
