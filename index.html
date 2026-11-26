@@ -38,6 +38,8 @@ button:disabled{opacity:.45;cursor:default}
 #prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
 #status{font-size:13px;color:var(--dim);margin:0}
 #log{display:flex;flex-direction:column;gap:8px}
+.entry .joints{font:12px/1.4 ui-monospace,Menlo,monospace;color:#e9d8b4;margin-top:3px;overflow-wrap:anywhere}
+form.lab{display:flex;flex-direction:column;gap:8px;margin-top:8px}form.lab input{width:100%}
 .entry{background:#1d1424;border-radius:10px;padding:8px 10px;border-left:4px solid var(--c,var(--accent))}
 .entry b{color:var(--c,var(--accent))}.entry .m{font-size:11px;color:var(--dim)}.entry .act{font-size:12px;color:var(--dim)}
 details{background:#1d1424;border-radius:10px;padding:8px 10px}
@@ -84,6 +86,18 @@ form.nudge{display:flex;gap:8px}form.nudge input{flex:1}
       <label>Pip<textarea id="pA"></textarea></label>
       <label>Moss<textarea id="pB"></textarea></label>
       <p class="hint">Changes apply from the next turn.</p>
+    </details>
+    <details>
+      <summary>Puppet lab</summary>
+      <form class="lab" id="lab">
+        <div class="row">
+          <label class="pick">Robot<select id="pr"><option value="0">Pip</option><option value="1">Moss</option></select></label>
+          <label class="pick">Pose<select id="pp"></select></label>
+        </div>
+        <label class="pick">Joint commands<input id="pm" placeholder="R_SHOULDER raise 90, R_HAND point" autocomplete="off"></label>
+        <div class="btns"><button class="primary">Move</button><button type="button" id="preset">Relax</button></div>
+        <p class="hint" id="jhelp"></p>
+      </form>
     </details>
     <div id="log"></div>
   </aside>
@@ -206,103 +220,319 @@ box(1.1, 0.65, 0.22, 0x24604f, 3.6, 0, 1.0); box(1.1, 0.65, 0.22, 0x24604f, 3.6,
 box(0.1, 2.4, 1.3, 0xf3e3c8, -4.97, 0, 3, false); box(0.08, 2.25, 1.1, 0x8a4b2a, -4.93, 0, 3, false);
 const knob = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), mat(0xe8c060, { metalness: .8, roughness: .3 })); knob.position.set(-4.86, 1.05, 3.4); scene.add(knob);
 
+
 /* ---------- Places ---------- */
 const PLACES = [
-  { key: 'couch', label: 'couch', alias: ['sofa'], pos: [-1.2, -4.0], look: [-1.2, 0], side: [1, 0], sit: 0.28 },
-  { key: 'table', label: 'coffee table', alias: ['coffee', 'mug'], pos: [-1.2, -1.35], look: [-1.2, -2.2], side: [1, 0] },
+  { key: 'couch', label: 'couch', alias: ['sofa'], pos: [-1.2, -4.05], look: [-1.2, 0], side: [1, 0], spread: 0.6, sit: 0.57 },
+  { key: 'table', label: 'coffee table', alias: ['coffee', 'mug'], pos: [-1.2, -1.3], look: [-1.2, -2.2], side: [1, 0] },
   { key: 'bookshelf', label: 'bookshelf', alias: ['book', 'shelf'], pos: [-3.9, -0.5], look: [-5, -0.5], side: [0, 1] },
   { key: 'plant', label: 'plant', alias: ['fern', 'leaf'], pos: [-3.5, -3.2], look: [-4.3, -4.3], side: [0.7, -0.7] },
   { key: 'lamp', label: 'lamp', alias: ['light'], pos: [0.9, -3.4], look: [0.9, -4.4], side: [1, 0] },
   { key: 'window', label: 'window', alias: ['moon', 'sky', 'outside'], pos: [2.5, -4.0], look: [2.5, -5], side: [1, 0] },
   { key: 'radio', label: 'radio', alias: ['music', 'song'], pos: [4.0, -3.4], look: [4.2, -4.5], side: [1, 0] },
-  { key: 'armchair', label: 'armchair', alias: ['chair'], pos: [3.5, 1.6], look: [0, 1.6], side: [0, 1], sit: 0.28 },
+  { key: 'armchair', label: 'armchair', alias: ['chair'], pos: [3.55, 1.6], look: [0, 1.6], side: [0, 1], spread: 0.22, sit: 0.45 },
   { key: 'rug', label: 'rug', alias: ['middle', 'centre', 'center', 'floor'], pos: [1.5, 1.0], look: [8, 9], side: [1, 0], spread: 0.75 },
   { key: 'door', label: 'door', alias: ['exit'], pos: [-4.0, 3.0], look: [-5, 3], side: [0, 1] }
 ];
-const ACTIONS = ['wave', 'dance', 'sit', 'think'];
 const byKey = k => PLACES.find(p => p.key === k);
 function findPlace(str) {
   const s = (str || '').toLowerCase(); if (!s) return null;
   return PLACES.find(p => s.includes(p.key)) || PLACES.find(p => p.alias.some(a => s.includes(a))) || null;
 }
 
-/* ---------- Characters ---------- */
-function makeChar(hex, kind) {
-  const g = new THREE.Group(); const m = mat(hex, { roughness: .55 });
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.5, 6, 16), m); body.position.y = 0.62; body.castShadow = true;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 24, 16), m); head.position.y = 1.32; head.castShadow = true;
-  const white = mat(0xffffff, { roughness: .3 }), black = mat(0x111111, { roughness: .3 });
-  for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 8), white); e.position.set(0.11 * s, 0.04, 0.25); const p = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), black); p.position.z = 0.05; e.add(p); head.add(e); }
-  const arms = [];
-  for (const s of [-1, 1]) { const piv = new THREE.Group(); piv.position.set(0.36 * s, 0.95, 0); const a = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.3, 4, 8), m); a.position.y = -0.2; a.castShadow = true; piv.add(a); g.add(piv); arms.push(piv); }
-  if (kind === 'antenna') {
-    const st = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.3), black); st.position.y = 0.42; head.add(st);
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: 0xffc400, emissiveIntensity: 1.5 })); b.position.y = 0.6; head.add(b);
+/*PURE-START*/
+/* ---------- Skeleton: joints, human range-of-motion limits, command language ---------- */
+const RAD = Math.PI / 180;
+const FINGERS = ['THUMB', 'INDEX', 'MIDDLE', 'RING', 'PINKY'];
+// verb: [axis, sign for left/centre, sign for right, min°, max°]
+const JT = {
+  NECK:     { nod: ['x', 1, 1, -40, 50], turn: ['y', 1, 1, -60, 60], tilt: ['z', -1, -1, -35, 35] },
+  HEAD:     { nod: ['x', 1, 1, -30, 30], turn: ['y', 1, 1, -25, 25], tilt: ['z', -1, -1, -15, 15] },
+  SPINE:    { bend: ['x', 1, 1, -20, 60], lean: ['z', -1, -1, -25, 25], twist: ['y', 1, 1, -35, 35] },
+  CHEST:    { bend: ['x', 1, 1, -15, 30], lean: ['z', -1, -1, -15, 15], twist: ['y', 1, 1, -25, 25] },
+  SHOULDER: { raise: ['x', -1, -1, -50, 180], spread: ['z', 1, -1, -30, 180], twist: ['y', 1, -1, -70, 90] },
+  ELBOW:    { bend: ['x', -1, -1, 0, 145] },
+  WRIST:    { flex: ['z', -1, 1, -70, 80], tilt: ['x', -1, -1, -20, 30], twist: ['y', 1, -1, -80, 90] },
+  HIP:      { raise: ['x', -1, -1, -20, 125], spread: ['z', 1, -1, -25, 45], twist: ['y', 1, -1, -40, 40] },
+  KNEE:     { bend: ['x', 1, 1, 0, 140] },
+  ANKLE:    { flex: ['x', -1, -1, -45, 20], tilt: ['z', 1, -1, -20, 20] }
+};
+const SPREAD = { THUMB: -1, INDEX: -1, MIDDLE: -0.3, RING: 1, PINKY: 1.4 };
+const DIST = { HEAD: [['NECK', .6], ['HEAD', .4]], TORSO: [['SPINE', .6], ['CHEST', .4]] };
+const SIDED = ['SHOULDER', 'ELBOW', 'WRIST', 'HIP', 'KNEE', 'ANKLE'];
+const ALIAS = { SHOULDERS: 'SHOULDER', ARM: 'SHOULDER', ARMS: 'SHOULDER', UPPERARM: 'SHOULDER', FOREARM: 'ELBOW', ELBOWS: 'ELBOW', WRISTS: 'WRIST',
+  LEG: 'HIP', LEGS: 'HIP', THIGH: 'HIP', HIPS: 'HIP', KNEES: 'KNEE', FOOT: 'ANKLE', FEET: 'ANKLE', ANKLES: 'ANKLE', HANDS: 'HAND',
+  FINGER: 'FINGERS', BACK: 'TORSO', BODY: 'TORSO', WAIST: 'TORSO', TRUNK: 'TORSO', FACE: 'HEAD', THUMBS: 'THUMB', POINTER: 'INDEX', LITTLE: 'PINKY' };
+const VERB = { lift: 'raise', swing: 'raise', curl: 'curl', close: 'curl', rotate: 'twist', look: 'turn', abduct: 'spread', straighten: 'bend' };
+const SHAPES = {
+  fist: { THUMB: 55, INDEX: 95, MIDDLE: 95, RING: 95, PINKY: 95, ts: 15 },
+  open: { THUMB: 0, INDEX: 0, MIDDLE: 0, RING: 0, PINKY: 0, sp: 12, ts: 30 },
+  relax: { THUMB: 15, INDEX: 20, MIDDLE: 25, RING: 28, PINKY: 32, ts: 12 },
+  point: { THUMB: 55, INDEX: 0, MIDDLE: 95, RING: 95, PINKY: 95, ts: 10 },
+  thumbsup: { THUMB: 0, INDEX: 95, MIDDLE: 95, RING: 95, PINKY: 95, ts: 45 },
+  peace: { THUMB: 55, INDEX: 0, MIDDLE: 0, RING: 95, PINKY: 95, sp: 16, ts: 10 },
+  grab: { THUMB: 40, INDEX: 55, MIDDLE: 55, RING: 55, PINKY: 55, ts: 40 }
+};
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const fx = n => (+n).toFixed(1);
+
+function jointSpec(jname) {
+  const side = /^[LR]_/.test(jname) ? jname[0] : null, base = side ? jname.slice(2) : jname;
+  const fm = base.match(/^(THUMB|INDEX|MIDDLE|RING|PINKY)([123])$/);
+  if (fm) {
+    const th = fm[1] === 'THUMB', k = +fm[2] - 1;
+    const lim = (th ? [[-10, 60], [0, 70], [0, 80]] : [[-10, 90], [0, 110], [0, 80]])[k];
+    const v = { bend: ['z', -1, 1, lim[0], lim[1]] };
+    if (k === 0) v.spread = ['x', SPREAD[fm[1]], SPREAD[fm[1]], th ? -20 : -10, th ? 50 : 25];
+    return { side, v };
+  }
+  return { side, v: JT[base] };
+}
+function setDOF(m, jname, verb, deg, notes) {
+  const s = jointSpec(jname); if (!s.v) return false;
+  const d = s.v[verb]; if (!d) return false;
+  const [ax, sl, sr, mn, mx] = d; const v = clamp(deg, mn, mx);
+  if (notes && Math.abs(v - deg) > 0.5) notes.push(`${jname} ${verb} ${Math.round(deg)}→${v}`);
+  const r = m[jname] || (m[jname] = { x: 0, y: 0, z: 0 });
+  r[ax] = v * (s.side === 'R' ? sr : sl) * RAD; return true;
+}
+function curl(m, side, F, amt) {
+  amt = clamp(amt, 0, 100); const f = F === 'THUMB' ? [.5, .7, .8] : [.9, 1.1, .8];
+  for (let k = 0; k < 3; k++) setDOF(m, `${side}_${F}${k + 1}`, 'bend', amt * f[k]);
+}
+function setHand(m, side, shape) {
+  const s = SHAPES[shape]; if (!s) return false;
+  for (const F of FINGERS) { curl(m, side, F, s[F]); setDOF(m, `${side}_${F}1`, 'spread', F === 'THUMB' ? s.ts : (s.sp || 0)); }
+  return true;
+}
+function neutral() {
+  const m = {};
+  for (const S of ['L', 'R']) { setDOF(m, S + '_SHOULDER', 'spread', 8); setDOF(m, S + '_ELBOW', 'bend', 12); setHand(m, S, 'relax'); }
+  return m;
+}
+// Apply one command like "R_ELBOW bend 90", "left knee bend 40", "L_HAND fist", "R_INDEX2 bend 60". Returns normalised text or null.
+function applyCmd(m, raw, notes) {
+  let s = String(raw || '').replace(/\bleft\s+/ig, 'L_').replace(/\bright\s+/ig, 'R_').replace(/[^\w\s\-.]/g, ' ').trim();
+  let mt = s.match(/^(?:([LR])_)?([A-Za-z]+?)_?([123])?\s+([A-Za-z]+)(?:\s+(?:by\s+|to\s+)?(-?\d+(?:\.\d+)?))?/i);
+  let side, J, k, verb, num;
+  if (mt) [, side, J, k, verb, num] = mt;
+  else { mt = s.match(/^(?:([LR])_)?([A-Za-z]+?)_?([123])?\s+(-?\d+(?:\.\d+)?)/i); if (!mt) return null; [, side, J, k, num] = mt; verb = ''; }
+  side = side ? side.toUpperCase() : null; J = J.toUpperCase(); J = ALIAS[J] || J; verb = (verb || '').toLowerCase(); verb = VERB[verb] || verb;
+  const deg = num != null ? parseFloat(num) : null;
+  const sides = side ? [side] : ['L', 'R'];
+  const tag = (side ? side + '_' : '') + J + (k || '');
+  if (J === 'HAND') {
+    const shape = verb === 'relaxed' ? 'relax' : verb === 'thumb' ? 'thumbsup' : verb;
+    if (!SHAPES[shape]) return null; for (const sd of sides) setHand(m, sd, shape); return `${tag} ${shape}`;
+  }
+  if (J === 'FINGERS') {
+    if (verb === 'open') { for (const sd of sides) setHand(m, sd, 'open'); return `${tag} open`; }
+    if (deg == null) return null;
+    for (const sd of sides) for (const F of FINGERS) verb === 'spread' ? setDOF(m, `${sd}_${F}1`, 'spread', deg, notes) : curl(m, sd, F, deg);
+    return `${tag} ${verb === 'spread' ? 'spread' : 'curl'} ${Math.round(deg)}`;
+  }
+  if (FINGERS.includes(J)) {
+    if (verb === 'open' && deg == null) { for (const sd of sides) curl(m, sd, J, 0); return `${tag} open`; }
+    if (deg == null) return null;
+    for (const sd of sides) {
+      if (k) setDOF(m, `${sd}_${J}${k}`, 'bend', deg, notes);
+      else if (verb === 'spread') setDOF(m, `${sd}_${J}1`, 'spread', deg, notes);
+      else curl(m, sd, J, deg);
+    }
+    return `${tag} ${k ? 'bend' : verb === 'spread' ? 'spread' : 'curl'} ${Math.round(deg)}`;
+  }
+  if (deg == null) return null;
+  if (DIST[J]) {
+    const vb = JT[DIST[J][0][0]][verb] ? verb : Object.keys(JT[DIST[J][0][0]])[0];
+    for (const [jn, f] of DIST[J]) setDOF(m, jn, vb, deg * f);
+    return `${J} ${vb} ${Math.round(deg)}`;
+  }
+  if (J === 'NECK' || J === 'SPINE' || J === 'CHEST') {
+    const vb = JT[J][verb] ? verb : Object.keys(JT[J])[0]; setDOF(m, J, vb, deg, notes); return `${J} ${vb} ${Math.round(deg)}`;
+  }
+  if (SIDED.includes(J)) {
+    const vb = JT[J][verb] ? verb : Object.keys(JT[J])[0];
+    for (const sd of sides) setDOF(m, `${sd}_${J}`, vb, deg, notes);
+    return `${tag} ${vb} ${Math.round(deg)}`;
+  }
+  return null;
+}
+const A = (m, str, notes) => { const out = []; for (const p of str.split(/[,;\n]/)) { const r = applyCmd(m, p, notes); if (r) out.push(r); } return out; };
+
+const POSES = {
+  sit: 'HIP raise 90, KNEE bend 90, SHOULDER raise 25, ELBOW bend 55, TORSO bend -5',
+  floorsit: 'HIP raise 88, KNEE bend 20, ANKLE flex 10, TORSO bend 12, SHOULDER raise 15, ELBOW bend 25',
+  crouch: 'HIP raise 115, KNEE bend 130, ANKLE flex 15, TORSO bend 35, SHOULDER raise 50, ELBOW bend 40, HEAD nod -20',
+  kneel: 'L_HIP raise 90, L_KNEE bend 90, R_HIP raise -5, R_KNEE bend 95, R_ANKLE flex -40, TORSO bend 5',
+  bow: 'TORSO bend 55, HIP raise 15, HEAD nod 20, SHOULDER raise 10',
+  point: 'R_SHOULDER raise 90, R_ELBOW bend 5, R_HAND point, HEAD turn -10',
+  think: 'R_SHOULDER raise 35, R_SHOULDER twist 30, R_ELBOW bend 140, R_WRIST flex -20, R_HAND fist, HEAD tilt -10, HEAD nod 10, L_SHOULDER raise 35, L_SHOULDER twist 50, L_ELBOW bend 95',
+  shrug: 'SHOULDER spread 20, ELBOW bend 85, WRIST twist 80, HAND open, HEAD tilt 15, TORSO bend -5',
+  cheer: 'SHOULDER spread 155, ELBOW bend 15, HAND fist, HEAD nod -20',
+  stretch: 'SHOULDER spread 172, ELBOW bend 0, HAND open, TORSO bend -10, HEAD nod -25',
+  salute: 'R_SHOULDER spread 85, R_SHOULDER raise 25, R_ELBOW bend 135, R_HAND open',
+  thumbsup: 'R_SHOULDER raise 45, R_ELBOW bend 75, R_HAND thumbsup',
+  peace: 'R_SHOULDER raise 60, R_ELBOW bend 100, R_HAND peace, HEAD tilt 10',
+  lookup: 'HEAD nod -45, TORSO bend -8',
+  handsonhips: 'SHOULDER spread 45, SHOULDER twist -40, ELBOW bend 95, HAND fist',
+  armscrossed: 'SHOULDER raise 35, SHOULDER spread -20, SHOULDER twist 70, ELBOW bend 115, HAND fist',
+  balance: 'L_HIP raise 70, L_KNEE bend 95, SHOULDER spread 90, ELBOW bend 5, HAND open'
+};
+const ANIMS = {
+  wave: (m, t) => { A(m, `R_SHOULDER spread 150, R_ELBOW bend ${fx(30 + 25 * Math.sin(t * 9))}, R_HAND open, HEAD tilt 8`); },
+  dance: (m, t) => { const s = Math.sin(t * 5), a = Math.abs(s); A(m, `TORSO lean ${fx(12 * s)}, TORSO twist ${fx(10 * Math.sin(t * 2.5))}, SHOULDER spread ${fx(100 + 30 * a)}, ELBOW bend ${fx(50 + 30 * s)}, KNEE bend ${fx(15 + 20 * a)}, HIP raise ${fx(10 + 12 * a)}, HEAD tilt ${fx(15 * s)}, HAND open`); },
+  clap: (m, t) => { const c = 0.5 + 0.5 * Math.sin(t * 12); A(m, `SHOULDER raise 80, SHOULDER spread ${fx(-22 + 28 * c)}, ELBOW bend 25, HAND open`); },
+  nod: (m, t) => { A(m, `HEAD nod ${fx(12 + 14 * Math.sin(t * 8))}`); },
+  shake: (m, t) => { A(m, `HEAD turn ${fx(35 * Math.sin(t * 7))}`); },
+  jump: (m, t) => { const s = Math.sin(t * 5), k = s < 0 ? -s * 75 : 8; A(m, `HIP raise ${fx(k * .75)}, KNEE bend ${fx(k)}, ANKLE flex ${fx(s < 0 ? -s * 15 : -25)}, SHOULDER spread ${s > 0 ? 150 : 25}, ELBOW bend 20`); return s > 0 ? s * 0.35 : 0; }
+};
+const POSE_NAMES = [...Object.keys(POSES), ...Object.keys(ANIMS)];
+function gait(m, t) {
+  const p = t * 9, s = Math.sin(p), c = Math.cos(p);
+  A(m, `L_HIP raise ${fx(24 * s)}, R_HIP raise ${fx(-24 * s)}, L_KNEE bend ${fx(10 + 35 * Math.max(0, c))}, R_KNEE bend ${fx(10 + 35 * Math.max(0, -c))}, L_ANKLE flex ${fx(8 * c)}, R_ANKLE flex ${fx(-8 * c)}, L_SHOULDER raise ${fx(-18 * s)}, R_SHOULDER raise ${fx(18 * s)}, ELBOW bend 22, TORSO twist ${fx(-5 * s)}`);
+}
+function findPose(str) {
+  const s = (str || '').toLowerCase().replace(/[\s_-]/g, '');
+  return [...POSE_NAMES].sort((a, b) => b.length - a.length).find(n => s.includes(n)) || null;
+}
+/* Parse a model reply: GO / POSE / MOVE / SAY lines */
+function parseReply(txt, myName, otherName, placeFinder) {
+  const line = k => { const m = txt.match(new RegExp('^\\s*\\**' + k + '\\**\\s*[:\\-]\\s*(.*)$', 'im')); return m ? m[1].replace(/^\*+\s*/, '').trim() : undefined; };
+  const g = line('GO'), p = line('POSE'), mv = line('MOVES?');
+  let say = line('SAY');
+  const place = g !== undefined ? placeFinder(g) : null;
+  const pose = p !== undefined ? findPose(p) : null;
+  const moves = (mv || '').split(/[,;]|\band\b/i).map(x => x.trim()).filter(x => x && !/^none$/i.test(x)).slice(0, 14);
+  if (say === undefined) say = (txt.split('\n').map(x => x.trim()).find(x => x && !/^\**(go|pose|moves?)\**\s*[:\-]/i.test(x)) || '');
+  say = say.replace(new RegExp('^(' + myName + '|' + otherName + ')\\s*:\\s*', 'i'), '').replace(/[*_#`]/g, '').replace(/^["'“”]+|["'“”]+$/g, '').trim();
+  if (say.length > 160) { const cut = say.slice(0, 160); const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? ')); say = end > 40 ? cut.slice(0, end + 1) : cut.trim() + '…'; }
+  return { place: place ? place.key : null, pose, moves, say: say || 'Hmm.' };
+}
+/*PURE-END*/
+
+/* ---------- Robots ---------- */
+function buildRobot(c) {
+  const body = new THREE.MeshStandardMaterial({ color: c.hex, metalness: .45, roughness: .38 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x2b2833, metalness: .7, roughness: .3 });
+  const glow = new THREE.MeshBasicMaterial({ color: c.glow });
+  c.j = {}; c.contacts = [];
+  const g = new THREE.Group(); scene.add(g); c.g = g;
+  const mesh = (geo, m, par, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; par.add(o); return o; };
+  const J = (par, name, x, y, z, rest = { x: 0, y: 0, z: 0 }) => { const o = new THREE.Group(); o.position.set(x, y, z); par.add(o); c.j[name] = { o, cur: { x: 0, y: 0, z: 0 }, rest }; return o; };
+  const limb = (par, len, r, m) => mesh(new THREE.CapsuleGeometry(r, Math.max(.001, len - 2 * r), 4, 10), m, par, 0, -len / 2, 0);
+  const ball = (par, r) => mesh(new THREE.SphereGeometry(r, 14, 10), trim, par);
+  const mark = (par, x, y, z, butt) => { const o = new THREE.Object3D(); o.position.set(x, y, z); o.userData.butt = !!butt; par.add(o); c.contacts.push(o); return o; };
+  // pelvis + torso
+  mesh(new THREE.BoxGeometry(.3, .14, .19), body, g); mark(g, 0, -.09, -.06, true);
+  const spine = J(g, 'SPINE', 0, .07, 0); ball(spine, .07); mesh(new THREE.CylinderGeometry(.1, .12, .2, 14), trim, spine, 0, .1, 0);
+  const chest = J(spine, 'CHEST', 0, .2, 0); mesh(new THREE.BoxGeometry(.38, .32, .21), body, chest, 0, .16, 0);
+  mesh(new THREE.CircleGeometry(.04, 16), glow, chest, 0, .2, .106);
+  const neck = J(chest, 'NECK', 0, .32, 0); mesh(new THREE.CylinderGeometry(.045, .05, .1, 10), trim, neck, 0, .05, 0);
+  const head = J(neck, 'HEAD', 0, .1, 0); c.headObj = head;
+  mesh(new THREE.BoxGeometry(.24, .22, .22), body, head, 0, .12, 0);
+  mesh(new THREE.PlaneGeometry(.19, .08), new THREE.MeshStandardMaterial({ color: 0x101018, roughness: .2, metalness: .3 }), head, 0, .13, .111);
+  for (const s of [-1, 1]) mesh(new THREE.CircleGeometry(.022, 14), glow, head, .045 * s, .13, .112);
+  for (const s of [-1, 1]) mesh(new THREE.CylinderGeometry(.03, .03, .03, 12), trim, head, .13 * s, .12, 0).rotation.z = Math.PI / 2;
+  if (c.kind === 'antenna') {
+    mesh(new THREE.CylinderGeometry(.008, .008, .16), trim, head, 0, .31, 0);
+    mesh(new THREE.SphereGeometry(.03, 12, 8), glow, head, 0, .4, 0);
   } else {
     const hm = mat(0x6b4a2b);
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.04, 24), hm); brim.position.y = 0.2;
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.28, 20), hm); top.position.y = 0.36;
-    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), mat(0x5fbf5a)); leaf.scale.set(1, 0.4, 1.8); leaf.position.set(0.22, 0.38, 0);
-    brim.castShadow = top.castShadow = true; head.add(brim, top, leaf);
+    mesh(new THREE.CylinderGeometry(.21, .21, .02, 24), hm, head, 0, .24, 0);
+    mesh(new THREE.CylinderGeometry(.1, .12, .13, 20), hm, head, 0, .31, 0);
+    mesh(new THREE.SphereGeometry(.035, 8, 6), mat(0x5fbf5a), head, .1, .32, 0).scale.set(1, .4, 1.8);
   }
-  g.add(body, head); scene.add(g); return { g, body, head, arms };
+  // arms and hands
+  const fz = { INDEX: .027, MIDDLE: .009, RING: -.009, PINKY: -.027 };
+  const fl = { INDEX: [.03, .022, .018], MIDDLE: [.033, .024, .019], RING: [.03, .022, .018], PINKY: [.024, .018, .015], THUMB: [.03, .024, .02] };
+  for (const S of ['L', 'R']) {
+    const sx = S === 'L' ? 1 : -1;
+    const sh = J(chest, S + '_SHOULDER', .24 * sx, .27, 0); ball(sh, .065); limb(sh, .28, .05, body);
+    const el = J(sh, S + '_ELBOW', 0, -.28, 0); ball(el, .05); limb(el, .25, .044, body);
+    const wr = J(el, S + '_WRIST', 0, -.25, 0); ball(wr, .035); mesh(new THREE.BoxGeometry(.03, .085, .075), body, wr, 0, -.05, 0);
+    for (const F of FINGERS) {
+      let par = F === 'THUMB' ? J(wr, `${S}_THUMB1`, 0, -.03, .04, { x: -.55, y: 0, z: -.25 * sx }) : J(wr, `${S}_${F}1`, 0, -.092, fz[F]);
+      for (let k = 0; k < 3; k++) {
+        if (k > 0) par = J(par, `${S}_${F}${k + 1}`, 0, -fl[F][k - 1], 0);
+        limb(par, fl[F][k], .0095, body);
+      }
+    }
+    const hp = J(g, S + '_HIP', .1 * sx, -.05, 0); ball(hp, .065); limb(hp, .4, .065, body);
+    const kn = J(hp, S + '_KNEE', 0, -.4, 0); ball(kn, .058); mark(kn, 0, 0, .06); limb(kn, .4, .055, body);
+    const an = J(kn, S + '_ANKLE', 0, -.4, 0); ball(an, .045); mesh(new THREE.BoxGeometry(.1, .05, .21), trim, an, 0, -.05, .05);
+    mark(an, 0, -.075, -.05); mark(an, 0, -.075, .155);
+  }
 }
+
 const DEF_A = 'a curious, excitable little robot who loves music, dancing and asking lots of questions';
-const DEF_B = 'a calm, dry-humoured gardener spirit who loves plants, books, tea and quiet evenings';
+const DEF_B = 'a calm, dry-humoured gardener robot who loves plants, books, tea and quiet evenings';
 const chars = [
-  { i: 0, name: 'Pip', color: '#ff8a5c', kind: 'antenna', persona: store.get('pA', DEF_A), start: 'rug' },
-  { i: 1, name: 'Moss', color: '#5cc8b4', kind: 'hat', persona: store.get('pB', DEF_B), start: 'bookshelf' }
+  { i: 0, name: 'Pip', color: '#ff8a5c', hex: 0xff8a5c, glow: 0xffe066, kind: 'antenna', persona: store.get('pA', DEF_A), start: 'rug' },
+  { i: 1, name: 'Moss', color: '#5cc8b4', hex: 0x5cc8b4, glow: 0x9dffb0, kind: 'hat', persona: store.get('pB', DEF_B), start: 'bookshelf' }
 ];
 const bubbles = $('#bubbles');
+function spot(c, p) { const s = (p.spread || 0.5) * (c.i ? 1 : -1); return new THREE.Vector3(p.pos[0] + p.side[0] * s, 0, p.pos[1] + p.side[1] * s); }
 for (const c of chars) {
-  Object.assign(c, makeChar(parseInt(c.color.slice(1), 16), c.kind));
+  buildRobot(c);
   c.place = byKey(c.start); const p = spot(c, c.place);
-  c.g.position.set(p.x, 0, p.z); c.yaw = Math.atan2(c.place.look[0] - p.x, c.place.look[1] - p.z); c.g.rotation.y = c.yaw;
-  c.target = null; c.action = 'none'; c.pendingAct = null; c.actT = 0; c.baseY = 0; c.sitting = false;
+  c.g.position.set(p.x, 0.93, p.z); c.groundY = 0.93;
+  c.yaw = Math.atan2(c.place.look[0] - p.x, c.place.look[1] - p.z); c.g.rotation.y = c.yaw;
+  c.target = null; c.pending = null; c.pose = neutral(); c.anim = null; c.animT = 0; c.seatH = 0;
   c.bub = document.createElement('div'); c.bub.className = 'bubble';
   c.tag = document.createElement('div'); c.tag.className = 'tag'; c.tag.style.background = c.color; c.tag.textContent = c.name;
   bubbles.append(c.tag, c.bub);
 }
-function spot(c, p) { const s = (p.spread || 0.5) * (c.i ? 1 : -1); return new THREE.Vector3(p.pos[0] + p.side[0] * s, 0, p.pos[1] + p.side[1] * s); }
+function buildPose(c, pd) {
+  let name = pd.pose || null;
+  if (name === 'sit' && !c.place.sit) name = 'floorsit';
+  if (!name && c.place.sit) name = 'sit';
+  const m = neutral(); const notes = [];
+  if (POSES[name]) A(m, POSES[name]);
+  const applied = A(m, (pd.moves || []).join(','), notes);
+  c.pose = m; c.anim = ANIMS[name] ? name : null; c.animT = c.anim ? 6 : 0;
+  c.seatH = c.place.sit && name === 'sit' ? c.place.sit : 0;
+  return { name, applied, notes };
+}
 function arrive(c) {
   const p = c.place, pos = c.g.position;
   c.yaw = Math.atan2(p.look[0] - pos.x, p.look[1] - pos.z);
-  const act = c.pendingAct || 'none'; c.pendingAct = null;
-  c.sitting = !!p.sit || act === 'sit';
-  c.baseY = p.sit ? p.sit : (act === 'sit' ? -0.16 : 0);
-  c.action = act; c.actT = act === 'none' ? 0 : 4.5;
+  buildPose(c, c.pending || {}); c.pending = null;
 }
-const lerp = (a, b, k) => a + (b - a) * k;
+const ZERO = { x: 0, y: 0, z: 0 };
 function updateChar(c, dt, t) {
   const cur = c.g.position; let moving = false;
   if (c.target) {
     const dx = c.target.x - cur.x, dz = c.target.z - cur.z, d = Math.hypot(dx, dz);
-    if (d > 0.04) { const st = Math.min(d, 1.5 * dt); cur.x += dx / d * st; cur.z += dz / d * st; c.yaw = Math.atan2(dx, dz); moving = true; }
+    if (d > 0.04) { const st = Math.min(d, 1.3 * dt); cur.x += dx / d * st; cur.z += dz / d * st; c.yaw = Math.atan2(dx, dz); moving = true; }
     else { c.target = null; arrive(c); }
   }
-  let bob = 0, aL = 0, aR = 0, zL = 0, zR = 0, tilt = 0;
-  const act = c.actT > 0 ? c.action : 'none'; c.actT -= dt;
-  if (moving) { bob = Math.abs(Math.sin(t * 10)) * 0.08; aL = Math.sin(t * 10) * 0.6; aR = -aL; }
-  else if (act === 'dance') { bob = Math.abs(Math.sin(t * 8)) * 0.15; zL = -2.5 - Math.sin(t * 8) * 0.4; zR = 2.5 + Math.sin(t * 8) * 0.4; c.yaw += dt * 3; }
-  else if (act === 'wave') { zR = 2.6 + Math.sin(t * 12) * 0.35; }
-  else if (act === 'think') { tilt = 0.25; aR = -1.7; }
-  else bob = Math.sin(t * 2 + c.i * 2) * 0.015;
+  const tgt = {}; for (const k in c.pose) { const p = c.pose[k]; tgt[k] = { x: p.x, y: p.y, z: p.z }; }
+  let off = 0;
+  if (moving) gait(tgt, t + c.i);
+  else if (c.anim && c.animT > 0) { off = ANIMS[c.anim](tgt, t) || 0; c.animT -= dt; }
+  (tgt.CHEST || (tgt.CHEST = { x: 0, y: 0, z: 0 })).x += Math.sin(t * 1.6 + c.i * 2) * 0.02;
+  const k = 1 - Math.exp(-dt * (moving ? 14 : 7));
+  for (const n in c.j) {
+    const J = c.j[n], T = tgt[n] || ZERO;
+    J.cur.x += (T.x - J.cur.x) * k; J.cur.y += (T.y - J.cur.y) * k; J.cur.z += (T.z - J.cur.z) * k;
+    J.o.rotation.set(J.rest.x + J.cur.x, J.rest.y + J.cur.y, J.rest.z + J.cur.z);
+  }
   let diff = c.yaw - c.g.rotation.y; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-  c.g.rotation.y += diff * Math.min(1, dt * (act === 'dance' ? 30 : 8));
-  const k = Math.min(1, dt * 8);
-  c.arms[0].rotation.x = lerp(c.arms[0].rotation.x, aL, k); c.arms[1].rotation.x = lerp(c.arms[1].rotation.x, aR, k);
-  c.arms[0].rotation.z = lerp(c.arms[0].rotation.z, zL, k); c.arms[1].rotation.z = lerp(c.arms[1].rotation.z, zR, k);
-  c.head.rotation.z = lerp(c.head.rotation.z, tilt, k);
-  c.curY = lerp(c.curY || 0, moving ? 0 : c.baseY, Math.min(1, dt * 6));
-  cur.y = c.curY + bob;
+  c.g.rotation.y += diff * Math.min(1, dt * 8);
+  // keep the lowest contact point (heels, toes, knees, seat) on the floor or seat
+  cur.y = c.groundY; c.g.updateMatrixWorld(true);
+  let mn = Infinity;
+  for (const ct of c.contacts) { ct.getWorldPosition(v3); mn = Math.min(mn, v3.y - (ct.userData.butt ? c.seatH : 0)); }
+  if (isFinite(mn)) c.groundY -= mn * Math.min(1, dt * 12);
+  cur.y = c.groundY + off;
 }
 const v3 = new THREE.Vector3();
 function placeLabels() {
   const w = stage.clientWidth, h = stage.clientHeight;
   for (const c of chars) {
-    c.head.getWorldPosition(v3); v3.y += 0.6; v3.project(camera);
+    c.headObj.getWorldPosition(v3); v3.y += 0.55; v3.project(camera);
     c.bub.style.left = (v3.x * .5 + .5) * w + 'px'; c.bub.style.top = (-v3.y * .5 + .5) * h + 'px';
-    c.g.getWorldPosition(v3); v3.y -= 0.15; v3.project(camera);
+    v3.set(c.g.position.x, -0.02, c.g.position.z); v3.project(camera);
     c.tag.style.left = (v3.x * .5 + .5) * w + 'px'; c.tag.style.top = (-v3.y * .5 + .5) * h + 'px';
   }
 }
@@ -327,65 +557,56 @@ renderer.setAnimationLoop(() => {
 /* ---------- Brains ---------- */
 const transcript = [], events = [];
 const short = id => (id || '').replace(/-q\d.*$/i, '').replace(/-MLC$/i, '');
+const JOINT_HELP = `HEAD nod/turn/tilt; TORSO bend/lean/twist; SHOULDER raise 0-180, spread 0-180, twist; ELBOW bend 0-145; WRIST flex/tilt/twist; HIP raise -20-125, spread, twist; KNEE bend 0-140; ANKLE flex/tilt; HAND fist/open/point/thumbsup/peace/grab; THUMB/INDEX/MIDDLE/RING/PINKY curl 0-90 or spread`;
 function buildMsgs(c, o) {
-  const names = PLACES.map(p => p.key).join(', ');
-  const sys = `You are ${c.name}, ${c.persona}. You live in a small cozy room with ${o.name}. Each turn you choose ONE place to go, ONE action, and say ONE short sentence (under 20 words) to ${o.name}.
+  const sys = `You are ${c.name}, ${c.persona}. You are a humanoid robot with a full human body: head, neck, torso, two arms with shoulders, elbows, wrists and five-fingered hands, two legs with hips, knees and ankles. You share a cozy room with ${o.name}, another robot. Each turn choose where to go, how to move your body, and say ONE short sentence (under 20 words) to ${o.name}.
 Reply in exactly this format and nothing else:
-GO: <place>
-DO: <action>
+GO: <place or stay>
+POSE: <pose or none>
+MOVE: <joint commands separated by commas, or none>
 SAY: <sentence>
-Places: ${names}, stay.
-Actions: wave, dance, sit, think, none.
+Places: ${PLACES.map(p => p.key).join(', ')}, stay.
+Poses: ${POSE_NAMES.join(', ')}, none.
+Joint commands are JOINT verb degrees. Put L_ or R_ before arm, leg, hand and finger joints for left or right. ${JOINT_HELP}.
 Example:
 GO: window
-DO: think
-SAY: Look, ${o.name}, I think it's starting to snow.`;
+POSE: none
+MOVE: R_SHOULDER raise 120, R_ELBOW bend 20, R_HAND point, HEAD nod -20, L_HAND fist
+SAY: Look, ${o.name}, a shooting star over the rooftops!`;
   const last = transcript.slice(-6).map(l => `${l.who}: ${l.text}`).join('\n') || '(nobody has spoken yet)';
   const ev = events.filter(e => e.left > 0).map(e => { e.left--; return e.text; }).join(' ');
   for (let i = events.length - 1; i >= 0; i--) if (events[i].left <= 0) events.splice(i, 1);
-  const user = `You are at the ${c.place.label}${c.sitting ? ' (sitting)' : ''}. ${o.name} is at the ${o.place.label}.
+  const user = `You are at the ${c.place.label}${c.seatH ? ' (sitting)' : ''}. ${o.name} is at the ${o.place.label}.
 Recent conversation:
 ${last}
-${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}Your turn, ${c.name}. Answer with the GO, DO and SAY lines.`;
+${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}Your turn, ${c.name}. Answer with the GO, POSE, MOVE and SAY lines.`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
 }
-function cleanSay(s, c, o) {
-  s = (s || '').split('\n').map(x => x.trim()).find(x => x && !/^(go|do)\s*[:\-]/i.test(x)) || '';
-  s = s.replace(new RegExp('^(' + c.name + '|' + o.name + ')\\s*:\\s*', 'i'), '').replace(/^say\s*[:\-]\s*/i, '').replace(/[*_#`]/g, '').replace(/^["'“”]+|["'“”]+$/g, '').trim();
-  if (s.length > 160) { const cut = s.slice(0, 160); const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? ')); s = end > 40 ? cut.slice(0, end + 1) : cut.trim() + '…'; }
-  return s || 'Hmm.';
-}
-function parse(txt, c, o) {
-  const g = (txt.match(/go\s*[:\-]\s*([^\n]*)/i) || [])[1];
-  const d = (txt.match(/do\s*[:\-]\s*([^\n]*)/i) || [])[1] || '';
-  const s = (txt.match(/say\s*[:\-]\s*([\s\S]*)/i) || [])[1];
-  const place = g !== undefined ? findPlace(g) : findPlace(txt);
-  const action = ACTIONS.find(a => d.toLowerCase().includes(a)) || 'none';
-  return { place: place ? place.key : null, action, say: cleanSay(s !== undefined ? s : txt, c, o) };
-}
 async function aiDecide(c, o) {
-  const r = await c.engine.chat.completions.create({ model: c.modelId, messages: buildMsgs(c, o), max_tokens: 80, temperature: 0.85, top_p: 0.9 });
+  const r = await c.engine.chat.completions.create({ model: c.modelId, messages: buildMsgs(c, o), max_tokens: 130, temperature: 0.85, top_p: 0.9 });
   const txt = r.choices?.[0]?.message?.content || '';
-  const p = parse(txt, c, o); p.raw = txt; return p;
+  const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; return p;
 }
 const LINES = [
-  ['Ooh, what does this button do?', 'Do you think the radio knows any new songs?', 'I counted the books. Twice. Different answers!', 'Dance with me, Moss!', 'Is the moon following us?', "What's your favourite sound?", 'I feel extra bouncy tonight.'],
-  ['The fern looks perky today.', 'Mm. Quiet is underrated.', "I'll be by the books if you need me.", "You're very bouncy this evening, Pip.", 'Tea would be nice.', "Clear sky tonight. That's a good sign.", 'Sit for a moment. The room will wait.']
+  ['Ooh, what does this button do?', 'Do you think the radio knows any new songs?', 'I counted the books. Twice. Different answers!', 'Dance with me, Moss!', 'Is the moon following us?', "What's your favourite sound?", 'Look, I can bend all ten fingers!'],
+  ['The fern looks perky today.', 'Mm. Quiet is underrated.', "I'll be by the books if you need me.", "You're very bouncy this evening, Pip.", 'Tea would be nice.', "Clear sky tonight. That's a good sign.", 'Mind your knees. They only bend one way.']
 ];
+const EXTRA = ['HEAD turn 30', 'HEAD tilt -15', 'L_HAND peace', 'R_HAND thumbsup', 'TORSO lean 10', 'L_SHOULDER spread 60', 'R_INDEX curl 0', 'L_WRIST twist 60', 'R_KNEE bend 30', 'HEAD nod -20'];
 function scriptDecide(c, o) {
   const ev = events.find(e => e.left > 0); if (ev) ev.left--;
-  const move = Math.random() < 0.6;
   const others = PLACES.filter(p => p !== c.place);
-  const place = move ? others[(Math.random() * others.length) | 0].key : null;
-  const action = Math.random() < 0.55 ? ACTIONS[(Math.random() * 4) | 0] : 'none';
+  const place = Math.random() < 0.6 ? others[(Math.random() * others.length) | 0].key : null;
+  const pose = Math.random() < 0.6 ? POSE_NAMES[(Math.random() * POSE_NAMES.length) | 0] : null;
+  const moves = []; for (let n = (Math.random() * 3) | 0; n > 0; n--) moves.push(EXTRA[(Math.random() * EXTRA.length) | 0]);
   const line = ev ? `Did you see that, ${o.name}? ${ev.text.replace(/\.$/, '')}!` : LINES[c.i][(Math.random() * LINES[c.i].length) | 0];
-  return { place, action, say: line, scripted: true };
+  return { place, pose, moves, say: line, scripted: true };
 }
 function apply(c, res) {
   const p = res.place ? byKey(res.place) : null;
   res.moved = !!(p && p !== c.place);
-  if (res.moved) { c.place = p; c.target = spot(c, p); c.sitting = false; c.baseY = 0; c.pendingAct = res.action; c.action = 'none'; }
-  else { c.pendingAct = res.action; arrive(c); }
+  const check = neutral(); res.notes = []; res.applied = A(check, (res.moves || []).join(','), res.notes);
+  if (res.moved) { c.place = p; c.target = spot(c, p); c.seatH = 0; c.pose = neutral(); c.anim = null; c.pending = { pose: res.pose, moves: res.moves }; }
+  else { const b = buildPose(c, { pose: res.pose, moves: res.moves }); res.pose = b.name; }
   say(c, res.say);
   transcript.push({ who: c.name, text: res.say }); if (transcript.length > 30) transcript.shift();
   logEntry(c, res);
@@ -396,9 +617,12 @@ function logEntry(c, res) {
   const m = document.createElement('span'); m.className = 'm'; m.textContent = ' · ' + (res.scripted ? 'scripted' : short(c.modelId));
   const p = document.createElement('div'); p.textContent = res.say;
   const a = document.createElement('div'); a.className = 'act';
-  a.textContent = '→ ' + (res.moved ? 'walks to the ' : 'stays at the ') + c.place.label + (res.action !== 'none' ? ' · ' + res.action + 's' : '');
+  a.textContent = '→ ' + (res.moved ? 'walks to the ' : 'at the ') + c.place.label + (res.pose ? ' · ' + res.pose : '');
+  d.append(b, m, p, a);
+  if (res.applied && res.applied.length) { const j = document.createElement('div'); j.className = 'joints'; j.textContent = res.applied.join(' · '); d.append(j); }
+  if (res.notes && res.notes.length) { const n = document.createElement('div'); n.className = 'act'; n.textContent = 'Limited to human range: ' + res.notes.join(', '); d.append(n); }
   if (res.raw) d.title = res.raw;
-  d.append(b, m, p, a); logEl.prepend(d); while (logEl.children.length > 60) logEl.lastChild.remove();
+  logEl.prepend(d); while (logEl.children.length > 60) logEl.lastChild.remove();
 }
 function logNote(text) {
   const d = document.createElement('div'); d.className = 'entry'; const b = document.createElement('b'); b.textContent = '✦ ';
@@ -420,8 +644,8 @@ async function loop() {
     } else { await sleep(500); res = scriptDecide(c, o); }
     thinking(c, false);
     apply(c, res); turn++;
-    const t0 = performance.now(); while (c.target && performance.now() - t0 < 8000) await sleep(100);
-    await sleep(+$('#spd').value);
+    const t0 = performance.now(); while (c.target && performance.now() - t0 < 9000) await sleep(100);
+    await sleep(+$('#spd').value + (c.anim ? 1500 : 0));
   }
   busy = false;
 }
@@ -436,6 +660,7 @@ pauseBtn.onclick = () => {
   toast(running ? 'Resumed' : 'Paused after this turn'); if (running) loop();
 };
 $('#demo').onclick = () => { toast('Scripted demo running, no AI needed'); begin('script'); };
+
 
 /* ---------- WebLLM ---------- */
 let webllm = null;
@@ -500,16 +725,32 @@ goBtn.onclick = async () => {
   toast('Two minds, one room. Here we go!'); begin('ai');
 };
 
-/* ---------- Nudges & personalities ---------- */
+/* ---------- Nudges, personalities, puppet lab ---------- */
 $('#nudge').addEventListener('submit', e => {
   e.preventDefault(); const inp = $('#ev'); const t = inp.value.trim();
   if (!t) { toast('Type something to happen first'); return; }
   events.push({ text: t, left: 2 }); logNote('Event: ' + t); inp.value = '';
-  toast(running ? 'Both characters will notice that' : 'Saved. Press Start so they can react');
+  toast(running ? 'Both robots will notice that' : 'Saved. Press Start so they can react');
 });
 const pA = $('#pA'), pB = $('#pB'); pA.value = chars[0].persona; pB.value = chars[1].persona;
 pA.addEventListener('change', () => { chars[0].persona = pA.value.trim() || DEF_A; store.set('pA', chars[0].persona); toast("Pip's personality updated"); });
 pB.addEventListener('change', () => { chars[1].persona = pB.value.trim() || DEF_B; store.set('pB', chars[1].persona); toast("Moss's personality updated"); });
+
+const ppSel = $('#pp');
+for (const n of ['none', ...POSE_NAMES]) { const op = document.createElement('option'); op.value = n; op.textContent = n; ppSel.append(op); }
+$('#jhelp').textContent = JOINT_HELP + '. Examples: R_SHOULDER raise 90 · L_KNEE bend 60 · R_INDEX2 bend 70 · HAND fist (both hands).';
+$('#lab').addEventListener('submit', e => {
+  e.preventDefault();
+  const c = chars[+$('#pr').value], pose = ppSel.value === 'none' ? null : ppSel.value;
+  const moves = $('#pm').value.split(/[,;\n]/).map(x => x.trim()).filter(Boolean);
+  const notes = [], applied = A(neutral(), moves.join(','), notes);
+  const bad = moves.length - applied.length;
+  if (c.target) c.pending = { pose, moves }; else buildPose(c, { pose, moves });
+  logEntry(c, { say: '(puppet lab)', pose, applied, notes, scripted: true, moved: false });
+  toast(bad > 0 ? `${bad} command${bad > 1 ? 's' : ''} not understood. Check the joint names` : `${c.name} moved${notes.length ? ', some joints were limited to human range' : ''}`);
+  if (running) toast('Tip: pause first, or the next AI turn will change the pose', 4000);
+});
+$('#preset').onclick = () => { const c = chars[+$('#pr').value]; buildPose(c, {}); toast(`${c.name} relaxed`); };
 
 initAI();
 </script>
