@@ -16,13 +16,13 @@ Smart mode lets the robots think with much bigger models than a phone can run: *
 3. Choose **Edit code**. Delete everything in the editor, paste in the whole of `smart-mode.js` from this folder, then choose **Deploy**.
 4. Go back to the Worker's page, open **Settings**, then **Bindings**. Choose **Add binding**, pick **Workers AI**, set the variable name to `AI`, and save.
 5. Copy the Worker's address. It looks like `https://two-minds-smart.YOURNAME.workers.dev`.
-6. In Two Minds, open **Smart mode** (in the settings under the chat), paste the address, set it to **Smart mode on**, and tap **Test**. It should say "Connected".
+6. In Pip and Moss, open **Smart mode** (in the settings under the chat), paste the address, set it to **Smart mode on**, and tap **Test**. It should say "Connected".
 
 That's it. Tap **Start with AI** and the robots will think in the cloud whenever it answers.
 
 ## Who can use your Worker
 
-The Worker only answers requests from the Two Minds web page (`https://swowanders.github.io`) and the Android app. If you host the page somewhere else, add that address to `ALLOWED_ORIGINS` at the top of `smart-mode.js`.
+The Worker only answers requests from the Pip and Moss web page (`https://swowanders.github.io`) and the Android app. If you host the page somewhere else, add that address to `ALLOWED_ORIGINS` at the top of `smart-mode.js`.
 
 Other people could still call it from outside a browser. The worst they could do is use up your free daily allowance; it can't cost money on the Free plan.
 

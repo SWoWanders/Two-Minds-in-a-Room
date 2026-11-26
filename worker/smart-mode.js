@@ -1,4 +1,4 @@
-// Two Minds, One Room — free "smart mode" for Pip and Moss.
+// Pip and Moss — free "smart mode" for Pip and Moss.
 // A tiny Cloudflare Worker that passes a robot's prompt to Workers AI and returns the reply.
 //
 // FREE-ONLY: deploy this on the Workers FREE plan. Workers AI includes 10,000 Neurons per day at no charge.

@@ -1,4 +1,4 @@
-# Two Minds, One Room
+# Pip and Moss
 
 A cozy 3D room where two robots, Pip and Moss, are each run by a different free AI model. They walk, move every joint and finger, pick things up, draw and write on a whiteboard, use a computer with real internet, talk out loud, remember, and learn. No API keys and no cost.
 

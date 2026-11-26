@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Two Minds, One Room</title>
+<title>Pip and Moss</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -105,7 +105,7 @@ window.__diag = { errors: [], t0: Date.now() };
     <div id="bubbles"></div>
     <div class="eyelab" style="left:8px;--c:var(--pip)"><span>Pip's eyes</span></div><div class="eyelab" style="right:8px;--c:var(--moss)"><span>Moss's eyes</span></div>
     <div id="crash" hidden><p id="crashmsg"><b>The 3D view stopped.</b> Chrome's graphics memory ran out, so it restarted its graphics process. I've switched on the memory-saving settings (Lite graphics, one AI mind loaded at a time). Tap Reload. If the room stays empty after reloading, close Chrome completely (swipe it away in recent apps) and open the page again. The robots' memories are safe.</p><button class="primary" id="reload">Reload</button></div>
-    <div id="title">Two Minds, One Room<small>Two free AI models share a cozy little room</small></div>
+    <div id="title">Pip and Moss<small>Two robots, two free AI minds, one cozy little room</small></div>
   </div>
   <aside id="panel">
     <div class="row">
@@ -2786,21 +2786,21 @@ function loadFail(msg) {
 goBtn.onclick = async () => {
   if (cloudReady()) {
     goBtn.disabled = true; status('Checking your smart mode Worker…');
-    try { await cloudCall({ ping: 1 }, 15000); goBtn.disabled = false; status('Smart mode is on: the robots think in the cloud, on your free Worker.'); toast('Two minds, one room. Smart mode is on!'); begin('ai'); return; }
+    try { await cloudCall({ ping: 1 }, 15000); goBtn.disabled = false; status('Smart mode is on: the robots think in the cloud, on your free Worker.'); toast('Pip and Moss are awake. Smart mode is on!'); begin('ai'); return; }
     catch (e) { goBtn.disabled = false; cloudFailed(e); toast("Smart mode didn't answer, so the on-phone minds will be used", 4000); }
   }
   if (aiBackend === 'native') {
     const a = selA.value, b = selB.value;
     if (a === b) { toast('Pick two different models so each robot has its own mind'); return; }
     if (loadedKey !== 'native|' + a + '|' + b && !(await startNative(a, b))) return;
-    toast('Two minds, one room. Here we go!'); begin('ai'); return;
+    toast('Pip and Moss are awake. Here we go!'); begin('ai'); return;
   }
   if (aiBackend === 'cpu') {
     const a = selA.value, b = selB.value;
     if (!a || !b) { toast('Pick a model for each robot'); return; }
     if (a === b) { toast('Pick two different models so each robot has its own mind'); return; }
     if (loadedKey !== 'cpu|' + a + '|' + b && !(await startCPU(a, b))) return;
-    toast('Two minds, one room. Here we go!'); begin('ai'); return;
+    toast('Pip and Moss are awake. Here we go!'); begin('ai'); return;
   }
   const a = selA.value, b = selB.value;
   if (!webllm || !a || !b) { toast("AI models aren't available here. Try the scripted demo."); return; }
@@ -2855,7 +2855,7 @@ goBtn.onclick = async () => {
     goBtn.disabled = selA.disabled = selB.disabled = false; progEl.style.display = 'none';
     status(aiMode === 'saver' ? 'Both minds downloaded. Memory saver is on, so each mind wakes up for its turn (a few seconds each).' : 'Both minds loaded. Drag the scene to look around.'); toast('Both minds ready!');
   }
-  toast('Two minds, one room. Here we go!'); begin('ai');
+  toast('Pip and Moss are awake. Here we go!'); begin('ai');
 };
 
 /* ---------- Nudges, personalities, puppet lab ---------- */
@@ -2944,7 +2944,7 @@ $('#kclear').onclick = () => {
 };
 $('#mexport').onclick = () => {
   const data = JSON.stringify({ app: 'two-minds-one-room', saved: new Date().toISOString(), visitorName, minds: Object.fromEntries(chars.map(c => [c.name, stripTok(c.mind)])) }, null, 1);
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = `two-minds-memories-${today()}.json`;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = `pip-and-moss-memories-${today()}.json`;
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('Memories exported');
 };
 $('#mimportBtn').onclick = () => $('#mimport').click();
