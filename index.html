@@ -117,7 +117,6 @@ window.__diag = { errors: [], t0: Date.now() };
     </div>
     <div class="btns">
       <button class="primary" id="go" disabled>Start with AI</button>
-      <button id="demo">Scripted demo</button>
       <button id="pause" disabled>Pause</button>
     </div>
     <div id="prog"><i></i></div>
@@ -4314,7 +4313,7 @@ async function recoverAI(e) {
     toast(`Switched the minds to the ${DEV}'s processor`, 5000);
     await initAI(); goBtn.onclick(); return;
   }
-  status(`The minds stopped working twice in a row: ${why}. Tap Resume to try again. If it keeps happening, pick smaller models above, or use the scripted demo.`);
+  status(`The minds stopped working twice in a row: ${why}. Tap Resume to try again. If it keeps happening, pick smaller models above.`);
   toast('AI stopped. The reason is under the buttons', 6000);
 }
 /* ---------- Curiosity, plans and fresh words (runtime) ---------- */
@@ -4554,7 +4553,7 @@ async function loop() {
 function begin(m) {
   mode = m; running = true; pauseBtn.disabled = false; pauseBtn.textContent = 'Pause';
   const cl = m === 'ai' && cloudReady();
-  for (const c of chars) c.tag.textContent = c.name + ' · ' + (m !== 'ai' ? 'scripted' : cl ? 'smart mode' : short(c.modelId));
+  for (const c of chars) c.tag.textContent = c.name;
   logNote(m !== 'ai' ? 'Scripted demo (no AI)' : cl ? `Smart mode: Pip and Moss think in the cloud on your free Worker${chars[0].engine ? `, with ${short(chars[0].modelId)} and ${short(chars[1].modelId)} on the phone as backup` : '. If it stops, their on-device minds load as a backup'}` : `AI mode: Pip runs ${short(chars[0].modelId)}, Moss runs ${short(chars[1].modelId)}`);
   loop();
 }
@@ -4562,7 +4561,6 @@ pauseBtn.onclick = () => {
   running = !running; pauseBtn.textContent = running ? 'Pause' : 'Resume';
   toast(running ? 'Resumed' : 'Paused after this turn'); if (running) loop();
 };
-$('#demo').onclick = () => { toast('Scripted demo running, no AI needed'); begin('script'); };
 
 
 /* ---------- Typewriter and project board ---------- */
@@ -5575,7 +5573,7 @@ async function cloudDecide(c, o) {
   c.cloudModel = j.model || 'cloud';
   window.__addDiag && window.__addDiag(`${c.name} thought in the cloud (${c.cloudModel}) in ${Math.round((performance.now() - t0) / 100) / 10} s`);
   if (cloudNote) { cloudNote = ''; logNote('Smart mode is back: the robots are thinking in the cloud again'); }
-  c.tag.textContent = `${c.name} · ${c.cloudModel} (smart mode)`;
+  c.tag.textContent = c.name;
   const p = parseReply(txt, c.name, o.name, findPlace); p.raw = txt; p.prompt = msgs; if (!p.pose) p.skill = findSkill(c, p.poseRaw);
   return withIntent(c, o, p);
 }
@@ -5598,7 +5596,7 @@ async function ensureLocal() {
   if (!localLoading) localLoading = (async () => {
     const was = running; toast('Loading the on-device minds as a backup…', 4000);
     const ok = aiBackend === 'native' ? await startNative(selA.value, selB.value) : await startCPU(selA.value, selB.value);
-    running = was; if (ok) for (const c of chars) c.tag.textContent = c.name + ' · ' + short(c.modelId);
+    running = was;
     return ok;
   })().finally(() => { localLoading = null; });
   return localLoading;
@@ -5849,7 +5847,7 @@ goBtn.onclick = async () => {
     toast('Pip and Moss are awake. Here we go!'); begin('ai'); return;
   }
   const a = selA.value, b = selB.value;
-  if (!webllm || !a || !b) { toast("AI models aren't available here. Try the scripted demo."); return; }
+  if (!webllm || !a || !b) { toast("AI models aren't available here. Pick This device's processor under Settings."); return; }
   if (a === b) { toast('Pick two different models so each robot has its own mind'); return; }
   store.set('mA', a); store.set('mB', b);
   if (loadedKey !== a + '|' + b + '|' + aiMode) {
