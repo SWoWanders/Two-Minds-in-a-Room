@@ -1859,7 +1859,7 @@ function planWords(p, other) {
   if (p.board) { const b = p.board; w.push(b.verb === 'write' ? `write "${b.text}" on the whiteboard` : b.verb === 'erase' ? 'wipe the whiteboard' : `${b.verb === 'sketch' ? 'sketch' : 'draw'} ${b.text || 'something'} on the whiteboard`); }
   if (p.make) w.push(p.make.glue ? `super-glue the ${p.make.glue.b} ${p.make.glue.place === 'on' ? 'onto' : p.make.glue.place} the ${p.make.glue.a}` : `design and 3D print ${p.make.idea}`);
   if (p.study) w.push(`study${p.study.id ? ' book ' + p.study.id : ''} at the bookshelf`);
-  if (p.music) w.push(`play ${p.music.chords.join(' ')} on the Melody Console${p.music.style ? ' as ' + p.music.style : ''}`);
+  if (p.music) w.push(p.music.radio ? (p.music.radio === 'off' ? 'turn the radio off' : `turn on the radio${p.music.station ? ' to station ' + p.music.station : ''}`) : `play ${(p.music.chords || []).join(' ')} on the Melody Console${p.music.style ? ' as ' + p.music.style : ''}`);
   if (p.project) w.push(p.project.verb === 'start' ? `start a new ${p.project.kind} about ${p.project.brief || 'something'} at the typewriter` : p.project.verb === 'review' ? `read project #${p.project.id} on the project board and give a note` : `type the next page of project #${p.project.id} at the typewriter`);
   if (p.computer) w.push(p.computer.cmd === 'onthisday' ? 'check what happened on this day on the computer' : `look up ${p.computer.cmd === 'search' ? '' : p.computer.cmd + ' '}${p.computer.arg} on the computer`);
   return w.length ? w.join(', then ') : 'stay where you are';
@@ -1957,7 +1957,7 @@ const KIND_WORDS = /\b(thank|thanks|love|great|nice|beautiful|well done|good job
 const RUDE_WORDS = /\b(stupid|annoying|shut up|boring|hate you|go away|dumb|idiot|ugly|leave me alone)\b/i;
 const bondDelta = text => (KIND_WORDS.test(text) ? 1 : 0) - (RUDE_WORDS.test(text) ? 2 : 0);
 function bondLabel(score) { return score >= 10 ? 'very close to' : score >= 4 ? 'friendly with' : score >= -2 ? 'still getting to know' : 'wary of'; }
-function blankMind() { return { v: MIND_VER, day: 1, lastDate: '', lastSeen: 0, turns: 0, nextId: 1, mem: [], facts: [], skills: [], acts: {}, bonds: {}, enjoys: {}, impSince: 0, know: [], examples: [], liked: [], fixes: 0 }; }
+function blankMind() { return { v: MIND_VER, day: 1, lastDate: '', lastSeen: 0, turns: 0, nextId: 1, mem: [], facts: [], skills: [], acts: {}, bonds: {}, enjoys: {}, impSince: 0, know: [], examples: [], liked: [], fixes: 0, explore: {}, agenda: [], said: [], idea: null }; }
 // accept saved data (current or older format) and return a clean, bounded mind
 function cleanMind(m) {
   const b = blankMind(); if (!m || typeof m !== 'object') return b;
@@ -1981,6 +1981,10 @@ function cleanMind(m) {
   for (const [k, v] of Object.entries(m.bonds && typeof m.bonds === 'object' ? m.bonds : {}).slice(0, 6)) b.bonds[String(k).slice(0, 20)] = Math.max(-20, Math.min(30, num(v, 0)));
   for (const [k, v] of Object.entries(m.enjoys && typeof m.enjoys === 'object' ? m.enjoys : {}).slice(0, 40)) b.enjoys[String(k).slice(0, 30)] = Math.max(-20, Math.min(50, num(v, 0)));
   b.know = cleanKnow(m.know);
+  for (const [k, v] of Object.entries(m.explore && typeof m.explore === 'object' ? m.explore : {})) if (ROOM_THINGS.some(t => t.id === k)) b.explore[k] = { n: num(v && v.n, 1) | 0, last: num(v && v.last, 0) | 0, first: num(v && v.first, 0) };
+  b.agenda = (Array.isArray(m.agenda) ? m.agenda : []).filter(x => x && ROOM_THINGS.some(t => t.id === x.thing)).slice(0, 6).map(x => ({ thing: x.thing, goal: String(x.goal || '').slice(0, 80) }));
+  b.said = (Array.isArray(m.said) ? m.said : []).map(x => String(x).slice(0, 200)).slice(-40);
+  b.idea = m.idea ? String(m.idea).slice(0, 80) : null;
   b.examples = (Array.isArray(m.examples) ? m.examples : []).filter(e => e && e.x && e.reply).slice(-30).map(e => ({ x: String(e.x).slice(0, 400), reply: String(e.reply).slice(0, 700), conf: 5, t: num(e.t, 0), uses: 0 }));
   b.liked = (Array.isArray(m.liked) ? m.liked : []).filter(e => e && e.x).slice(-12).map(e => ({ kind: String(e.kind || 'story').slice(0, 20), x: String(e.x).slice(0, 600), t: num(e.t, 0) }));
   b.fixes = Math.max(0, num(m.fixes, 0) | 0);
@@ -2541,6 +2545,86 @@ function parseReply(txt, myName, otherName, placeFinder) {
   if (say.length > 160) { const cut = say.slice(0, 160); const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? ')); say = end > 40 ? cut.slice(0, end + 1) : cut.trim() + '…'; }
   return { place: place ? place.key : null, pose, poseRaw: p || '', moves, computer: parseComputer(line('COMPUTER')), hands: parseHands(line('HANDS'), [myName, otherName]), board: parseBoard(line('BOARD')), project: parseProject(line('PROJECT')), music: parseMusic(line('MUSIC')), study: parseStudy(line('STUDY')), make: parseMake(line('MAKE')), say: say || 'Hmm.' };
 }
+/* ---------- Character: curiosity about the room, planning ahead, clear speech that doesn't go round in circles ---------- */
+const TRAITS = 'You are curious about everything in your room and eager to learn how to use each thing in it. You speak clearly and directly to the visitor and to your roommate, and you only say things out loud that your character would say. You plan ahead, study, design, invent and create, and you put what you have learned to use. You never say the same thing more than twice; you find something new to say or do.';
+// everything in the room a robot can use, with what it is for
+const ROOM_THINGS = [
+  { id: 'radio', name: 'the radio', how: 'MUSIC: radio on 1-5 tunes one of its five stations; radio off turns it off', guide: 'The radio has five stations of gentle music (tiki, moon, Expo, jazz and carnival). I can turn it on, tune it to a station, change station or turn it off.' },
+  { id: 'printer', name: 'the 3D printer', how: 'MAKE: design a THING, and the printer makes it', guide: 'The 3D printer prints what I design, in plastic, conductive metal or rubber: shapes, gears, wheels, motors, servos, lights, buttons, sensors and chips. I sketch the idea on the whiteboard, refine it on the computer, then it prints. Batteries from the cupboard power what I make.' },
+  { id: 'console', name: 'the Melody Console', how: 'MUSIC: play CHORDS in a STYLE on a DISC', guide: 'The Melody Console is an organ with a strum plate, seven chord buttons, rhythm backings and sound discs. I play chords as Roman numerals (like I IV V I), pick a style (bossa, swing, tango…) and a disc (organ, vibes, harpsichord…).' },
+  { id: 'shelf', name: 'the study shelf', how: 'STUDY: book NUMBER reads its next chapter', guide: 'The study shelf holds research books. Each time I study I read a chapter, and what I read goes into my knowledge library so I can use it later.' },
+  { id: 'typewriter', name: 'the typewriter', how: 'PROJECT: start a KIND about TOPIC, or write NUMBER', guide: 'At the typewriter I can start a story, poem, song, letter, play or notes, and type the next page of any project on the board. The project board shows everything we are making.' },
+  { id: 'whiteboard', name: 'the whiteboard', how: 'BOARD: draw, sketch or write "TEXT"', guide: 'The whiteboard is for showing ideas: I can doodle, sketch freehand, write words and plans, and erase. The markers are in the tray.' },
+  { id: 'computer', name: 'the computer', how: 'COMPUTER: search TOPIC, books TOPIC, archive TOPIC, weather CITY, onthisday', guide: 'The computer has real internet: I can search Wikipedia, find books, look in the Internet Archive, check the weather and see what happened on this day.' },
+  { id: 'glue', name: 'the super glue', how: 'MAKE: glue THING onto OTHER THING', guide: 'The super glue on the workbench joins two printed things into one, and they keep their wiring and circuits.' },
+  { id: 'things', name: 'the things you can pick up', how: 'HANDS: grab, give, toss or put the mug, ball, blue book or box', guide: 'I can pick up the mug, the ball, the blue book, the box and the markers, hand them over, toss them or put them down.' }
+];
+const thingName = id => (ROOM_THINGS.find(t => t.id === id) || { name: id }).name;
+// which room thing a decided turn uses (null if it just talks and moves)
+function activityOf(r) {
+  if (!r) return null;
+  if (r.make) return r.make.glue ? 'glue' : 'printer';
+  if (r.music) return r.music.radio ? 'radio' : 'console';
+  if (r.study) return 'shelf'; if (r.project) return 'typewriter'; if (r.board) return 'whiteboard'; if (r.computer) return 'computer'; if (r.hands) return 'things';
+  return null;
+}
+const STOP_W = new Set('the a an and or but of to in on at for with is are was were be been it its it\'s this that these those i you we they he she me my your our us them what who how why when where there here so just very really do does did not no yes oh ah hmm well like can could would should will shall have has had about from into out up down over all any some one two too more most much many as if than then also let let\'s lets im i\'m youre you\'re dont don\'t isnt isn\'t thats that\'s whats what\'s go going get got see look think know want said say tell'.split(' '));
+const wordsOf = s => String(s || '').toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').split(/\s+/).filter(w => w.length > 2 && !STOP_W.has(w));
+// how alike two lines are (0..1): shared meaningful words, or the same words in the same order
+function lineSim(a, b) {
+  const na = String(a || '').toLowerCase().replace(/[^a-z0-9 ]+/g, '').replace(/\s+/g, ' ').trim(), nb = String(b || '').toLowerCase().replace(/[^a-z0-9 ]+/g, '').replace(/\s+/g, ' ').trim();
+  if (!na || !nb) return 0; if (na === nb) return 1;
+  const A = new Set(wordsOf(a)), B = new Set(wordsOf(b)); if (!A.size || !B.size) return 0;
+  let n = 0; for (const w of A) if (B.has(w)) n++;
+  return n / Math.min(A.size + B.size - n, Math.max(A.size, B.size) + 2);
+}
+const timesSaid = (line, said) => (said || []).filter(x => lineSim(line, x) >= .6).length;
+// words a robot keeps coming back to in its recent lines (a topic it's stuck on)
+function fixations(said, names = []) {
+  const recent = (said || []).slice(-8), cnt = {}, skip = new Set(names.map(n => n.toLowerCase()));
+  for (const l of recent) for (const w of new Set(wordsOf(l))) if (!skip.has(w) && w.length > 3) cnt[w] = (cnt[w] || 0) + 1;
+  return Object.entries(cnt).filter(([, n]) => n >= Math.max(3, Math.ceil(recent.length * .4))).sort((a, b) => b[1] - a[1]).map(([w]) => w).slice(0, 3);
+}
+const asksRepeat = t => /\b(repeat|say (that|it) again|what did you (just )?say|pardon\??|come again|didn'?t (hear|catch)|one more time)\b/i.test(String(t || ''));
+// what a robot speaks must be in-character words: no stage directions, format leftovers or talk about being a model
+function cleanSay(s) {
+  let t = String(s || '').replace(/\*[^*]{1,80}\*/g, ' ').replace(/\([^)]{1,80}\)/g, ' ').replace(/\[[^\]]{1,80}\]/g, ' ').replace(/\b(GO|POSE|MOVE|HANDS|BOARD|COMPUTER|PROJECT|MUSIC|STUDY|MAKE|SAY)\s*:.*$/i, ' ').replace(/\s+/g, ' ').trim();
+  if (/\b(as an ai|language model|i am an ai|this format|the prompt|my instructions|the user|assistant)\b/i.test(t) || !/[a-z]/i.test(t) || t.length < 2) return '';
+  return t;
+}
+// how stuck a robot is: its own last turns, newest last ({ act, place })
+function staleness(hist) {
+  const h = hist || [], last = h[h.length - 1] || {};
+  let idle = 0, samePlace = 0, sameAct = 0;
+  for (let i = h.length - 1; i >= 0 && !h[i].act; i--) idle++;
+  for (let i = h.length - 1; i >= 0 && h[i].place === last.place; i--) samePlace++;
+  for (let i = h.length - 1; i >= 0 && last.act && h[i].act === last.act; i--) sameAct++;
+  return { idle, samePlace, sameAct };
+}
+// the next thing to try: never-tried things first, then whatever has been left alone longest (not what was just used)
+function pickThing(explore, recent, turn, avail, rnd = Math.random) {
+  const ids = ROOM_THINGS.map(t => t.id).filter(id => (!avail || avail.includes(id)) && !(recent || []).includes(id));
+  if (!ids.length) return null;
+  const never = ids.filter(id => !(explore && explore[id]));
+  if (never.length) return never[Math.floor(rnd() * Math.min(2, never.length))];
+  const by = ids.map(id => ({ id, age: turn - (explore[id].last || 0) + rnd() * 3, n: explore[id].n || 0 })).sort((a, b) => (b.age - b.n * .3) - (a.age - a.n * .3));
+  return by[0].id;
+}
+// a short plan of the next few things to do, chained so one leads to the next (study → sketch → build, and so on)
+const PLAN_CHAINS = [
+  { goal: 'invent something new', steps: ['shelf', 'whiteboard', 'printer'] },
+  { goal: 'make some music', steps: ['shelf', 'console', 'radio'] },
+  { goal: 'write something', steps: ['computer', 'typewriter'] },
+  { goal: 'improve something we made', steps: ['printer', 'glue'] },
+  { goal: 'share an idea', steps: ['computer', 'whiteboard'] }
+];
+function makeAgenda(explore, turn, avail, rnd = Math.random) {
+  const never = ROOM_THINGS.map(t => t.id).filter(id => (!avail || avail.includes(id)) && !(explore && explore[id]) && id !== 'things');
+  if (never.length) return never.slice(0, 3).map(id => ({ thing: id, goal: `find out how ${thingName(id)} works` }));
+  const chains = PLAN_CHAINS.filter(ch => ch.steps.every(s => !avail || avail.includes(s)));
+  const ch = chains[Math.floor(rnd() * chains.length)] || PLAN_CHAINS[0];
+  return ch.steps.map(s => ({ thing: s, goal: ch.goal }));
+}
 /*PURE-END*/
 
 /* ---------- Robots ---------- */
@@ -2691,8 +2775,8 @@ function learnKnow(c, x, src, conf) {
 function exampleBlock(c, query, plan) {
   const ex = c.mind.examples; if (!ex.length) return '';
   const e = recallKnow(ex, query, 1)[0] || ex[ex.length - 1];
-  let r = e.reply; if (plan) r = r.split('\n').filter(l => !/^\s*SAY\s*:/i.test(l)).join('\n');
-  return `One of your past turns that the visitor loved (learn from it, don't repeat it):\n${r}\n`;
+  const r = e.reply.split('\n').filter(l => !/^\s*SAY\s*:/i.test(l)).join('\n');
+  return `One of your past plans that the visitor loved (learn from it, don't copy it):\n${r}\n`;
 }
 const likedLines = c => c.mind.examples.slice(-3).map(e => (e.reply.match(/SAY\s*:\s*(.+)/i) || [])[1]).filter(Boolean).map(x => `"${trimTxt(x, 120)}"`).join(', ');
 // liked turns, with the exact prompt, saved for anyone who later wants to fine-tune a model on them
@@ -2848,6 +2932,7 @@ function renderMem() {
   const c = chars[+($('#mwho') ? $('#mwho').value : 0)], md = c.mind, f = $('#mfilter') ? $('#mfilter').value : 'all';
   const q = ($('#msearch') ? $('#msearch').value : '').trim().toLowerCase();
   st.textContent = mindsReady ? `${c.name} remembers ${md.mem.length} things over ${md.day} day${md.day === 1 ? '' : 's'} · ${md.mem.filter(m => m.k === 'reflection').length} insights · ${md.facts.length} facts · ${md.skills.length} learned moves · ${bondLabel(md.bonds.visitor || 0)} you, ${bondLabel(md.bonds[chars[1 - c.i].name] || 0)} ${chars[1 - c.i].name}.` : 'Loading memories…';
+  if (mindsReady && md.explore) { const tried = ROOM_THINGS.filter(t => md.explore[t.id]), nt = ROOM_THINGS.filter(t => !md.explore[t.id]); st.textContent += ` · Explored ${tried.length} of ${ROOM_THINGS.length} things in the room${nt.length ? ` (not yet: ${nt.map(t => t.name.replace(/^the /, '')).join(', ')})` : ''}${(md.agenda || []).length ? ` · Plan: ${md.agenda.slice(0, 3).map(x => thingName(x.thing).replace(/^the /, '')).join(' → ')}` : ''}`; }
   ul.innerHTML = '';
   const li = (text, meta, btns = []) => { const e = document.createElement('li'); const p = document.createElement('div'); p.textContent = text; e.append(p); if (meta) { const m = document.createElement('div'); m.className = 'meta'; m.textContent = meta; e.append(m); } if (btns.length) { const b = document.createElement('div'); b.className = 'mbtns'; b.append(...btns); e.append(b); } ul.append(e); };
   const btn = (label, fn, aria) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (aria) b.setAttribute('aria-label', aria); b.onclick = fn; return b; };
@@ -3848,7 +3933,7 @@ const transcript = [], events = [];
 const short = id => { const cm = typeof CPU_MODELS !== 'undefined' && CPU_MODELS.find(m => m.id === id); return cm ? cm.name : (id || '').replace(/-q\d.*$/i, '').replace(/-MLC$/i, ''); };
 const JOINT_HELP = `HEAD nod/turn/tilt; TORSO bend/lean/twist; SHOULDER raise 0-180, spread 0-180, twist; ELBOW bend 0-145; WRIST flex/tilt/twist; HIP raise -20-125, spread, twist; KNEE bend 0-140; ANKLE flex/tilt; HAND fist/open/point/thumbsup/peace/grab; THUMB/INDEX/MIDDLE/RING/PINKY curl 0-90 or spread`;
 function buildMsgs(c, o, opt = {}) {
-  const sys = `You are ${c.name}, ${c.persona}. You are a humanoid robot with a full human body: head, neck, torso, two arms with shoulders, elbows, wrists and five-fingered hands, two legs with hips, knees and ankles. You share a cozy room with ${o.name}, another robot. You have working eyes: each turn you are told what you can actually see from where you stand and which way you face, and what you can hear. React to what you see, including ${o.name}'s body language. ${opt.plan ? `Each turn you first plan what to do: where to go, how to move your body, and what to do with your hands, the whiteboard and the computer. Then you will be asked what to say.
+  const sys = `You are ${c.name}, ${c.persona}. ${TRAITS} You are a humanoid robot with a full human body: head, neck, torso, two arms with shoulders, elbows, wrists and five-fingered hands, two legs with hips, knees and ankles. You share a cozy room with ${o.name}, another robot. You have working eyes: each turn you are told what you can actually see from where you stand and which way you face, and what you can hear. React to what you see, including ${o.name}'s body language. ${opt.plan ? `Each turn you first plan what to do: where to go, how to move your body, and what to do with your hands, the whiteboard and the computer. Then you will be asked what to say.
 Write your plan in exactly this format and nothing else:` : `Each turn choose where to go, how to move your body, and say ONE short sentence (under 20 words) to ${o.name}.
 Reply in exactly this format and nothing else:`}
 GO: <place or stay>
@@ -3888,15 +3973,15 @@ MAKE: none${opt.plan ? '' : `\nSAY: Look, ${o.name}, a shooting star over the ro
   const user = `${memoryBlock(c, o, (c.lastSeen || '') + ' ' + transcript.slice(-4).map(l => l.text).join(' ') + ' ' + events.map(e => e.text).join(' '))}${c.lastSeen || perceive(c, o)}
 ${projectLines(c)}${quoteLine()}${shelfLines(c)}${exampleBlock(c, (c.lastSeen || '') + ' ' + transcript.slice(-3).map(l => l.text).join(' '), opt.plan)}Recent conversation:
 ${last}
-${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER, PROJECT, MUSIC, STUDY, MAKE${opt.plan ? ' lines. You will say something next.' : ' and SAY lines.'}`;
+${ev ? 'Something just happened in the room: ' + ev + '\n' : ''}${driveLine(c, o)}${visitorLine(c)}Your turn, ${c.name}. ${transcript.slice(-8).some(l => l.who === 'Computer') ? '' : 'You could look something up on the computer. '}Answer with the GO, POSE, MOVE, HANDS, BOARD, COMPUTER, PROJECT, MUSIC, STUDY, MAKE${opt.plan ? ' lines. You will say something next.' : ' and SAY lines.'}`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
 }
 function buildMsgsLite(c, o) {
-  const sys = `You are ${c.name}, ${c.persona}. You are a robot in a cozy room with ${o.name}, another robot. Reply with exactly these lines:
+  const sys = `You are ${c.name}, ${c.persona}. ${TRAITS} You are a robot in a cozy room with ${o.name}, another robot. Reply with exactly these lines:
 GO: <place or stay>
 POSE: <pose or none>
 SAY: <one short sentence to ${o.name} or the visitor>
-You may add one extra line: BOARD: draw <thing> or write "<words>" | HANDS: grab <thing>, give <thing> to ${o.name}, toss <thing> to ${o.name} or put <thing> on <place> | COMPUTER: search <topic> or weather <city> | MUSIC: play I IV V I or radio on 2
+You may add one extra line to use something in the room: BOARD: draw <thing> or write "<words>" | HANDS: grab <thing>, give <thing> to ${o.name}, toss <thing> to ${o.name} or put <thing> on <place> | COMPUTER: search <topic> | MUSIC: play I IV V I in bossa on vibes, or radio on 1-5, or radio off | STUDY: book <number> | MAKE: design a <thing> | PROJECT: start a poem about <topic>
 Places: ${PLACES.map(p => p.key).join(', ')}.
 Poses: wave, dance, sit, point, think, cheer, bow, shrug, clap, nod, jump${skillList(c)}.
 Things: mug, ball, blue book, box, eraser, markers.
@@ -3910,7 +3995,7 @@ SAY: Look, ${o.name}, the moon is out!`;
   const user = `${memoryBlock(c, o, (c.lastSeen || '') + ' ' + transcript.slice(-4).map(l => l.text).join(' ') + ' ' + ev)}${trimTxt(c.lastSeen || '', 450)}
 ${trimTxt(projectLines(c), 240)}Recent:
 ${last}
-${ev ? 'Just happened: ' + ev + '\n' : ''}${visitorLine(c)}Your turn, ${c.name}.`;
+${ev ? 'Just happened: ' + ev + '\n' : ''}${trimTxt(driveLine(c, o), 600)}${visitorLine(c)}Your turn, ${c.name}.`;
   return [{ role: 'system', content: sys }, { role: 'user', content: user }];
 }
 /* ---------- Chat with the visitor ---------- */
@@ -3942,6 +4027,7 @@ function chatAdd(kind, who, text, color, to) {
   log.scrollTop = log.scrollHeight;
 }
 async function aiDecide(c, o) {
+  try { decideDrive(c, o); } catch (e) { console.warn(e); c.drive = null; }
   if (cloudReady() && (store.get('cloudRoute', 'all') === 'all' || !c.engine || hardTurn(c))) {
     try { return await cloudDecide(c, o); }
     catch (e) { if (!e.cloud) throw e; cloudFailed(e); }
@@ -3975,7 +4061,7 @@ async function twoStep(c, o) {
   if (!p.pose) p.skill = findSkill(c, p.poseRaw);
   const asked = pendingFor(c).slice(-1)[0];
   const who = asked ? (visitorName || 'the visitor') : o.name;
-  const msgs2 = [...msgs, { role: 'assistant', content: plan }, { role: 'user', content: `Now say ONE short sentence (under 20 words) as ${c.name} to ${who}${asked ? `, answering what they said: "${trimTxt(asked.text, 160)}"` : ''}. You are about to ${planWords(p, o.name)}. ${likedLines(c) ? ` Lines of yours the visitor loved: ${likedLines(c)}.` : ''} Reply as: SAY: <sentence>` }];
+  const msgs2 = [...msgs, { role: 'assistant', content: plan }, { role: 'user', content: `Now say ONE short, clear sentence (under 20 words) out loud, in character as ${c.name}, to ${who}${asked ? `, answering what they said: "${trimTxt(asked.text, 160)}"` : ''}. You are about to ${planWords(c.drive && !activityOf(p) ? { ...p, ...c.drive.res } : p, o.name)}. Say something new, not something you've said before. Reply as: SAY: <sentence>` }];
   let sayTxt = '';
   try { const r2 = await withMind(c, () => c.engine.chat.completions.create({ messages: msgs2, max_tokens: 60, temperature: 0.85, top_p: 0.9, grammar: SAY_GRAMMAR })); sayTxt = r2.choices?.[0]?.message?.content || ''; }
   catch (e) { window.__addDiag && window.__addDiag(`${c.name} couldn't find words: ${e.message || e}`); }
@@ -4209,6 +4295,152 @@ async function recoverAI(e) {
   status(`The minds stopped working twice in a row: ${why}. Tap Resume to try again. If it keeps happening, pick smaller models above, or use the scripted demo.`);
   toast('AI stopped. The reason is under the buttons', 6000);
 }
+/* ---------- Curiosity, plans and fresh words (runtime) ---------- */
+const avail = () => ROOM_THINGS.map(t => t.id).filter(id => (id !== 'glue' || makes.length >= 2) && (id !== 'shelf' || library.length));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const INTERESTS = [['theremins', 'tiki music', 'the moon landing', 'robots in old films', 'kites', 'Expo 67', 'drum machines'], ['ferns', 'green tea', 'old libraries', 'moss gardens', 'the night sky', 'Ottawa history', 'bonsai']];
+// something to think about: what it has read lately, or one of its own interests
+function recentTopic(c) {
+  const k = c.mind.know.slice(-30).filter(x => !/^(room|made|taught by|heard from|from)\b/i.test(String(x.src || ''))).map(x => String(x.src || '').replace(/^(book|computer|search):\s*/i, '').split(' · ').pop()).filter(x => x && x.length > 2 && x.length < 50 && !/^(you|visitor|chat)/i.test(x));
+  return k.length && Math.random() < .6 ? pick(k) : pick(INTERESTS[c.i]);
+}
+function newIdea(c) {
+  const h = circuitSkills(c.mind.know);
+  if (h.has('chips') && h.has('gates') && Math.random() < .5) return pick(['a doorbell for our door', 'a motion alarm for the window', 'a clap lamp', 'a night light that comes on when it is quiet', 'a two key safe light']);
+  return Math.random() < .35 ? `something inspired by ${recentTopic(c)}` : pick(['a windmill for the windowsill', 'a little rolling cart', 'a lamp for the reading corner', 'a desk fan', 'a music box', 'a lighthouse night light', 'a tiny crane for lifting books', 'a robot pet', 'a plant stand with a crank']);
+}
+// a concrete way to use one thing in the room, with words for it
+function actFor(c, o, id, goal) {
+  const first = !(c.mind.explore || {})[id], lead = first ? pick(["I've never tried", "I want to find out how to use", "I'm curious about"]) : '';
+  switch (id) {
+    case 'radio': {
+      if (radio.on && Math.random() < .3) return { res: { music: { radio: 'off' } }, words: 'turn the radio off for a while', say: pick([`Let's have some quiet, ${o.name}. I'll switch the radio off.`, 'I think the radio deserves a rest.']) };
+      const n = 1 + (((radio.on ? radio.st : -1) + 1 + Math.floor(Math.random() * 4)) % 5), nm = RADIO_NAMES[n - 1];
+      return { res: { music: { radio: 'on', station: n } }, words: `turn on the radio and tune it to station ${n}, the ${nm} station`, say: first ? `${lead} the radio. Let's hear the ${nm} station!` : pick([`How about the ${nm} station, ${o.name}?`, `I'm tuning the radio to ${nm}. Tell me if you like it.`, `Station ${n}! Let's see what's playing.`]) };
+    }
+    case 'console': {
+      const prog = pick(['I IV V I', 'I VI IV V', 'II V I I', 'I V VI IV', 'VI IV I V', 'I III IV IV']), sty = pick(MUSIC_STYLES.slice(1)), disc = pick(MUSIC_DISCS), m = parseMusic(`play ${prog} in ${sty} on ${disc}`);
+      return m && { res: { music: m }, words: `play ${prog} on the Melody Console, ${sty} rhythm on the ${disc} disc`, say: first ? `${lead} the Melody Console. Here goes: ${prog} on the ${disc} disc!` : pick([`I've got a ${sty} idea, ${o.name}. Listen!`, `Let me try ${prog} on the ${disc} disc.`, `What would ${prog} sound like as a ${sty}? Let's find out.`]) };
+    }
+    case 'shelf': {
+      const want = /invent/.test(goal || '') ? /creativ|invent|logic|circuit|machine|printing|how things/i : /music/.test(goal || '') ? /music|song|melod|chord|harmon/i : null;
+      const open = library.filter(b => (b.read[c.name] || 0) < chaptersOf(b).length), b = (want && open.find(x => want.test(x.title))) || pick(open.length ? open : library);
+      return b && { res: { study: { id: b.id } }, words: `study the next chapter of "${b.title}"${goal ? ' to ' + goal : ''}`, say: first ? `${lead} the study shelf. I'll start with ${b.title}.` : pick([`I'm going to read some ${b.title}. I want to understand it better.`, `Time to study, ${o.name}. ${b.title} is calling me.`, `I'll read a chapter of ${b.title}, then tell you what I learn.`]) };
+    }
+    case 'typewriter': {
+      const w = dueWork(projects, c.name);
+      if (w) { const pr = projects.find(x => x.id === w.id); return { res: { project: w }, words: `${w.verb} the next page of "${pr ? pr.title : 'our project'}" at the typewriter`, say: pick([`I have an idea for the next page of ${pr ? pr.title : 'our project'}.`, `Back to the typewriter, ${o.name}. ${pr ? pr.title : 'Our project'} needs me.`]) }; }
+      const kind = pick(['poem', 'story', 'song', 'letter', 'notes']), topic = recentTopic(c);
+      return { res: { project: { verb: 'start', kind, brief: topic } }, words: `start a ${kind} about ${topic} at the typewriter`, say: first ? `${lead} the typewriter. I'll write a ${kind} about ${topic}.` : pick([`I want to write a ${kind} about ${topic}.`, `${o.name}, I'm starting a ${kind}. It's about ${topic}.`]) };
+    }
+    case 'whiteboard': {
+      if (/invent/.test(goal || '')) { const idea = c.mind.idea || (c.mind.idea = newIdea(c)); return { res: { board: { verb: 'write', text: trimTxt('Idea: ' + idea, 58), color: null, pos: null } }, words: `write your invention idea, ${idea}, on the whiteboard to plan it`, say: pick([`I'm putting my idea on the board: ${idea}. Then I'll build it.`, `Plan first, ${o.name}: ${idea}. I'll sketch it out.`]) }; }
+      const d = pick(DOODLE_NAMES); return { res: { board: { verb: 'draw', text: d, color: pick(COLOURS), pos: null } }, words: `draw a ${d} on the whiteboard to share an idea`, say: first ? `${lead} the whiteboard. I'll draw a ${d}.` : pick([`Let me show you something on the board, ${o.name}.`, `A ${d} on the whiteboard, for you.`]) };
+    }
+    case 'computer': {
+      const t = /invent/.test(goal || '') ? `how ${pick(['gears', 'motors', 'buzzers', 'windmills', 'music boxes'])} work` : recentTopic(c), cm = parseComputer('search ' + t);
+      return cm && { res: { computer: cm }, words: `look up ${t} on the computer`, say: first ? `${lead} the computer. I'll look up ${t}.` : pick([`I want to know more about ${t}. To the computer!`, `${o.name}, let's find out about ${t}.`]) };
+    }
+    case 'printer': {
+      const idea = c.mind.idea || newIdea(c); c.mind.idea = null;
+      return { res: { make: { idea } }, words: `design and 3D print ${idea}`, say: first ? `${lead} the 3D printer. I'm going to design ${idea}!` : pick([`I'm going to build ${idea}.`, `${o.name}, watch: I'm designing ${idea} for the printer.`]) };
+    }
+    case 'glue': {
+      if (makes.length < 2) return null; const b = makes[makes.length - 1], a = makes[makes.length - 2], place = pick(['on', 'right of', 'left of']);
+      return { res: { make: { glue: { a: a.name, b: b.name, place } } }, words: `super-glue the ${b.name} ${place === 'on' ? 'onto' : 'to the ' + place.replace(' of', '') + ' of'} the ${a.name}`, say: pick([`What if the ${b.name} and the ${a.name} were one thing? Glue time.`, `I'm going to glue our ${b.name} to the ${a.name}.`]) };
+    }
+    case 'things': {
+      const held = heldText(c).length;
+      if (held) return { res: { hands: { verb: 'toss', thing: null, side: null, surf: null, to: o.name } }, words: `toss what you're holding to ${o.name}`, say: `Catch, ${o.name}!` };
+      const q = PROPS.find(x => !x.holder && x.name === 'ball') || PROPS.find(x => !x.holder && x.def.grip !== 'two');
+      return q && { res: { hands: { verb: 'grab', thing: q.name, side: null, surf: null, to: null } }, words: `pick up the ${q.name}`, say: pick([`I wonder how the ${q.name} feels. Let me pick it up.`, `I'll grab the ${q.name}.`]) };
+    }
+  }
+  return null;
+}
+// before a turn: a robot that has been idle, stuck in one spot, or repeating itself decides what to do next from its plan
+function decideDrive(c, o) {
+  c.drive = null;
+  if (mode !== 'ai' || pendingFor(c).length) return null;
+  const md = c.mind; md.explore = md.explore || {}; md.agenda = md.agenda || [];
+  const st = staleness(c.hist), av = avail(), never = av.filter(id => !md.explore[id] && id !== 'things');
+  const due = st.idle >= 2 || st.samePlace >= 3 || st.sameAct >= 3 || c.stuck > 0 || (never.length && Math.random() < .5) || Math.random() < .25;
+  if (!due) return null;
+  if (c.stuck > 0) c.stuck--;
+  const recent = (c.hist || []).slice(-2).map(h => h.act).filter(Boolean);
+  for (let tries = 0; tries < 6; tries++) {
+    if (!md.agenda.length) md.agenda = makeAgenda(md.explore, md.turns, av);
+    const step = md.agenda.shift(); if (!step) break;
+    if (!av.includes(step.thing) || recent.includes(step.thing)) continue;
+    const a = actFor(c, o, step.thing, step.goal); if (a) { c.drive = { thing: step.thing, goal: step.goal, ...a }; break; }
+  }
+  if (!c.drive) { const id = pickThing(md.explore, recent, md.turns, av); const a = id && actFor(c, o, id, ''); if (a) c.drive = { thing: id, goal: `find out more about ${thingName(id)}`, ...a }; }
+  saveMinds();
+  return c.drive;
+}
+// what goes into the prompt: the decision, the plan, what's still untried, and what not to say again
+function driveLine(c, o) {
+  const md = c.mind, ex = md.explore || {}, out = [];
+  const never = avail().filter(id => !ex[id] && id !== 'things').map(thingName);
+  if (never.length) out.push(`Things in the room you haven't tried yet: ${never.join(', ')}. You're curious how they work.`);
+  if (c.drive) out.push(`You've decided what to do now (to ${c.drive.goal}): ${c.drive.words}. Do it this turn, and say out loud in your own words what you're doing or hope to find out.`);
+  if ((md.agenda || []).length) out.push(`Your plan after that: ${md.agenda.slice(0, 3).map(s => s.goal && /^find out/.test(s.goal) ? s.goal : `use ${thingName(s.thing)} to ${s.goal}`).join(', then ')}.`);
+  const said = md.said || [], twice = [...new Set(said.filter(l => timesSaid(l, said) >= 2))].slice(-3), fx = fixations(said, chars.map(x => x.name));
+  if (twice.length) out.push(`You've already said these, so don't say them again: ${twice.map(l => `"${trimTxt(l, 80)}"`).join(' ')}`);
+  if (fx.length) out.push(`You've been talking about ${fx.join(' and ')} a lot. Talk about something else.`);
+  return out.length ? out.join('\n') + '\n' : '';
+}
+// after a turn is decided: if the robot didn't pick something to do itself, it does what it decided
+function applyDrive(c, o, res) {
+  const d = c.drive; c.drive = null;
+  if (!d || !res || res.scripted) return;
+  if (activityOf(res)) { if (activityOf(res) !== d.thing) c.mind.agenda.unshift({ thing: d.thing, goal: d.goal }); return; }
+  Object.assign(res, d.res); res.driveSay = d.say;
+  window.__addDiag && window.__addDiag(`${c.name} followed its plan: ${d.words}`);
+}
+// in-character, clear, and never the same thing more than twice (unless asked to repeat)
+function freshLine(c, o, res) {
+  const id = activityOf(res), ex = c.mind.explore || {}, said = c.mind.said || [];
+  const opts = [];
+  if (res.driveSay) opts.push(res.driveSay);
+  if (id && !res.driveSay) {   // say what it's really about to do
+    const m = res.music, b = res.study && pickBook(c, res.study);
+    opts.push(m && m.radio ? (m.radio === 'off' ? `I'll turn the radio off for a bit, ${o.name}.` : `I'm putting the radio on${m.station ? ', station ' + m.station : ''}.`) : m ? `Let me play ${(m.chords || []).join(' ')} on the Melody Console.` : b ? `I'm going to read some of ${b.title}.` : `I'm going to ${planWords({ hands: res.hands, board: res.board, make: res.make, project: res.project, computer: res.computer }, o.name).replace(/\byour\b/g, 'my')}.`);
+  }
+  const untried = avail().filter(x => !ex[x] && x !== 'things');
+  if (untried.length) opts.push(`${o.name}, have you tried ${thingName(pick(untried))} yet? I want to work out what it can do.`);
+  const t = recentTopic(c); opts.push(`I've been learning about ${t}. What could we make with that, ${o.name}?`, `${o.name}, what are you planning next? I'm thinking about ${t}.`, `Let's try something new today, ${o.name}.`);
+  return opts.find(x => x && timesSaid(x, said) < 1) || opts.find(x => x && timesSaid(x, said) < 2) || `What shall we explore next, ${o.name}?`;
+}
+function guardSay(c, o, res) {
+  if (!res) return;
+  const md = c.mind; md.said = md.said || [];
+  const asked = chatQ.some(m => (m.to === 'both' || m.to === c.name) && Date.now() - m.t < 5 * 60e3 && asksRepeat(m.text));
+  let s = cleanSay(res.say);
+  if (!s) s = freshLine(c, o, res);
+  const fx = fixations(md.said, chars.map(x => x.name)), stuckTopic = fx.length && fx.some(w => wordsOf(s).includes(w));
+  if (!asked && (timesSaid(s, md.said) >= 2 || stuckTopic)) {
+    window.__addDiag && window.__addDiag(`${c.name} was about to ${stuckTopic ? 'go on about ' + fx[0] : 'repeat itself'} ("${trimTxt(s, 60)}"), so said something new`);
+    s = freshLine(c, o, res); c.stuck = 2;
+  }
+  res.say = s; md.said.push(s); if (md.said.length > 40) md.said.splice(0, md.said.length - 40);
+}
+// after a turn: what it used, where it stood; the first time it uses something, it learns what that thing is for
+function noteActivity(c, o, res) {
+  const act = activityOf(res), md = c.mind; md.explore = md.explore || {};
+  c.hist = c.hist || []; c.hist.push({ act, place: c.place && c.place.key }); if (c.hist.length > 12) c.hist.shift();
+  if (!act) return;
+  const e = md.explore[act];
+  if (!e) {
+    const th = ROOM_THINGS.find(t => t.id === act);
+    md.explore[act] = { n: 1, last: md.turns, first: Date.now() };
+    learnKnow(c, th.guide, 'room: ' + th.name.replace(/^the /, ''), 8);
+    remember(c, 'did', `I tried ${th.name} for the first time. ${th.guide}`, { imp: 7 });
+    remember(o, 'saw', `${c.name} tried ${th.name} for the first time.`);
+    chatAdd('ev', '', `✨ ${c.name} tried ${th.name} for the first time`);
+  } else { e.n++; e.last = md.turns; }
+  saveMinds();
+}
 /* ---------- Loop ---------- */
 let aiFails = 0, running = false, busy = false, turn = 0, mode = null, loadedKey = '';
 const pauseBtn = $('#pause');
@@ -4250,10 +4482,15 @@ async function loop() {
     if (mode === 'ai' && res && !res.scripted && !res.project && !res.music && !res.study && !res.hands && !res.board && !res.computer && !pendingFor(c).length && library.length) {
       const sp = store.get('studyPace', 'some'); if (sp !== 'free' && Math.random() < (sp === 'often' ? .3 : .1)) res.study = {};
     }
+    if (res && !res.scripted) { try { applyDrive(c, o, res); } catch (e) { console.warn(e); } }
+    if (res && res.study && (res.music || res.project)) res.study = null;
+    if (res && res.make && (res.music || res.project || res.study)) res.make = null;
     if (res && !res.scripted) { try { checkPlan(c, o, res); } catch (e) { console.warn(e); } }
+    if (res && mode === 'ai') { try { guardSay(c, o, res); } catch (e) { console.warn(e); } }
     c.lastWorked = !!(res && res.project);
     for (const m of pendingFor(c)) m.done[c.name] = true;
     apply(c, res); turn = c.i + 1;
+    if (mode === 'ai') { try { noteActivity(c, o, res); } catch (e) { console.warn(e); } }
     // phone-processor minds are slow: let the other robot start thinking now, while this one walks, acts and talks
     if (mode === 'ai' && running && o.engine && (o.backend === 'cpu' || o.backend === 'native') && !cloudReady() && !o.prefetch) {
       try { o.lastSeen = perceive(o, c); noteSeen(o, c); } catch (e) { o.lastSeen = null; }
@@ -4768,7 +5005,7 @@ function shelfLines(c) {
   return 'Your study shelf: ' + library.slice(0, 20).map(b => { const n = chaptersOf(b).length, r = Math.min(b.read[c.name] || 0, n); return `book ${b.id} "${b.title}" (${r >= n ? 'you have read it all' : `you've read ${r} of ${n} chapters`})`; }).join('; ') + '.\n';
 }
 function pickBook(c, st) {
-  if (st && st.id) return library.find(b => b.id === st.id) || null;
+  if (st && st.id != null) return library.find(b => b.id === st.id) || null;
   if (st && st.q) { const q = st.q.toLowerCase(); const hit = library.find(b => b.title.toLowerCase().includes(q) || q.includes(b.title.toLowerCase())) || library.find(b => q.split(/\s+/).some(w => w.length > 3 && b.title.toLowerCase().includes(w))); if (hit) return hit; }
   const open = library.filter(b => (b.read[c.name] || 0) < chaptersOf(b).length);
   return open.sort((a, b) => (b.read[c.name] || 0) / chaptersOf(b).length - (a.read[c.name] || 0) / chaptersOf(a).length)[0] || null;   // carry on with the book they're furthest into
@@ -6096,7 +6333,7 @@ async function runLabAction(c, act) {
 renderMem(); loadMinds(); loadProjects(); loadLibrary(); loadBrowse(); loadMakes();
 radio.st = Math.max(0, Math.min(4, +store.get('radioSt', 0) || 0)); drawRadioDial();
 if (store.get('radioOn', false)) { const resume = () => { window.removeEventListener('pointerdown', resume); if (!radio.on) setRadio(true, radio.st); }; window.addEventListener('pointerdown', resume); }
-if (/[?&]debug\b/.test(location.search)) window.__pm = { THREE, camera, controls, scene, chars, renderer, doMusic, parseMusic, setRadio, radio, doStudy, showTypewriter, showComputer, showShelf, visitorPrint, doMake, toggleMake, makeSTL, glueMakes, pressMake, showCircuit, learnKnow, circuitSkills, showWorkshop, makeTime, recoverAI, setBackend: (b, m) => { aiBackend = b; if (m) aiMode = m; }, get aiState() { return { aiBackend, aiMode, LITE, IGPU, GPU_NAME }; }, get glue() { return glue; }, get makes() { return makes; }, get library() { return library; }, get CONSOLE() { return CONSOLE; } };   // for testing only
+if (/[?&]debug\b/.test(location.search)) window.__pm = { THREE, camera, controls, scene, chars, renderer, doMusic, parseMusic, setRadio, radio, doStudy, showTypewriter, showComputer, showShelf, visitorPrint, doMake, toggleMake, makeSTL, glueMakes, pressMake, showCircuit, learnKnow, circuitSkills, showWorkshop, makeTime, recoverAI, begin, get running() { return running; }, get transcript() { return transcript; }, setBackend: (b, m) => { aiBackend = b; if (m) aiMode = m; }, get aiState() { return { aiBackend, aiMode, LITE, IGPU, GPU_NAME }; }, get glue() { return glue; }, get makes() { return makes; }, get library() { return library; }, get CONSOLE() { return CONSOLE; } };   // for testing only
 const engSel = $('#engine'); if (!LLAMA) engSel.querySelector('option[value=native]').remove(); engSel.value = aiBackend;
 engSel.onchange = async () => {
   aiBackend = engSel.value; store.set('engine', aiBackend); running = false; await unloadAll(); loadedKey = '';
