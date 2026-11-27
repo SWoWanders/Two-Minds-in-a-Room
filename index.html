@@ -24,7 +24,13 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
 .bubble.thinking{font-size:18px;letter-spacing:3px;padding:2px 14px;animation:pulse 1s infinite alternate}
 @keyframes pulse{from{opacity:.55}to{opacity:1}}
 .tag{position:absolute;transform:translate(-50%,0);font:600 12px Fredoka,sans-serif;padding:1px 8px;border-radius:9px;color:#1d1424;white-space:nowrap;opacity:.92}
-.eyelab{position:absolute;bottom:8px;width:28%;aspect-ratio:4/3;border:2px solid var(--c);border-radius:6px;pointer-events:none;z-index:1;box-shadow:0 2px 10px #0008}
+.eyelab{position:absolute;bottom:8px;width:28%;aspect-ratio:4/3;border:2px solid var(--c);border-radius:6px;pointer-events:auto;cursor:pointer;z-index:1;box-shadow:0 2px 10px #0008;-webkit-tap-highlight-color:transparent}
+.eyelab:active{filter:brightness(1.3)}
+#mainLab{position:absolute;top:8px;right:8px;z-index:2;background:var(--c);color:#1d1424;font:600 12px Fredoka,sans-serif;padding:2px 9px;border-radius:9px;pointer-events:none}
+#closeBar{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 16px);background:#1d1424e6;border:1px solid var(--line);border-radius:12px;padding:6px 8px;font:600 13px Fredoka,sans-serif}
+#closeBar button{padding:5px 10px;font-size:13px;min-height:0}
+#closeBar b{padding:0 4px}
+#closeBar[hidden],#mainLab[hidden]{display:none}
 .eyelab span{position:absolute;top:0;left:0;background:var(--c);color:#1d1424;font:600 11px Fredoka,sans-serif;padding:1px 6px;border-radius:0 0 6px 0}
 .eyes-off .eyelab{display:none}
 .seen summary{font-size:12px;color:var(--dim);min-height:24px}.seen div{font-size:12px;color:var(--dim);white-space:pre-wrap;margin-top:4px}
@@ -106,7 +112,9 @@ window.__diag = { errors: [], t0: Date.now() };
 <div id="app">
   <div id="stage">
     <div id="bubbles"></div>
-    <div class="eyelab" style="left:8px;--c:var(--pip)"><span>Pip's eyes</span></div><div class="eyelab" style="right:8px;--c:var(--moss)"><span>Moss's eyes</span></div>
+    <div class="eyelab" id="eye0" style="left:8px;--c:var(--pip)" title="Tap to make this the big view"><span>Pip's eyes</span></div><div class="eyelab" id="eye1" style="right:8px;--c:var(--moss)" title="Tap to make this the big view"><span>Moss's eyes</span></div>
+    <div id="mainLab" hidden></div>
+    <div id="closeBar" hidden><b id="cbName"></b><button type="button" id="cbAct" hidden></button><button type="button" id="cbStl">Save 3D file</button><button type="button" id="cbBack">Back to the room</button></div>
     <div id="crash" hidden><p id="crashmsg"><b>The 3D view stopped.</b> Chrome's graphics memory ran out, so it restarted its graphics process. I've switched on the memory-saving settings (Lite graphics, one AI mind loaded at a time). Tap Reload. If the room stays empty after reloading, close Chrome completely (swipe it away in recent apps) and open the page again. The robots' memories are safe.</p><button class="primary" id="reload">Reload</button></div>
     <div id="title">Pip and Moss<small>Two robots, two free AI minds, one cozy little room</small></div>
   </div>
@@ -1739,7 +1747,8 @@ function parseComputer(s) {
   return { cmd, arg };
 }
 const COLOURS = ['black', 'red', 'blue', 'green', 'purple', 'orange'];
-const SURF_WORDS = [['coffee table', 'table'], ['table', 'table'], ['bookshelf', 'shelf'], ['shelf', 'shelf'], ['desk', 'desk'], ['couch', 'couch'], ['sofa', 'couch'], ['armchair', 'armchair'], ['chair', 'armchair'], ['windowsill', 'windowsill'], ['window', 'windowsill'], ['sill', 'windowsill'], ['tray', 'tray'], ['whiteboard', 'tray'], ['board', 'tray'], ['floor', 'floor'], ['ground', 'floor']];
+const SURF_WORDS = [['workbench', 'bench'], ['work bench', 'bench'], ['bench', 'bench'], ['coffee table', 'table'], ['table', 'table'], ['bookshelf', 'shelf'], ['shelf', 'shelf'], ['desk', 'desk'], ['couch', 'couch'], ['sofa', 'couch'], ['armchair', 'armchair'], ['chair', 'armchair'], ['windowsill', 'windowsill'], ['window', 'windowsill'], ['sill', 'windowsill'], ['tray', 'tray'], ['whiteboard', 'tray'], ['board', 'tray'], ['floor', 'floor'], ['ground', 'floor']];
+let EXTRA_THINGS = [];   // names of printed things the robots can pick up (kept up to date by the workshop)
 const THING_WORDS = [['mug', 'mug'], ['cup', 'mug'], ['coffee', 'mug'], ['ball', 'ball'], ['book', 'blue book'], ['box', 'box'], ['eraser', 'eraser'], ['rubber', 'eraser']];
 const NONE_RE = /^(none|no|nothing|n\/a|-|nope)\b/i;
 // HANDS line → { verb, thing, side, surf, to }
@@ -1757,7 +1766,12 @@ function parseHands(s, names) {
   let thing = null;
   const col = COLOURS.find(k => new RegExp('\\b' + k + '\\b').test(s));
   if (/\b(marker|markers|pen|felt)\b/.test(s)) thing = col ? col + ' marker' : 'marker';
-  else { const t = THING_WORDS.find(([w]) => new RegExp('\\b' + w + 's?\\b').test(s)); if (t) thing = t[1]; }
+  else {
+    const ex = EXTRA_THINGS.slice().sort((a, b) => b.length - a.length);
+    const full = ex.find(n => s.includes(n)), part = full || ex.find(n => n.split(' ').some(w => w.length >= 3 && !/^(little|tiny|small|big|desk|night|the|and|with|two|key|glued)$/.test(w) && new RegExp('\\b' + w + 's?\\b').test(s)));
+    if (part) thing = part;
+    else { const t = THING_WORDS.find(([w]) => new RegExp('\\b' + w + 's?\\b').test(s)); if (t) thing = t[1]; }
+  }
   let side = null;
   const sm = s.match(/\b(left|right)\s+hand\b/); if (sm) side = sm[1] === 'left' ? 'L' : 'R';
   let surf = null;
@@ -1827,9 +1841,9 @@ function planGrammar(o) {
     'side ::= ("L_" | "R_")?',
     `num ::= ${num}`,
     'hands ::= "HANDS: " ("none" | ("grab " | "drop ") th | "put " th " on " sf | ("give " | "toss ") th " to " nm) "\\n"',
-    `th ::= ${galt(['mug', 'ball', 'blue book', 'box', 'eraser'])} | col " marker"`,
+    `th ::= ${galt(['mug', 'ball', 'blue book', 'box', 'eraser', ...(o.made || [])])} | col " marker"`,
     `col ::= ${galt(COLOURS)}`,
-    `sf ::= ${galt(['table', 'floor', 'shelf', 'desk', 'couch', 'armchair', 'windowsill', 'tray'])}`,
+    `sf ::= ${galt(['table', 'floor', 'shelf', 'desk', 'couch', 'armchair', 'windowsill', 'tray', 'bench'])}`,
     `nm ::= ${galt([o.other])}`,
     'board ::= "BOARD: " ("none" | "draw " wd at | "write \\"" [^"\\n]{1,40} "\\"" at | "erase " ("mine" | "all") | "sketch " wd ": " pts at) "\\n"',
     'at ::= (" in " col)? (" at " ("top" | "bottom") " " ("left" | "middle" | "right"))?',
@@ -2557,7 +2571,7 @@ const ROOM_THINGS = [
   { id: 'whiteboard', name: 'the whiteboard', how: 'BOARD: draw, sketch or write "TEXT"', guide: 'The whiteboard is for showing ideas: I can doodle, sketch freehand, write words and plans, and erase. The markers are in the tray.' },
   { id: 'computer', name: 'the computer', how: 'COMPUTER: search TOPIC, books TOPIC, archive TOPIC, weather CITY, onthisday', guide: 'The computer has real internet: I can search Wikipedia, find books, look in the Internet Archive, check the weather and see what happened on this day.' },
   { id: 'glue', name: 'the super glue', how: 'MAKE: glue THING onto OTHER THING', guide: 'The super glue on the workbench joins two printed things into one, and they keep their wiring and circuits.' },
-  { id: 'things', name: 'the things you can pick up', how: 'HANDS: grab, give, toss or put the mug, ball, blue book or box', guide: 'I can pick up the mug, the ball, the blue book, the box and the markers, hand them over, toss them or put them down.' }
+  { id: 'things', name: 'the things you can pick up', how: 'HANDS: grab, give, toss or put the mug, ball, blue book, box, or anything you printed (by its name)', guide: 'I can pick up the mug, the ball, the blue book, the box, the markers and the things we printed, hand them over, toss them or put them down somewhere new.' }
 ];
 const thingName = id => (ROOM_THINGS.find(t => t.id === id) || { name: id }).name;
 // which room thing a decided turn uses (null if it just talks and moves)
@@ -3051,14 +3065,17 @@ function updateChar(c, dt, t) {
 const v3 = new THREE.Vector3();
 function placeLabels() {
   const w = stage.clientWidth, h = stage.clientHeight;
+  const cam = typeof viewCam === 'function' ? viewCam() : camera;
   for (const c of chars) {
-    c.headObj.getWorldPosition(v3); v3.y += 0.55; v3.project(camera);
+    c.headObj.getWorldPosition(v3); v3.y += 0.55; v3.project(cam);
+    const behind = v3.z > 1 || (typeof mainView !== 'undefined' && mainView === c.i);
+    c.bub.style.visibility = behind ? 'hidden' : ''; c.tag.style.visibility = behind ? 'hidden' : '';
     let bx = (v3.x * .5 + .5) * w, by = (-v3.y * .5 + .5) * h;
     const bw = c.bub.offsetWidth || 0, bh = c.bub.offsetHeight || 0;
     const cx = Math.max(bw / 2 + 6, Math.min(w - bw / 2 - 6, bx));     // keep the bubble on screen; its tail still points at the head
     c.bub.style.setProperty('--tail', Math.max(-bw / 2 + 14, Math.min(bw / 2 - 14, bx - cx)) + 'px');
     c.bub.style.left = cx + 'px'; c.bub.style.top = Math.max(bh + 4, by) + 'px';
-    v3.set(c.g.position.x, -0.02, c.g.position.z); v3.project(camera);
+    v3.set(c.g.position.x, -0.02, c.g.position.z); v3.project(cam);
     c.tx = (v3.x * .5 + .5) * w; c.ty = (-v3.y * .5 + .5) * h;
   }
   const [a, b] = chars;
@@ -3185,10 +3202,47 @@ function thinking(c, on) {
   else c.bub.classList.remove('thinking');
 }
 
-let camTw = null, boardView = false, lastDraw = 0, aiBusy = 0;
+let camTw = null, boardView = false, lastDraw = 0, aiBusy = 0, closeUp = null;
+const _cu = new THREE.Vector3(), _cu2 = new THREE.Vector3();
+// a close look at something the robots made: the camera flies in and follows it, with buttons to use it, save it, or go back
+function lookCloser(m) {
+  if (!m || !m.wrap) return;
+  if (mainView >= 0) setMainView(-1);
+  if (!closeUp) closeUp = { cp: camera.position.clone(), ct: controls.target.clone(), md: controls.minDistance, mp: controls.maxPolarAngle };
+  closeUp.m = m; closeUp.last = null;
+  const c = m.wrap.getWorldPosition(new THREE.Vector3()), size = Math.max(m.built.w, m.built.h) * (m.sc || 1);
+  // look from the open room side (towards the middle), leaning a little towards where the camera already is
+  const dir = new THREE.Vector3(-c.x, 0, -c.z); if (dir.lengthSq() < 1e-3) dir.set(0, 0, 1); dir.normalize();
+  const cur = camera.position.clone().sub(c); cur.y = 0; if (cur.lengthSq() > 1e-4) dir.addScaledVector(cur.normalize(), .35).normalize();
+  const dist = Math.max(.32, Math.min(1.4, size * 3.2));
+  controls.minDistance = .12; controls.maxPolarAngle = 2.6;
+  camTw = { t: 0, fp: camera.position.clone(), tp: c.clone().addScaledVector(dir, dist).add(new THREE.Vector3(0, dist * .45, 0)), ft: controls.target.clone(), tt: c.clone() };
+  $('#cbName').textContent = '🔍 ' + m.name;
+  const d = m.d || parseDesign(m.design), bt = d && d.parts.filter(p => p.type === 'button'), sw = d && d.parts.some(p => p.type === 'switch'), act = $('#cbAct');
+  act.hidden = !(bt && bt.length) && !sw; act.textContent = bt && bt.length ? 'Press' : 'Switch';
+  act.onclick = () => toggleMake(m);
+  $('#cbStl').onclick = () => saveFile((m.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'thing') + '.stl', makeSTL(m)).then(ok => { if (ok && !FILES) toast('3D model saved'); });
+  $('#closeBar').hidden = false;
+}
+function endCloseUp(now) {
+  if (!closeUp) return; const k = closeUp; closeUp = null; $('#closeBar').hidden = true;
+  if (now) { camera.position.copy(k.cp); controls.target.copy(k.ct); controls.minDistance = k.md; controls.maxPolarAngle = k.mp; return; }
+  camTw = { t: 0, fp: camera.position.clone(), tp: k.cp, ft: controls.target.clone(), tt: k.ct };
+  setTimeout(() => { if (!closeUp) { controls.minDistance = k.md; controls.maxPolarAngle = k.mp; } }, 950);
+}
 const eyeCams = chars.map(() => new THREE.PerspectiveCamera(80, 4 / 3, 0.05, 30));
 const FLIP = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
 let eyesOn = !!store.get('eyes', !LITE && !PHONE);
+// which view is big: -1 = the room, 0/1 = that robot's eyes (the room then shows in that robot's small window)
+let mainView = -1;
+const viewCam = () => mainView >= 0 ? eyeCams[mainView] : camera;
+function setMainView(k) {
+  if (k >= 0 && closeUp) endCloseUp(true);
+  mainView = k; controls.enabled = k < 0;
+  chars.forEach((c, i) => { const lab = document.querySelector('#eye' + i + ' span'); if (lab) lab.textContent = i === k ? 'Room' : `${c.name}'s eyes`; });
+  const ml = $('#mainLab'); ml.hidden = k < 0; if (k >= 0) { ml.textContent = `${chars[k].name}'s eyes`; ml.style.setProperty('--c', k ? 'var(--moss)' : 'var(--pip)'); }
+}
+document.querySelectorAll('.eyelab').forEach((el, i) => el.addEventListener('click', e => { e.stopPropagation(); setMainView(mainView === i ? -1 : i); }));
 renderer.shadowMap.autoUpdate = false;
 const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
@@ -3201,21 +3255,26 @@ renderer.setAnimationLoop(() => {
   radioLed.material.emissiveIntensity = Math.sin(t * 4) > 0 ? 2.5 : 0.3;
   lampLight.intensity = 4 + Math.sin(t * 13) * 0.08;
   if (camTw) { camTw.t = Math.min(1, camTw.t + dt / .9); const e = camTw.t * camTw.t * (3 - 2 * camTw.t); camera.position.lerpVectors(camTw.fp, camTw.tp, e); controls.target.lerpVectors(camTw.ft, camTw.tt, e); if (camTw.t >= 1) camTw = null; }
+  if (closeUp && !camTw && closeUp.m.wrap) { const cp = closeUp.m.wrap.getWorldPosition(_cu); if (closeUp.last) { _cu2.subVectors(cp, closeUp.last); camera.position.add(_cu2); controls.target.add(_cu2); } closeUp.last = (closeUp.last || new THREE.Vector3()).copy(cp); }
   controls.update();
   const nowMs = performance.now();
   if ((aiBusy && aiBackend === 'gpu') || nowMs - lastDraw < (aiBusy ? 66 : SAFE ? 50 : 33)) { placeLabels(); return; }
   lastDraw = nowMs;
   const w = stage.clientWidth, h = stage.clientHeight;
   renderer.shadowMap.needsUpdate = true;
-  renderer.setScissorTest(false); renderer.setViewport(0, 0, w, h); renderer.render(scene, camera);
+  if (eyesOn || mainView >= 0) chars.forEach((c, i) => { const cam = eyeCams[i]; eyePos(c, cam.position); c.headObj.getWorldQuaternion(cam.quaternion); cam.quaternion.multiply(FLIP); cam.updateMatrixWorld(); });
+  const mainCam = viewCam();
+  if (mainCam !== camera && h > 0) { mainCam.aspect = w / h; mainCam.updateProjectionMatrix(); }
+  renderer.setScissorTest(false); renderer.setViewport(0, 0, w, h); renderer.render(scene, mainCam);
   if (eyesOn && w > 0) {
     const ew = Math.round(w * 0.28), eh = Math.round(ew * 0.75);
     renderer.setScissorTest(true);
     chars.forEach((c, i) => {
-      const x = i === 0 ? 8 : w - ew - 8, cam = eyeCams[i];
+      const x = i === 0 ? 8 : w - ew - 8, cam = i === mainView ? camera : eyeCams[i];
+      cam.aspect = ew / eh; cam.updateProjectionMatrix();
       renderer.setViewport(x, 8, ew, eh); renderer.setScissor(x, 8, ew, eh);
-      eyePos(c, cam.position); c.headObj.getWorldQuaternion(cam.quaternion); cam.quaternion.multiply(FLIP); cam.updateMatrixWorld();
       renderer.render(scene, cam);
+      if (cam === camera) { camera.aspect = w / h; camera.updateProjectionMatrix(); }
     });
     renderer.setScissorTest(false); renderer.setViewport(0, 0, w, h);
   }
@@ -3340,6 +3399,7 @@ const SURF = {
   armchair: { label: 'armchair', c: [3.45, 1.6], e: [.15, .2], y: .45, dir: [-1, 0] },
   windowsill: { label: 'windowsill', c: [2.5, -4.86], e: [.9, .02], y: 1.45, dir: [0, 1] },
   tray: { label: 'whiteboard tray', c: [-4.92, -2.7], e: [0, .62], y: .935, dir: [1, 0] },
+  bench: { label: 'workbench', c: [4.3, 3.95], e: [.04, .2], y: .84, dir: [-1, 0] },
   floor: { label: 'floor', y: 0 }
 };
 const PROP_DEFS = [
@@ -3969,7 +4029,7 @@ STUDY: <book NUMBER | none>
 MAKE: <design a THING | none>${opt.plan ? '' : '\nSAY: <sentence>'}
 Places: ${PLACES.map(p => p.key).join(', ')}, stay.
 Poses: ${POSE_NAMES.join(', ')}${skillList(c)}, none.
-Things you can pick up: mug, ball, blue book, box (needs both hands), eraser, and dry-erase markers: black, red, blue, green, purple, orange. Surfaces: table, floor, shelf, desk, couch, armchair, windowsill, tray (the whiteboard's marker tray).
+Things you can pick up: mug, ball, blue book, box (needs both hands), eraser, and dry-erase markers: black, red, blue, green, purple, orange${EXTRA_THINGS.length ? `, and things you printed: ${EXTRA_THINGS.slice(-8).join(', ')}` : ''}. Surfaces: table, floor, shelf, desk, couch, armchair, windowsill, tray (the whiteboard's marker tray).
 There is a whiteboard on the wall. Use it to show ${o.name} or the visitor something, to share an idea, or just to be creative. You fetch a marker yourself. "draw" makes a quick doodle of any of: ${DOODLE_NAMES.join(', ')} (combine up to three). "sketch" is true freehand: you choose every line. Give points as (x,y) from 0 to 100 on your patch of board, (0,0) is top left; join points with - for a straight line or ~ for a smooth curve, and use / to lift the pen. Example: sketch a smiling face: (20,20)~(50,5)~(80,20)~(95,50)~(80,80)~(50,95)~(20,80)~(5,50)~(20,20) / (35,40)-(36,41) / (65,40)-(66,41) / (30,60)~(50,75)~(70,60)
 There is a computer in the room with real internet. Computer commands: search <topic> (Wikipedia), weather <city>, books <topic>, archive <topic> (Internet Archive), onthisday. Use it when you are curious about something real; you will walk over and use it. Otherwise write none.
 There is a typewriter on a little writing desk, and a project board on the wall listing the things you, ${o.name} and the visitor are making: stories, poems, songs, letters, plays and even novels. PROJECT: write N means walk to the typewriter and type the next page of project N; review N means read its latest page and pin up a helpful note; start a KIND about TOPIC begins something new of your own (KIND is ${KIND_LIST.join(', ')}). Otherwise write none.
@@ -4005,7 +4065,7 @@ SAY: <one short sentence to ${o.name} or the visitor>
 You may add one extra line to use something in the room: BOARD: draw <thing> or write "<words>" | HANDS: grab <thing>, give <thing> to ${o.name}, toss <thing> to ${o.name} or put <thing> on <place> | COMPUTER: search <topic> | MUSIC: play I IV V I in bossa on vibes, or radio on 1-5, or radio off | STUDY: book <number> | MAKE: design a <thing> | PROJECT: start a poem about <topic>
 Places: ${PLACES.map(p => p.key).join(', ')}.
 Poses: wave, dance, sit, point, think, cheer, bow, shrug, clap, nod, jump${skillList(c)}.
-Things: mug, ball, blue book, box, eraser, markers.
+Things: mug, ball, blue book, box, eraser, markers${EXTRA_THINGS.length ? ', ' + EXTRA_THINGS.slice(-5).join(', ') : ''}.
 Example:
 GO: window
 POSE: point
@@ -4075,7 +4135,7 @@ async function aiDecide(c, o) {
 // The prompt for step 2 starts with step 1's, so the engine re-reads almost nothing.
 async function twoStep(c, o) {
   const msgs = buildMsgs(c, o, { plan: true }), t0 = performance.now();
-  const g = planGrammar({ places: PLACES.map(x => x.key), poses: [...POSE_NAMES, ...c.mind.skills.map(k => k.name)], other: o.name });
+  const g = planGrammar({ places: PLACES.map(x => x.key), poses: [...POSE_NAMES, ...c.mind.skills.map(k => k.name)], other: o.name, made: EXTRA_THINGS.slice(-8) });
   const r1 = await withMind(c, () => c.engine.chat.completions.create({ messages: msgs, max_tokens: 140, temperature: 0.8, top_p: 0.9, grammar: g }));
   const plan = (r1.choices?.[0]?.message?.content || '').trim();
   const p = withIntent(c, o, parseReply(plan + '\nSAY: …', c.name, o.name, findPlace));
@@ -5123,7 +5183,7 @@ function buildShelfBooks() {
 let makes = [], makeSaveT = null, cells = 48, printing = null;
 const CELLS_MAX = 48;
 function drawCells() { const g = cellCv.getContext('2d'); g.fillStyle = '#f2cf3a'; g.fillRect(0, 0, 256, 64); g.fillStyle = '#1d1b18'; g.font = 'bold 26px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText(`BATTERIES  ${cells}`, 128, 42); cellTex.needsUpdate = true; cellsMesh.count = cellTops.count = cells; }
-function saveMakes() { clearTimeout(makeSaveT); renderWorkshop(); makeSaveT = setTimeout(() => DB.set('makes', makes.map(m => ({ id: m.id, name: m.name, design: m.design, by: m.by, idea: m.idea || '', t: m.t, switches: m.switches || {}, cells: m.cells || 0 }))), 400); }
+function saveMakes() { clearTimeout(makeSaveT); renderWorkshop(); makeSaveT = setTimeout(() => DB.set('makes', makes.map(m => ({ id: m.id, name: m.name, design: m.design, by: m.by, idea: m.idea || '', t: m.t, switches: m.switches || {}, cells: m.cells || 0, ...(m.away ? { away: m.away } : {}), ...(m.sc ? { sc: m.sc } : {}) }))), 400); }
 const cm = v => v / 100;
 // turn a design into a 3D object; returns { group, mats, parts: {id: {mesh, pivot, part}}, h }
 function buildMake(d) {
@@ -5207,27 +5267,69 @@ function buildMake(d) {
   return { group: g, mats, parts, h: size.y * fit, w: Math.max(size.x, size.z) * fit, fit, traces };
 }
 function attachMake(m) {
-  if (m.group) { scene.remove(m.group); m.group = null; }
+  removeMakeObj(m, true);
   const d = parseDesign(m.design); if (!d) return;
   const b = buildMake(d); m.group = b.group; m.built = b; m.d = d;
   m.group.userData.makeId = m.id; m.group.traverse(o => { o.userData.makeId = m.id; o.userData.noOcc = true; });
-  scene.add(m.group);
+  m.wrap = new THREE.Group(); m.wrap.userData.makeId = m.id; m.wrap.add(m.group); scene.add(m.wrap);
   placeMake(m);
 }
+// take a printed thing out of the room (recycling, gluing, rebuilding): out of any hand, out of the props
+function removeMakeObj(m, keepProp) {
+  const P = m.prop;
+  if (P) { if (P.holder) detach(P); P.flight = null; P.vel = null; if (!keepProp) { const i = PROPS.indexOf(P); if (i >= 0) PROPS.splice(i, 1); delete PROPMAP[P.id]; m.prop = null; } }
+  if (m.wrap) m.wrap.removeFromParent(); if (m.group) m.group.removeFromParent();
+  if (!keepProp) { m.wrap = null; syncThings(); }
+}
+const makePropName = m => String(m.name || 'gadget').toLowerCase().replace(/[^a-z0-9 '-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 30) || 'gadget';
+function syncThings() { EXTRA_THINGS = makes.filter(m => m.prop).map(m => m.prop.name); }
+// size the prop to the thing as it stands now (scale s), the wrapper's origin at its middle
+function fitProp(m, s) {
+  const W = Math.max(.03, m.built.w * s), H = Math.max(.03, m.built.h * s);
+  m.sc = s; m.group.scale.setScalar(m.built.fit * s); m.group.position.set(0, -H / 2, 0);
+  if (!m.prop) {
+    let name = makePropName(m); if (PROPS.some(q => q.name === name)) name = (name + ' ' + (makes.indexOf(m) + 1)).slice(0, 34);
+    const def = { id: 'make-' + m.id, name, shape: { t: 'box', w: W, h: H, d: W }, grip: Math.max(W, H) > .22 ? 'two' : 'power', surf: 'bench', at: [0, 0], made: true };
+    m.prop = { def, id: def.id, name, obj: m.wrap, holder: null, surf: 'bench', vel: null, flight: null, make: m };
+    m.wrap.traverse(o => { if (o.isMesh) o.userData.prop = def.id; });
+    PROPS.push(m.prop); PROPMAP[def.id] = m.prop; syncThings();
+  } else { m.prop.def.shape.w = m.prop.def.shape.d = W; m.prop.def.shape.h = H; m.prop.def.grip = Math.max(W, H) > .22 ? 'two' : 'power'; m.prop.obj = m.wrap; }
+  return H;
+}
+const SLOT_SCALE = (m, k) => Math.min(1, 0.3 / Math.max(m.built.w, .01), (k >= 3 ? .38 : .4) / Math.max(m.built.h, .01));
 function placeMake(m) {
-  if (!m.group) return;
-  if (printing && printing.m === m) { m.group.position.set(PRN.x, PRN.y0 + .072, PRN.z); return; }
-  const shown = makes.filter(x => x.group && !(printing && printing.m === x)).slice(-6).reverse(), k = shown.indexOf(m);
-  if (k < 0) { m.group.visible = false; return; }
-  m.group.visible = true;
-  const [x, y, z] = SHOW_SLOTS[k]; m.group.position.set(x, y, z);
-  const s = Math.min(1, 0.3 / Math.max(m.built.w, .01), (k >= 3 ? .38 : .4) / Math.max(m.built.h, .01)); m.group.scale.setScalar(m.built.fit * s);
+  if (!m.group || !m.wrap) return;
+  if (printing && printing.m === m) { m.wrap.visible = true; m.group.scale.setScalar(m.built.fit); m.group.position.set(0, 0, 0); m.wrap.position.set(PRN.x, PRN.y0 + .072, PRN.z); return; }
+  const P = m.prop;
+  if (P && (P.holder || P.flight || P.vel)) { m.wrap.visible = true; return; }   // in a hand or in the air
+  if (m.away) { m.wrap.visible = true; const H = fitProp(m, m.sc || SLOT_SCALE(m, 0)); m.wrap.position.set(m.away.x, m.away.y, m.away.z); P && (P.surf = m.away.surf || 'floor'); return; }
+  const shown = makes.filter(x => x.group && x.wrap && !(printing && printing.m === x) && !x.away && !(x.prop && (x.prop.holder || x.prop.flight || x.prop.vel))).slice(-6).reverse(), k = shown.indexOf(m);
+  if (k < 0) { m.wrap.visible = false; return; }
+  m.wrap.visible = true;
+  const [x, y, z] = SHOW_SLOTS[k], H = fitProp(m, SLOT_SCALE(m, k));
+  m.wrap.position.set(x, y + H / 2, z); m.wrap.rotation.set(0, 0, 0); m.prop.surf = 'bench'; m.slot = [x, y + H / 2, z];
 }
 function layoutMakes() { for (const m of makes) placeMake(m); }
+// after hands have been at work: notice printed things that now sit somewhere new (or came back to the workbench)
+function syncMakeSpots() {
+  let changed = false;
+  for (const m of makes) {
+    const P = m.prop; if (!P || !m.wrap || P.holder || P.flight || P.vel) continue;
+    const wp = m.wrap.getWorldPosition(new THREE.Vector3());
+    if (P.surf === 'bench' && !m.away) continue;
+    if (P.surf === 'bench' && m.away) { m.away = null; changed = true; continue; }
+    if (!m.slot || Math.hypot(wp.x - m.slot[0], wp.y - m.slot[1], wp.z - m.slot[2]) > .05) {
+      const a = { x: +wp.x.toFixed(3), y: +wp.y.toFixed(3), z: +wp.z.toFixed(3), surf: P.surf || 'floor' };
+      if (!m.away || Math.hypot(a.x - m.away.x, a.y - m.away.y, a.z - m.away.z) > .01) { m.away = a; changed = true; }
+    }
+  }
+  if (changed) { layoutMakes(); saveMakes(); }
+}
+setInterval(() => { try { syncMakeSpots(); } catch (e) { console.warn(e); } }, 1500);
 async function loadMakes() {
   const got = await DB.get('makes'); makes = Array.isArray(got) ? got.filter(m => m && m.design).slice(-24) : [];
   const c = await DB.get('cells'); cells = Number.isFinite(c) && (await DB.get('cellsV')) === 2 ? Math.max(0, Math.min(CELLS_MAX, c)) : CELLS_MAX; DB.set('cellsV', 2);
-  for (const m of makes) { m.switches = m.switches || {}; attachMake(m); }
+  for (const m of makes) { m.switches = m.switches || {}; if (m.away && !['x', 'y', 'z'].every(k => Number.isFinite(m.away[k]))) m.away = null; attachMake(m); }
   const gl = await DB.get('glue'); setGlue(Number.isFinite(gl) ? gl : GLUE_MAX);
   layoutMakes(); drawCells(); renderWorkshop();
 }
@@ -5238,6 +5340,7 @@ const findMake = (q, not) => { const t = String(q || '').toLowerCase().replace(/
 async function glueMakes(a, b, place, who, c) {
   if (printing && (printing.m === a || printing.m === b)) return 'wait until it has finished printing';
   if (glue < 1) return 'the super glue has run out';
+  for (const x of [a, b]) if (x.prop && x.prop.holder) return `${x.prop.holder.c.name} is holding the ${x.name}; put it down first`;
   const da = parseDesign(a.design), db = parseDesign(b.design); if (!da || !db) return "one of them couldn't be read";
   if (da.parts.length + db.parts.length > 40) return 'together they would be too big to glue into one thing';
   const full = `${a.name} with ${b.name}`, g = glueDesigns(da, db, place, full.length <= 40 ? full : `${a.name.slice(0, 31).trim()} (glued)`), chk = checkDesign(g.d);
@@ -5245,7 +5348,7 @@ async function glueMakes(a, b, place, who, c) {
   setGlue(glue - 1); squeeze();
   const sw = {}; for (const [k, v] of Object.entries(a.switches || {})) sw[k] = v; for (const [k, v] of Object.entries(b.switches || {})) sw[g.ren[k] || k] = v;
   const m = { id: Date.now(), name: chk.d.name, design: designText(chk.d), by: who, idea: `glued ${b.name} ${place === 'on' ? 'on top of' : place === 'under' ? 'under' : place} ${a.name}`, t: Date.now(), switches: sw, cells: (a.cells || 0) + (b.cells || 0) };
-  for (const x of [a, b]) { if (x.group) scene.remove(x.group); }
+  for (const x of [a, b]) { if (closeUp && closeUp.m === x) endCloseUp(); removeMakeObj(x); }
   makes = makes.filter(x => x !== a && x !== b); makes.push(m); attachMake(m); layoutMakes(); saveMakes();
   await sleep(600); squeeze();
   const t = `${who} super-glued "${b.name}" ${place === 'on' ? 'on top of' : place === 'under' ? 'underneath' : place === 'front of' ? 'in front of' : place === 'behind' ? 'behind' : 'to the ' + place} "${a.name}", making "${m.name}".`;
@@ -5515,12 +5618,13 @@ function renderWorkshop() {
     sw.onclick = () => toggleMake(m);
     stl.onclick = () => { if (!m.group) return; saveFile((m.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'thing') + '.stl', makeSTL(m)).then(ok => { if (ok && !FILES) toast('3D model saved'); }); };
     ds.onclick = () => openSheet(m.name, b => { b.append(el('p', 'hint', `Designed by ${m.by}${m.idea ? ` (asked for: ${m.idea})` : ''}. You can copy this, change it, and print your own version below.`), el('div', 'page', m.design)); });
-    rc.onclick = () => { if (!rc.dataset.sure) { rc.dataset.sure = 1; rc.textContent = 'Tap again'; setTimeout(() => { delete rc.dataset.sure; rc.textContent = 'Recycle'; }, 3000); return; } if (m.group) scene.remove(m.group); setCells(cells + (m.cells || 0)); makes = makes.filter(x => x !== m); layoutMakes(); saveMakes(); toast(`${m.name} recycled${m.cells ? ', batteries back in the box' : ''}`); };
+    rc.onclick = () => { if (!rc.dataset.sure) { rc.dataset.sure = 1; rc.textContent = 'Tap again'; setTimeout(() => { delete rc.dataset.sure; rc.textContent = 'Recycle'; }, 3000); return; } if (closeUp && closeUp.m === m) endCloseUp(); removeMakeObj(m); setCells(cells + (m.cells || 0)); makes = makes.filter(x => x !== m); layoutMakes(); saveMakes(); toast(`${m.name} recycled${m.cells ? ', batteries back in the box' : ''}`); };
     if (d && d.parts.some(p => p.type === 'button')) sw.textContent = 'Press';
     else if (d && !d.parts.some(p => p.type === 'switch')) sw.hidden = true;
     bt.append(sw);
     if (d && (d.logic.length || Object.keys(d.outs).length)) { const cb = el('button', '', 'Circuit'); cb.type = 'button'; cb.onclick = () => showCircuit(m, d); bt.append(cb); }
-    bt.append(stl, ds, rc); li.append(bt); ul.append(li);
+    const lk = el('button', '', 'Look closer'); lk.type = 'button'; lk.onclick = () => { sheet.hidden = true; stage.scrollIntoView({ behavior: 'smooth', block: 'start' }); lookCloser(m); };
+    bt.append(lk, stl, ds, rc); li.append(bt); ul.append(li);
   }
 }
 function pressMake(m, ids) {
@@ -6159,9 +6263,9 @@ async function showBook(x) {
     if (!down || down.id !== e.pointerId) return; const d0 = down; down = null;
     if (Math.hypot(e.clientX - d0.x, e.clientY - d0.y) > 10 || performance.now() - d0.t > 600) return;
     const r = renderer.domElement.getBoundingClientRect(); nd.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-    rc.setFromCamera(nd, camera);
-    const mh = rc.intersectObjects(makes.filter(m => m.group && m.group.visible).map(m => m.group), true)[0];
-    if (mh) { const m = makes.find(x => x.id === mh.object.userData.makeId); if (m) { toggleMake(m); return; } }
+    rc.setFromCamera(nd, viewCam());
+    const mh = rc.intersectObjects(makes.filter(m => m.wrap && m.wrap.visible).map(m => m.wrap), true)[0];
+    if (mh) { const m = makes.find(x => x.id === mh.object.userData.makeId); if (m) { if (closeUp && closeUp.m === m) toggleMake(m); else lookCloser(m); return; } }
     const shelfHit = rc.intersectObjects(shelfGroup.children, false)[0];
     if (shelfHit) { showShelf(shelfHit.object.userData.book); return; }
     const h = rc.intersectObjects(hits, false)[0]; if (h) h.object.userData.act();
@@ -6171,14 +6275,15 @@ async function showBook(x) {
     let lastMv = 0; const cv = renderer.domElement;
     cv.addEventListener('pointermove', e => {
       if (e.buttons || performance.now() - lastMv < 90) return; lastMv = performance.now();
-      const r = cv.getBoundingClientRect(); nd.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); rc.setFromCamera(nd, camera);
-      const over = !!(rc.intersectObjects(makes.filter(m => m.group && m.group.visible).map(m => m.group), true)[0] || rc.intersectObjects(shelfGroup.children, false)[0] || rc.intersectObjects(hits, false)[0]);
+      const r = cv.getBoundingClientRect(); nd.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); rc.setFromCamera(nd, viewCam());
+      const over = !!(rc.intersectObjects(makes.filter(m => m.wrap && m.wrap.visible).map(m => m.wrap), true)[0] || rc.intersectObjects(shelfGroup.children, false)[0] || rc.intersectObjects(hits, false)[0]);
       cv.classList.toggle('pointy', over);
     });
     cv.addEventListener('pointerleave', () => cv.classList.remove('pointy'));
   }
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) { sheet.hidden = true; e.preventDefault(); } });
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!sheet.hidden) { sheet.hidden = true; e.preventDefault(); } else if (closeUp) { endCloseUp(); e.preventDefault(); } else if (mainView >= 0) { setMainView(-1); e.preventDefault(); } });
+$('#cbBack').onclick = () => endCloseUp();
 /* ---------- Study shelf panel */
 function renderLibrary() {
   const ul = $('#libList'); if (!ul) return; ul.innerHTML = '';
@@ -6229,7 +6334,9 @@ function showWorkshop() {
       it.append(el('div', '', m.name), el('div', 'meta', `by ${m.by} · ${ago(m.t)} · ${d ? d.parts.map(p => p.type === 'chip' ? p.kind + ' chip' : p.type).join(', ') : ''}`));
       const bt = el('div', 'mbtns'), sw = el('button', '', 'Switch'), st = el('button', '', 'Save 3D model'); sw.type = st.type = 'button';
       sw.onclick = () => toggleMake(m); st.onclick = () => saveFile((m.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'thing') + '.stl', makeSTL(m)).then(ok => { if (ok && !FILES) toast('3D model saved'); });
-      bt.append(sw, st); it.append(bt); b.append(it);
+      const lk = el('button', '', 'Look closer'); lk.type = 'button'; lk.onclick = () => { sheet.hidden = true; lookCloser(m); };
+      if (m.prop && m.prop.holder) it.querySelector('.meta').textContent += ` · ${m.prop.holder.c.name} is holding it`; else if (m.away) it.querySelector('.meta').textContent += ` · on the ${(SURF[m.away.surf] || SURF.floor).label}`;
+      bt.append(lk, sw, st); it.append(bt); b.append(it);
     }
   });
 }
@@ -6385,7 +6492,7 @@ async function runLabAction(c, act) {
 renderMem(); loadMinds(); loadProjects(); loadLibrary(); loadBrowse(); loadMakes();
 radio.st = Math.max(0, Math.min(4, +store.get('radioSt', 0) || 0)); drawRadioDial();
 if (store.get('radioOn', false)) { const resume = () => { window.removeEventListener('pointerdown', resume); if (!radio.on) setRadio(true, radio.st); }; window.addEventListener('pointerdown', resume); }
-if (/[?&]debug\b/.test(location.search)) window.__pm = { THREE, camera, controls, scene, chars, renderer, doMusic, parseMusic, setRadio, radio, doStudy, showTypewriter, showComputer, showShelf, visitorPrint, doMake, toggleMake, makeSTL, glueMakes, pressMake, showCircuit, learnKnow, circuitSkills, showWorkshop, makeTime, recoverAI, begin, get running() { return running; }, get transcript() { return transcript; }, setBackend: (b, m) => { aiBackend = b; if (m) aiMode = m; }, get aiState() { return { aiBackend, aiMode, LITE, IGPU, GPU_NAME }; }, get glue() { return glue; }, get makes() { return makes; }, get library() { return library; }, get CONSOLE() { return CONSOLE; } };   // for testing only
+if (/[?&]debug\b/.test(location.search)) window.__pm = { THREE, camera, controls, scene, chars, renderer, doMusic, parseMusic, setRadio, radio, doStudy, showTypewriter, showComputer, showShelf, visitorPrint, doMake, toggleMake, makeSTL, glueMakes, pressMake, showCircuit, learnKnow, circuitSkills, showWorkshop, makeTime, recoverAI, begin, lookCloser, endCloseUp, setMainView, doHands, parseHands, syncMakeSpots, get closeUp() { return closeUp; }, get running() { return running; }, get transcript() { return transcript; }, setBackend: (b, m) => { aiBackend = b; if (m) aiMode = m; }, get aiState() { return { aiBackend, aiMode, LITE, IGPU, GPU_NAME }; }, get glue() { return glue; }, get makes() { return makes; }, get library() { return library; }, get CONSOLE() { return CONSOLE; } };   // for testing only
 const engSel = $('#engine'); if (!LLAMA) engSel.querySelector('option[value=native]').remove(); engSel.value = aiBackend;
 engSel.onchange = async () => {
   aiBackend = engSel.value; store.set('engine', aiBackend); running = false; await unloadAll(); loadedKey = '';
@@ -6396,7 +6503,7 @@ aiSel.onchange = () => { aiMode = aiSel.value; store.set('aimode', aiMode); toas
 const gfxSel = $('#gfx'); gfxSel.value = GFX_OFF ? 'off' : LITE ? 'lite' : 'full';
 gfxSel.onchange = () => { store.set('gfx', gfxSel.value); toast('Reloading to apply the graphics setting…'); setTimeout(() => location.reload(), 900); };
 const eyesSel = $('#eyes'); eyesSel.value = eyesOn ? '1' : '0'; stage.classList.toggle('eyes-off', !eyesOn);
-eyesSel.onchange = () => { eyesOn = eyesSel.value === '1'; store.set('eyes', eyesOn); stage.classList.toggle('eyes-off', !eyesOn); toast(eyesOn ? 'Showing what each robot sees' : 'Eye views hidden'); };
+eyesSel.onchange = () => { eyesOn = eyesSel.value === '1'; if (!eyesOn && mainView >= 0) setMainView(-1); store.set('eyes', eyesOn); stage.classList.toggle('eyes-off', !eyesOn); toast(eyesOn ? 'Showing what each robot sees' : 'Eye views hidden'); };
 function diagText() {
   let gl = 'unknown';
   try { const ctx = renderer.getContext && renderer.getContext(); if (ctx) { const ext = ctx.getExtension('WEBGL_debug_renderer_info'); gl = (ext ? ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ctx.getParameter(ctx.RENDERER)) + (ctx.isContextLost() ? ' (CONTEXT LOST)' : ''); } } catch (e) { gl = 'error: ' + e.message; }
