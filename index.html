@@ -4467,7 +4467,13 @@ function guardSay(c, o, res) {
 function noteActivity(c, o, res) {
   const act = activityOf(res), md = c.mind; md.explore = md.explore || {};
   c.hist = c.hist || []; c.hist.push({ act, place: c.place && c.place.key }); if (c.hist.length > 12) c.hist.shift();
-  if (!act) return;
+}
+// once the robot has actually done it (not just decided to): count it, and the first time, learn what the thing is for
+const FAILED_RE = /\b(wanted to|couldn't|could not|can't|wouldn't|fumbled|but it's busy|but the|but it was|but couldn't|but nothing|already finished|has read every|looked (along|on|for))\b/i;
+function markTried(c, o, act, msg) {
+  if (!act || mode !== 'ai') return;
+  if (msg && FAILED_RE.test(msg)) return;
+  const md = c.mind; md.explore = md.explore || {};
   const e = md.explore[act];
   if (!e) {
     const th = ROOM_THINGS.find(t => t.id === act);
@@ -4539,13 +4545,13 @@ async function loop() {
     if (c.speaking) { await Promise.race([c.speaking, sleep(30000)]); c.speaking = null; }
     await sleep(+$('#spd').value + (c.anim ? 1500 : 0));
     const report = msg => { if (!msg) return; transcript.push({ who: 'Room', text: msg }); if (transcript.length > 30) transcript.shift(); logNote(msg); };
-    if (res && res.hands) { try { const m = await doHands(c, o, res.hands); report(m); noteResult(c, o, `${res.hands.verb}:${res.hands.thing || '-'}`, m); } catch (e) { console.error(e); report(`${c.name} fumbled (${e.message}).`); } }
-    if (res && res.board) { try { const m = await doBoard(c, o, res.board); report(m); noteResult(c, o, `${res.board.verb}:-`, m); } catch (e) { console.error(e); report(`${c.name} couldn't use the whiteboard (${e.message}).`); } }
-    if (res && res.computer && running) { await useComputer(c, res.computer); await sleep(1500); }
-    if (res && res.make && running) { try { const m = await doMake(c, o, res.make); report(m); } catch (e) { console.error(e); report(`${c.name} couldn't use the 3D printer (${e.message}).`); } }
-    if (res && res.study && running) { try { const m = await doStudy(c, o, res.study); report(m); } catch (e) { console.error(e); report(`${c.name} couldn't study (${e.message}).`); } }
-    if (res && res.music && running) { try { const m = await doMusic(c, o, res.music); report(m); } catch (e) { console.error(e); report(`${c.name} couldn't play the console (${e.message}).`); } }
-    if (res && res.project && running) { try { const m = await doProject(c, o, res.project); report(m); } catch (e) { console.error(e); report(`${c.name} couldn't work on the project (${e.message}).`); } }
+    if (res && res.hands) { try { const m = await doHands(c, o, res.hands); report(m); noteResult(c, o, `${res.hands.verb}:${res.hands.thing || '-'}`, m); markTried(c, o, 'things', m); } catch (e) { console.error(e); report(`${c.name} fumbled (${e.message}).`); } }
+    if (res && res.board) { try { const m = await doBoard(c, o, res.board); report(m); noteResult(c, o, `${res.board.verb}:-`, m); markTried(c, o, 'whiteboard', m); } catch (e) { console.error(e); report(`${c.name} couldn't use the whiteboard (${e.message}).`); } }
+    if (res && res.computer && running) { await useComputer(c, res.computer); markTried(c, o, 'computer'); await sleep(1500); }
+    if (res && res.make && running) { try { const m = await doMake(c, o, res.make); report(m); markTried(c, o, res.make.glue ? 'glue' : 'printer', m); } catch (e) { console.error(e); report(`${c.name} couldn't use the 3D printer (${e.message}).`); } }
+    if (res && res.study && running) { try { const m = await doStudy(c, o, res.study); report(m); markTried(c, o, 'shelf', m); } catch (e) { console.error(e); report(`${c.name} couldn't study (${e.message}).`); } }
+    if (res && res.music && running) { try { const m = await doMusic(c, o, res.music); report(m); markTried(c, o, res.music.radio ? 'radio' : 'console', m); } catch (e) { console.error(e); report(`${c.name} couldn't play the console (${e.message}).`); } }
+    if (res && res.project && running) { try { const m = await doProject(c, o, res.project); report(m); markTried(c, o, 'typewriter', m); } catch (e) { console.error(e); report(`${c.name} couldn't work on the project (${e.message}).`); } }
     if (c.mind.impSince >= 45 && running && mindsReady) await reflect(c, o);
   }
   busy = false;
