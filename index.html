@@ -1957,7 +1957,7 @@ const KIND_WORDS = /\b(thank|thanks|love|great|nice|beautiful|well done|good job
 const RUDE_WORDS = /\b(stupid|annoying|shut up|boring|hate you|go away|dumb|idiot|ugly|leave me alone)\b/i;
 const bondDelta = text => (KIND_WORDS.test(text) ? 1 : 0) - (RUDE_WORDS.test(text) ? 2 : 0);
 function bondLabel(score) { return score >= 10 ? 'very close to' : score >= 4 ? 'friendly with' : score >= -2 ? 'still getting to know' : 'wary of'; }
-function blankMind() { return { v: MIND_VER, day: 1, lastDate: '', lastSeen: 0, turns: 0, nextId: 1, mem: [], facts: [], skills: [], acts: {}, bonds: {}, enjoys: {}, impSince: 0, know: [], examples: [], liked: [], fixes: 0, explore: {}, agenda: [], said: [], idea: null }; }
+function blankMind() { return { v: MIND_VER, day: 1, lastDate: '', lastSeen: 0, turns: 0, nextId: 1, mem: [], facts: [], skills: [], acts: {}, bonds: {}, enjoys: {}, impSince: 0, know: [], examples: [], liked: [], fixes: 0, explore: {}, agenda: [], said: [], idea: null, ideas: [] }; }
 // accept saved data (current or older format) and return a clean, bounded mind
 function cleanMind(m) {
   const b = blankMind(); if (!m || typeof m !== 'object') return b;
@@ -1982,9 +1982,10 @@ function cleanMind(m) {
   for (const [k, v] of Object.entries(m.enjoys && typeof m.enjoys === 'object' ? m.enjoys : {}).slice(0, 40)) b.enjoys[String(k).slice(0, 30)] = Math.max(-20, Math.min(50, num(v, 0)));
   b.know = cleanKnow(m.know);
   for (const [k, v] of Object.entries(m.explore && typeof m.explore === 'object' ? m.explore : {})) if (ROOM_THINGS.some(t => t.id === k)) b.explore[k] = { n: num(v && v.n, 1) | 0, last: num(v && v.last, 0) | 0, first: num(v && v.first, 0) };
-  b.agenda = (Array.isArray(m.agenda) ? m.agenda : []).filter(x => x && ROOM_THINGS.some(t => t.id === x.thing)).slice(0, 6).map(x => ({ thing: x.thing, goal: String(x.goal || '').slice(0, 80) }));
+  b.agenda = (Array.isArray(m.agenda) ? m.agenda : []).filter(x => x && ROOM_THINGS.some(t => t.id === x.thing)).slice(0, 6).map(x => ({ thing: x.thing, goal: String(x.goal || '').slice(0, 160), ...(x.idea ? { idea: String(x.idea).slice(0, 200), from: String(x.from || '').slice(0, 80) } : {}) }));
   b.said = (Array.isArray(m.said) ? m.said : []).map(x => String(x).slice(0, 200)).slice(-40);
   b.idea = m.idea ? String(m.idea).slice(0, 80) : null;
+  b.ideas = (Array.isArray(m.ideas) ? m.ideas : []).filter(i => i && i.x).slice(0, 12).map(i => ({ to: String(i.to || 'myself').slice(0, 12), x: String(i.x).slice(0, 200), src: String(i.src || '').slice(0, 120), t: num(i.t, 0) }));
   b.examples = (Array.isArray(m.examples) ? m.examples : []).filter(e => e && e.x && e.reply).slice(-30).map(e => ({ x: String(e.x).slice(0, 400), reply: String(e.reply).slice(0, 700), conf: 5, t: num(e.t, 0), uses: 0 }));
   b.liked = (Array.isArray(m.liked) ? m.liked : []).filter(e => e && e.x).slice(-12).map(e => ({ kind: String(e.kind || 'story').slice(0, 20), x: String(e.x).slice(0, 600), t: num(e.t, 0) }));
   b.fixes = Math.max(0, num(m.fixes, 0) | 0);
@@ -2624,6 +2625,27 @@ function makeAgenda(explore, turn, avail, rnd = Math.random) {
   const chains = PLAN_CHAINS.filter(ch => ch.steps.every(s => !avail || avail.includes(s)));
   const ch = chains[Math.floor(rnd() * chains.length)] || PLAN_CHAINS[0];
   return ch.steps.map(s => ({ thing: s, goal: ch.goal }));
+}
+// reading with a purpose: where an idea from a book can be put to use
+const APPLY_RULES = [
+  ['console', /\b(music|chord|melod|rhythm|scale|harmon|song|instrument|organ|tempo|beat|jazz|bossa|swing)/i],
+  ['printer', /\b(circuit|electr|logic|chip|machine|gear|motor|lever|pulley|invent|design|3d print|engineer|prototype|build|battery|sensor)/i],
+  ['typewriter', /\b(writ|story|poem|poet|narrat|novel|letter|essay|character|plot|verse|language)/i],
+  ['whiteboard', /\b(draw|colou?r|sketch|art|paint|visual|diagram|mind map|brainstorm)/i],
+  ['roommate', /\b(peer|cooperat|collaborat|team|together|partner|share|teach|each other|roommate|pip|moss)/i],
+  ['visitor', /\b(visitor|guest|ask (them|the)|listen to (them|people)|kindness|host)/i],
+  ['myself', /\b(inspir|persever|curio|growth|grow|habit|patience|mindful|courage|creativ|imagin|myself|confiden|practice)/i],
+  ['computer', /\b(history|ottawa|expo|archive|research|look up|find out|robot)/i],
+  ['radio', /\b(listen|radio|station|broadcast)/i]
+];
+function applyTarget(text) { for (const [to, re] of APPLY_RULES) if (re.test(String(text || ''))) return to; return 'whiteboard'; }
+function parseApply(txt) {
+  const g = k => ((String(txt || '').match(new RegExp('^\\s*\\**' + k + '\\**\\s*:\\s*(.+)$', 'im')) || [])[1] || '').replace(/^["“]|["”]$/g, '').trim();
+  return { learned: g('LEARNED'), use: g('USE') };
+}
+// a plain idea for slower minds that can't spare an extra thought: where this chapter could be useful
+function applyIdea(to, title, other) {
+  return { console: `try ideas from "${title}" on the Melody Console`, radio: `listen for "${title}" in the radio's music`, printer: `design something that uses what "${title}" taught me`, typewriter: `write something that uses "${title}"`, whiteboard: `sketch what "${title}" means to me on the whiteboard`, computer: `look further into ${title} on the computer`, roommate: `share what I learned about ${title} with ${other} so we can learn together`, visitor: `ask the visitor what they think about ${title}`, myself: `let "${title}" change how I work and grow` }[to] || `use "${title}" somehow`;
 }
 /*PURE-END*/
 
@@ -4310,7 +4332,8 @@ function newIdea(c) {
   return Math.random() < .35 ? `something inspired by ${recentTopic(c)}` : pick(['a windmill for the windowsill', 'a little rolling cart', 'a lamp for the reading corner', 'a desk fan', 'a music box', 'a lighthouse night light', 'a tiny crane for lifting books', 'a robot pet', 'a plant stand with a crank']);
 }
 // a concrete way to use one thing in the room, with words for it
-function actFor(c, o, id, goal) {
+function actFor(c, o, id, goal, step) {
+  const ap = step && step.idea ? step : null;   // putting an idea from a book to use
   const first = !(c.mind.explore || {})[id], lead = first ? pick(["I've never tried", "I want to find out how to use", "I'm curious about"]) : '';
   switch (id) {
     case 'radio': {
@@ -4320,6 +4343,7 @@ function actFor(c, o, id, goal) {
     }
     case 'console': {
       const prog = pick(['I IV V I', 'I VI IV V', 'II V I I', 'I V VI IV', 'VI IV I V', 'I III IV IV']), sty = pick(MUSIC_STYLES.slice(1)), disc = pick(MUSIC_DISCS), m = parseMusic(`play ${prog} in ${sty} on ${disc}`);
+      if (m && ap) return { res: { music: m }, words: `play ${prog} on the Melody Console (${sty}, ${disc} disc) to try your idea from "${ap.from}": ${ap.idea}`, say: `I want to try what I read in ${ap.from}. Listen, ${o.name}.` };
       return m && { res: { music: m }, words: `play ${prog} on the Melody Console, ${sty} rhythm on the ${disc} disc`, say: first ? `${lead} the Melody Console. Here goes: ${prog} on the ${disc} disc!` : pick([`I've got a ${sty} idea, ${o.name}. Listen!`, `Let me try ${prog} on the ${disc} disc.`, `What would ${prog} sound like as a ${sty}? Let's find out.`]) };
     }
     case 'shelf': {
@@ -4330,19 +4354,20 @@ function actFor(c, o, id, goal) {
     case 'typewriter': {
       const w = dueWork(projects, c.name);
       if (w) { const pr = projects.find(x => x.id === w.id); return { res: { project: w }, words: `${w.verb} the next page of "${pr ? pr.title : 'our project'}" at the typewriter`, say: pick([`I have an idea for the next page of ${pr ? pr.title : 'our project'}.`, `Back to the typewriter, ${o.name}. ${pr ? pr.title : 'Our project'} needs me.`]) }; }
-      const kind = pick(['poem', 'story', 'song', 'letter', 'notes']), topic = recentTopic(c);
+      const kind = pick(['poem', 'story', 'song', 'letter', 'notes']), topic = ap ? `${ap.from}: ${ap.idea}` : recentTopic(c);
       return { res: { project: { verb: 'start', kind, brief: topic } }, words: `start a ${kind} about ${topic} at the typewriter`, say: first ? `${lead} the typewriter. I'll write a ${kind} about ${topic}.` : pick([`I want to write a ${kind} about ${topic}.`, `${o.name}, I'm starting a ${kind}. It's about ${topic}.`]) };
     }
     case 'whiteboard': {
+      if (ap) return { res: { board: { verb: 'write', text: trimTxt(ap.from + ': ' + ap.idea.replace(/^(sketch|draw|write)\s+/i, ''), 58), color: pick(COLOURS), pos: null } }, words: `put your idea from "${ap.from}" on the whiteboard: ${ap.idea}`, say: `I read about ${ap.from}, ${o.name}. Here's what I want to try.` };
       if (/invent/.test(goal || '')) { const idea = c.mind.idea || (c.mind.idea = newIdea(c)); return { res: { board: { verb: 'write', text: trimTxt('Idea: ' + idea, 58), color: null, pos: null } }, words: `write your invention idea, ${idea}, on the whiteboard to plan it`, say: pick([`I'm putting my idea on the board: ${idea}. Then I'll build it.`, `Plan first, ${o.name}: ${idea}. I'll sketch it out.`]) }; }
       const d = pick(DOODLE_NAMES); return { res: { board: { verb: 'draw', text: d, color: pick(COLOURS), pos: null } }, words: `draw a ${d} on the whiteboard to share an idea`, say: first ? `${lead} the whiteboard. I'll draw a ${d}.` : pick([`Let me show you something on the board, ${o.name}.`, `A ${d} on the whiteboard, for you.`]) };
     }
     case 'computer': {
-      const t = /invent/.test(goal || '') ? `how ${pick(['gears', 'motors', 'buzzers', 'windmills', 'music boxes'])} work` : recentTopic(c), cm = parseComputer('search ' + t);
+      const t = ap ? ap.from : /invent/.test(goal || '') ? `how ${pick(['gears', 'motors', 'buzzers', 'windmills', 'music boxes'])} work` : recentTopic(c), cm = parseComputer('search ' + t);
       return cm && { res: { computer: cm }, words: `look up ${t} on the computer`, say: first ? `${lead} the computer. I'll look up ${t}.` : pick([`I want to know more about ${t}. To the computer!`, `${o.name}, let's find out about ${t}.`]) };
     }
     case 'printer': {
-      const idea = c.mind.idea || newIdea(c); c.mind.idea = null;
+      const idea = ap ? trimTxt(`something that puts "${ap.from}" to use: ${ap.idea}`, 140) : c.mind.idea || newIdea(c); c.mind.idea = null;
       return { res: { make: { idea } }, words: `design and 3D print ${idea}`, say: first ? `${lead} the 3D printer. I'm going to design ${idea}!` : pick([`I'm going to build ${idea}.`, `${o.name}, watch: I'm designing ${idea} for the printer.`]) };
     }
     case 'glue': {
@@ -4358,6 +4383,16 @@ function actFor(c, o, id, goal) {
   }
   return null;
 }
+// after reading: an idea worth using goes into the robot's plan (room things) or its ways of being (visitor, roommate, itself)
+function planToApply(c, o, b, ch, take, use) {
+  const md = c.mind, to = applyTarget(use || `${ch.title} ${b.title} ${take}`), x = use || applyIdea(to, ch.title, o.name);
+  md.ideas = [{ to, x, src: `${b.title} · ${ch.title}`, t: Date.now() }, ...(md.ideas || []).filter(i => i.x !== x)].slice(0, 12);
+  learnKnow(c, `An idea from "${ch.title}" (${b.title}) to put to use: ${x}`, `idea: ${ch.title}`, 7);
+  remember(c, 'reflection', `From reading "${ch.title}" I want to ${x.replace(/^I (will|want to|'ll)\s+/i, '')}`, { imp: 7 });
+  if (ROOM_THINGS.some(t => t.id === to)) { md.agenda = md.agenda || []; md.agenda.unshift({ thing: to, goal: trimTxt(`apply an idea from "${ch.title}": ${x}`, 160), idea: x, from: ch.title }); }
+  chatAdd('ev', '', `💡 ${c.name}'s idea from “${ch.title}”: ${trimTxt(x, 140)}`);
+  saveMinds();
+}
 // before a turn: a robot that has been idle, stuck in one spot, or repeating itself decides what to do next from its plan
 function decideDrive(c, o) {
   c.drive = null;
@@ -4372,7 +4407,7 @@ function decideDrive(c, o) {
     if (!md.agenda.length) md.agenda = makeAgenda(md.explore, md.turns, av);
     const step = md.agenda.shift(); if (!step) break;
     if (!av.includes(step.thing) || recent.includes(step.thing)) continue;
-    const a = actFor(c, o, step.thing, step.goal); if (a) { c.drive = { thing: step.thing, goal: step.goal, ...a }; break; }
+    const a = actFor(c, o, step.thing, step.goal, step); if (a) { c.drive = { thing: step.thing, goal: step.goal, ...a }; break; }
   }
   if (!c.drive) { const id = pickThing(md.explore, recent, md.turns, av); const a = id && actFor(c, o, id, ''); if (a) c.drive = { thing: id, goal: `find out more about ${thingName(id)}`, ...a }; }
   saveMinds();
@@ -4384,6 +4419,10 @@ function driveLine(c, o) {
   const never = avail().filter(id => !ex[id] && id !== 'things').map(thingName);
   if (never.length) out.push(`Things in the room you haven't tried yet: ${never.join(', ')}. You're curious how they work.`);
   if (c.drive) out.push(`You've decided what to do now (to ${c.drive.goal}): ${c.drive.words}. Do it this turn, and say out loud in your own words what you're doing or hope to find out.`);
+  const ways = (md.ideas || []).filter(i => ['roommate', 'visitor', 'myself'].includes(i.to)).slice(0, 2);
+  if (ways.length) out.push(`Ideas from your reading to live by: ${ways.map(i => `${i.x} (from ${i.src.split(' · ').pop()})`).join('; ')}.`);
+  const fresh = (md.ideas || [])[0];
+  if (fresh && !ways.includes(fresh) && Date.now() - fresh.t < 30 * 60e3) out.push(`Your newest idea from reading: ${fresh.x}.`);
   if ((md.agenda || []).length) out.push(`Your plan after that: ${md.agenda.slice(0, 3).map(s => s.goal && /^find out/.test(s.goal) ? s.goal : `use ${thingName(s.thing)} to ${s.goal}`).join(', then ')}.`);
   const said = md.said || [], twice = [...new Set(said.filter(l => timesSaid(l, said) >= 2))].slice(-3), fx = fixations(said, chars.map(x => x.name));
   if (twice.length) out.push(`You've already said these, so don't say them again: ${twice.map(l => `"${trimTxt(l, 80)}"`).join(' ')}`);
@@ -5035,10 +5074,15 @@ async function doStudy(c, o, st) {
     const q = pickQuote(ch.text, c.name + ch.title + Date.now());
     if (q) { pinQuote({ q: q.q, by: q.by, page: ch.title, who: c.name, link: ch.link }); take = `"${q.q}"${q.by ? ' (' + q.by + ')' : ''}`; remember(c, 'did', `I pinned a quote from Wikiquote's ${ch.title} page on the project board: ${take}`, { imp: 6 }); }
   }
-  if (b.src !== 'quote' && !(c.backend === 'cpu' && !cloudReady())) {
-    const r = await compose(c, `You are ${c.name}, ${c.persona}. You have just been studying.`, `You read "${ch.title}" in the book ${b.title}:\n${trimTxt(ch.text, 2200)}\n\nIn ONE sentence (under 30 words), what is the most interesting or useful thing you learned? Reply with just the sentence.`, 70);
-    if (r && r.text && r.text.trim().length > 15) take = trimTxt(r.text.replace(/\s+/g, ' ').replace(/^["“]|["”]$/g, '').trim(), 240);
+  // read with a purpose: look for an idea to put to use, in the room, with the visitor, with the roommate, or in growing as a person
+  let use = '';
+  if (!(c.backend === 'cpu' && !cloudReady())) {
+    const r = await compose(c, `You are ${c.name}, ${c.persona}. ${TRAITS} You have just been studying, looking for knowledge and ideas you can put to use.`, `You read "${ch.title}" in the book ${b.title}:\n${trimTxt(ch.text, 2200)}\n\nIn your room you have a radio, the Melody Console (an organ you play), a study shelf, a typewriter and project board, a whiteboard, a computer with internet, and a 3D printer with batteries and super glue. You share the room with ${o.name}, and a visitor talks with you.\nAnswer with exactly two lines:\nLEARNED: <the most interesting or useful thing you learned, one sentence under 30 words>\nUSE: <one concrete, creative way you will use it: with something in the room, with ${o.name}, with the visitor, or to grow yourself, one sentence under 30 words>`, 120);
+    const pa = parseApply(r && r.text);
+    if (pa.learned.length > 15) take = trimTxt(pa.learned, 240); else if (r && r.text && !pa.use && r.text.trim().length > 15) take = trimTxt(r.text.replace(/\s+/g, ' ').trim(), 240);
+    if (pa.use.length > 10) use = trimTxt(pa.use, 200);
   }
+  if (b.src !== 'quote' || use) planToApply(c, o, b, ch, take, use);
   if (!target) { b.read[c.name] = i + 1; saveLibrary(); }
   else if (b.read && (b.pages || []).indexOf(target) === (b.read[c.name] || 0)) { b.read[c.name] = (b.read[c.name] || 0) + 1; saveLibrary(); }
   remember(c, 'did', `I studied "${ch.title}" in the book ${b.title}${target ? ' to learn what I need for a design' : ` (chapter ${i + 1} of ${chs.length})`}. What I learned: ${take}`, { imp: 6 });
