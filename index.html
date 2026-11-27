@@ -614,7 +614,7 @@ const consoleRoot = new THREE.Group(); consoleRoot.position.set(2.5, 0, -4.12); 
   // --- the gallery's helpers and settings, as the console expects them
   const isTouch = PHONE || matchMedia('(pointer:coarse)').matches;
   const FONT = 'Futura, "Century Gothic", "Avenir Next", "Trebuchet MS", Arial, sans-serif';
-  const LOOKAHEAD = isTouch ? 0.4 : 0.15;
+  const LOOKAHEAD = isTouch ? 0.5 : 0.3;   // schedule well ahead so a busy moment (3D, AI thinking) doesn't leave a gap
   const ALCOVE_COL = [null, '#ff6a00', '#ff1f8f', '#ffd000', '#66e000', '#00d0b0', '#8a4bff', '#1f6bff', '#ff3030', '#00b7ff', '#c400ff', '#ff9a5a'];
   const NOTE_SEMI = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];      // the gallery's keys, round the circle of fifths
   const org = { root: 0, mood: 0 };                               // C, Bright
@@ -4941,10 +4941,14 @@ function radioBed(a, S) {   // continuous texture: rain and crackle, or wind
 function radioTick() {
   const a = audio(); if (!a || !radio.on) return;
   const S = STATIONS[radio.st], sixteenth = 60 / S.bpm / 4;
-  const duck = (CONSOLE && CONSOLE.playing() ? .3 : 1) * (chars.some(c => c.speaking || c.tts) ? .55 : 1);
-  radio.out.gain.setTargetAtTime(radio.vol * .55 * duck, a.currentTime, .25);
-  if (radio.t < a.currentTime) radio.t = a.currentTime + .05;
-  while (radio.t < a.currentTime + .35) { radioStep(a, radio.t); radio.t += sixteenth; }
+  // while the Melody Console plays, the radio rests (fades out and stops making notes): two bands at once overloads a phone's sound and makes both choppy
+  const consoleOn = !!(CONSOLE && CONSOLE.playing());
+  const duck = consoleOn ? 0 : (chars.some(c => c.speaking || c.tts) ? .55 : 1);
+  radio.out.gain.setTargetAtTime(radio.vol * .55 * duck, a.currentTime, consoleOn ? .15 : .4);
+  if (consoleOn) { radio.resting = true; radio.t = a.currentTime + .6; return; }
+  if (radio.resting) { radio.resting = false; radio.step -= radio.step % (S.beats * 4); }   // pick the tune up again at the start of a bar
+  if (radio.t < a.currentTime - .1) radio.t = a.currentTime + .05;   // fell behind: skip ahead rather than burst
+  while (radio.t < a.currentTime + .6) { radioStep(a, radio.t); radio.t += sixteenth; }
 }
 function setRadio(on, st, who) {
   if (st != null) radio.st = ((st % 5) + 5) % 5;
@@ -4953,7 +4957,7 @@ function setRadio(on, st, who) {
   if (radio.on && a) {
     radio.step = 0; radio.t = a.currentTime + .1; radio.seed = (Math.random() * 1e6) | 0; radio.deg = null; radio.prevLead = null;
     radioBed(a, STATIONS[radio.st]);
-    if (!radio.timer) radio.timer = setInterval(radioTick, 60);
+    if (!radio.timer) radio.timer = setInterval(radioTick, 100);
   } else {
     if (radio.timer) { clearInterval(radio.timer); radio.timer = null; }
     if (radio.out && a) radio.out.gain.setTargetAtTime(0, a.currentTime, .15);
